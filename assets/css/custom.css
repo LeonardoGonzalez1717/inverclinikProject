@@ -37,6 +37,8 @@ body {
 
 .text-center {
     text-align:center;
+    display: flex;
+    align-items: end;
 }
 .user-image-back {
     background-color:#8B7BFF;

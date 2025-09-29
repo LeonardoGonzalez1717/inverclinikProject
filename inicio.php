@@ -1,4 +1,57 @@
-﻿<?php require_once "template/header.php" ?>
+﻿<?php 
+require_once "template/header.php";
+require_once 'helpers/Modal.php';
+
+$id = $_GET['iduser'] ?? 1;
+$sql = "SELECT * from users where id = $id";
+$result = mysqli_query($conn, $sql);
+$row = mysqli_fetch_assoc($result);
+
+$formularioCrearUsuario = '
+    <form id="formCrearUsuario">
+        <div class="form-group">
+            <label for="username">Nombre de usuario</label>
+            <input type="text" class="form-control" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="correo">Correo electrónico</label>
+            <input type="email" class="form-control" id="correo" name="correo" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Contraseña</label>
+            <input type="password" class="form-control" id="password" name="password" required>
+        </div>
+    </form>
+';
+
+$footerCrearUsuario = '
+    <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+    <button type="button" class="btn btn-primary" id="guardarUsuario">Guardar</button>
+';
+
+
+$botonesUsuario = [
+    ['texto' => 'Ver Perfil', 'icono' => 'fa-user', 'clase' => '', 'onclick' => 'verPerfil()'],
+    ['texto' => 'Gestionar Usuarios', 'icono' => 'fa-cog', 'clase' => '', 'onclick' => 'gestionarUsuario()'],
+    ['texto' => 'Editar Perfil', 'icono' => 'fa-pencil', 'clase' => '', 'onclick' => 'abrirEditarPerfil(usuarioActual)'],
+    ['texto' => 'Cambiar Contraseña', 'icono' => 'fa-lock', 'clase' => '', 'onclick' => 'cambiarPass()'],
+    ['texto' => 'Crear nuevo usuario', 'icono' => 'fa-plus', 'clase' => 'text-danger', 'data_toggle' => 'modal', 'data_target' => '#crearUsuarioModal'],
+    ['texto' => 'Cerrar Sesión', 'icono' => 'fa-sign-out', 'clase' => 'text-danger', 'onclick' => 'cerrarSesion()']
+];
+
+echo Modal::crear([
+    'id' => 'userManagementModal',
+    'titulo' => 'Gestión de Usuario',
+    'mensaje' => '¿Qué deseas hacer?',
+    'botones' => $botonesUsuario
+]);
+echo Modal::crear([
+    'id' => 'crearUsuarioModal',
+    'titulo' => 'Crear Nuevo Usuario',
+    'contenido' => $formularioCrearUsuario,
+    'footer' => $footerCrearUsuario
+]);
+?>
 <body>
     <div id="wrapper">
         <div class="navbar navbar-inverse navbar-fixed-top">
@@ -25,9 +78,9 @@
         <nav class="navbar-default navbar-side" style="top:50px" role="navigation">
             <div class="sidebar-collapse">
                 <ul class="nav" id="main-menu">
-                    <li class="text-center user-image-back" onclick="userManagement()">
+                    <li class="text-center user-image-back" style="display:flex; align-items:end; cursor: pointer;" onclick="userManagement()">
                         <img src="assets/img/find_user.png" class="img-responsive" />
-                     
+                        <span style="font-size:20px; font-weight:400; color:#fff">Hola, <?=$row['username']?></span>
                     </li>
 
 
@@ -378,32 +431,134 @@
 
                     </div>
                 </div>
-                <!-- /. ROW  -->
 
             </div>
-            <!-- /. PAGE INNER  -->
         </div>
-        <!-- /. PAGE WRAPPER  -->
+        
     </div>
     <?php require 'template/footer.php' ?>
 
-    <!-- /. WRAPPER  -->
-    <!-- SCRIPTS -AT THE BOTOM TO REDUCE THE LOAD TIME-->
-    <!-- JQUERY SCRIPTS -->
     <script src="assets/js/jquery-1.10.2.js"></script>
-    <!-- BOOTSTRAP SCRIPTS -->
+
     <script src="assets/js/bootstrap.min.js"></script>
-    <!-- METISMENU SCRIPTS -->
+
     <script src="assets/js/jquery.metisMenu.js"></script>
-    <!-- CUSTOM SCRIPTS -->
+
     <script src="assets/js/custom.js"></script>
 
 
 </body>
 </html>
-
 <script>
-    function userManagement(){
-        console.log("asd")
+    // Datos del usuario actual (para edición)
+    const usuarioActual = {
+        id: <?= (int)$row['id'] ?>,
+        username: <?= json_encode($row['username']) ?>,
+        correo: <?= json_encode($row['email'] ?? $row['correo']) ?>
+    };
+</script>
+<script>
+    // Modo actual del modal: 'crear' o 'editar'
+    let modoModal = 'crear';
+
+    function userManagement() {
+        $('#userManagementModal').modal('show');
+    }
+
+    // Abrir modal en modo CREAR
+    $('#crearUsuarioModal').on('show.bs.modal', function () {
+        if (modoModal === 'crear') {
+            $('#userManagementModal').modal('hide');
+            $('#crearUsuarioModalLabel').text('Crear Nuevo Usuario');
+            $('#guardarUsuario').text('Guardar').removeClass('btn-warning').addClass('btn-primary');
+            $('#password').closest('.form-group').show(); // Mostrar campo de contraseña
+            $('#formCrearUsuario')[0].reset();
+        }
+    });
+
+    // Limpiar al cerrar
+    $('#crearUsuarioModal').on('hidden.bs.modal', function () {
+        modoModal = 'crear';
+        $('#password').closest('.form-group').show();
+    });
+
+    // ✅ NUEVA FUNCIÓN: Abrir modal en modo EDICIÓN
+    function abrirEditarPerfil(usuario) {
+        modoModal = 'editar';
+        
+        // Llenar los campos
+        $('#username').val(usuario.username);
+        $('#correo').val(usuario.correo);
+        
+        // Ocultar campo de contraseña (opcional, o puedes dejarlo para cambiarla)
+        $('#password').closest('.form-group').hide();
+        
+        // Cambiar título y botón
+        $('#crearUsuarioModalLabel').text('Editar Perfil');
+        $('#guardarUsuario')
+            .text('Actualizar')
+            .removeClass('btn-primary')
+            .addClass('btn-warning');
+        
+        // Mostrar el modal
+        $('#crearUsuarioModal').modal('show');
+    }
+
+    // Manejar el clic en "Guardar/Actualizar"
+    $("#guardarUsuario").click(function() {
+        const username = $("#username").val();
+        const correo = $("#correo").val();
+        const password = $("#password").val();
+
+        if (!username || !correo) {
+            alert("Completa todos los campos obligatorios");
+            return;
+        }
+
+        if (modoModal === 'crear') {
+            if (!password) {
+                alert("La contraseña es obligatoria al crear un usuario");
+                return;
+            }
+            // Crear nuevo usuario
+            $.post("user_options/crear_usuario_data.php", {
+                username: username,
+                correo: correo,
+                password: password
+            }, function(resp) {
+                if (resp.success) {
+                    alert("Usuario creado");
+                    $("#crearUsuarioModal").modal("hide");
+                } else {
+                    alert("Error: " + resp.message);
+                }
+            }, "json");
+        } else if (modoModal === 'editar') {
+            // Actualizar usuario actual
+            $.post("user_options/actualizar_usuario_data.php", {
+                id: usuarioActual.id,
+                username: username,
+                correo: correo
+                // Si quieres permitir cambiar contraseña, descomenta:
+                // password: password || null
+            }, function(resp) {
+                if (resp.success) {
+                    alert("Perfil actualizado");
+                    $("#crearUsuarioModal").modal("hide");
+                    // Opcional: actualizar el nombre en la barra lateral
+                    $('.user-image-back span').text('Hola, ' + username);
+                } else {
+                    alert("Error: " + resp.message);
+                }
+            }, "json");
+        }
+    });
+
+    function gestionarUsuario(){
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = 'users_management.php';
+        document.body.appendChild(form);
+        form.submit();
     }
 </script>

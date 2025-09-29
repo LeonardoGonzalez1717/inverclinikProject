@@ -37,7 +37,7 @@
             data: datos,
             success: function(resp) {
                 if(resp.success){
-                    window.location.href = "inicio.php";
+                    window.location.href = "inicio.php?iduser=" + resp.id;
                     $("#resultado").html("<p style='color:green;'>"+resp.message+"</p>");
                 } else {
                     $("#resultado").html("<p style='color:red;'>"+resp.message+"</p>");

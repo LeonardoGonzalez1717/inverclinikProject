@@ -1,5 +1,5 @@
 <?php
-include 'connection.php';
+include 'connection/connection.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
