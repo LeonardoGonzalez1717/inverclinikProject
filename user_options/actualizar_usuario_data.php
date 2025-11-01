@@ -15,7 +15,6 @@ if (!$id || !$username || !$correo) {
     exit;
 }
 
-// Validar que el correo o username no estén en uso por otro usuario
 $sql_check = "SELECT id FROM users WHERE (username = ? OR correo = ?) AND id != ?";
 $stmt_check = $conn->prepare($sql_check);
 $stmt_check->bind_param("ssi", $username, $correo, $id);

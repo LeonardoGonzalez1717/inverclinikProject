@@ -1,3 +1,4 @@
+<?php require 'connection/connection.php' ?>
 <?php require_once "template/header.php" ?>
 <body>
     <div class="background">

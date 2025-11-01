@@ -1,4 +1,17 @@
-<?php require 'connection/connection.php' ?>
+<?php
+if (!defined('ROOT_PATH')) {
+    $levels = 3;
+    $path = __DIR__;
+    for ($i = 0; $i < $levels; $i++) {
+        if (file_exists($path . '/config.php')) {
+            require_once $path . '/config.php';
+            break;
+        }
+        $path = dirname($path);
+    }
+}
+require_once ROOT_PATH . '/connection/connection.php';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,11 +19,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>INVERCLINIK</title>
     <link rel="stylesheet" href="index.css">
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
+    <link href="../assets/css/bootstrap.css" rel="stylesheet" />
 
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
+    <link href="../assets/css/font-awesome.css" rel="stylesheet" />
 
-    <link href="assets/css/custom.css" rel="stylesheet" />
+    <link href="../assets/css/custom.css" rel="stylesheet" />
 
     <link href='http://fonts.googleapis.com/css?family=Open+Sans' rel='stylesheet' type='text/css' />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
