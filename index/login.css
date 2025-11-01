@@ -1,0 +1,79 @@
+/* INICIO SESION */
+
+/* Fondo general */
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(to bottom, #005bbe, #003a7e);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* Contenedor principal */
+.login-container {
+  width: 100%;
+  max-width: 400px;
+  background-color: #ffffff;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+/* Título */
+.login-box h1 {
+  text-align: center;
+  color: #005bbe;
+  margin-bottom: 30px;
+}
+
+/* Etiquetas */
+form label {
+  display: block;
+  margin-bottom: 5px;
+  color: #333;
+  font-weight: 500;
+}
+
+/* Campos de entrada */
+form input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 1em;
+}
+
+/* Botón de login */
+.btn-login {
+  width: 100%;
+  background-color: #005bbe;
+  color: #fff;
+  border: none;
+  padding: 12px;
+  font-size: 1em;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.btn-login:hover {
+  background-color: #337fd6;
+}
+
+/* Enlace de recuperación */
+.forgot-link {
+  display: block;
+  text-align: center;
+  margin-top: 15px;
+  color: #000000;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.forgot-link:hover {
+  color: #ffe55c;
+}
+/* FIN INICIO SESION */
