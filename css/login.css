@@ -13,12 +13,13 @@ body {
 
 /* Contenedor principal */
 .login-container {
-  width: 100%;
-  max-width: 400px;
-  background-color: #ffffff;
-  padding: 40px;
+  background-color: #fff;
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  padding: 30px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2); /* sombra profunda */
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
 }
 
 /* Título */
@@ -74,6 +75,51 @@ form input {
 }
 
 .forgot-link:hover {
-  color: #ffe55c;
+  color: #337fd6;
+}
+
+.login-container {
+  max-width: 400px;
+  margin: 80px auto;
+  padding: 30px;
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.login-logo img {
+  width: 120px;
+  margin-bottom: 20px;
+}
+
+.login-container h2 {
+  color: #005bbe;
+  margin-bottom: 20px;
+  font-weight: bold;
+}
+
+.login-container input {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 16px;
+}
+
+.login-container button {
+  background-color: #f3c924;
+  color: #000;
+  border: none;
+  padding: 12px 20px;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.login-container button:hover {
+  background-color: #ffe066;
 }
 /* FIN INICIO SESION */

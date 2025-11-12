@@ -1,33 +1,28 @@
-<?php require 'connection/connection.php' ?>
-<?php require_once "template/header.php" ?>
+<?php require_once('template/header.php');?>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="css/login.css" />
+</head>
 <body>
-    <div class="background">
-        <div class="login">
-            <div class="login-form">
-                <div class="login-input">
-                   <form action="" id="formi" method="post">
-                    <h1>Iniciar Sesión</h1>
-                    <div class="button-radius">
-                        <div class="input">
-                            <input type="text" name="usuario" placeholder="Usuario" required>
-                            <i class="fa-solid fa-user"></i>
-                        </div>
-                        <div class="input">
-                            <input type="password" name="clave" placeholder="Contraseña" required>
-                            <i class="fa-solid fa-lock"></i>
-                        </div>
-                    </div>
-                    <div class="button-options">
-                        <button id="confirm" class="confirm" type="submit">ENVIAR</button>
-                        <button id="cancel" class="cancel" type="button">CANCELAR</button>
-                    </div>
-                   </form>
-                   <div id="resultado"></div>
-                </div>
-            </div>
-        </div>
+  <div class="login-container">
+      <div class="login-logo">
+        <img src="assets/img/inverclinik_3.png" alt="INVERCLINIK" />
+      </div>
+
+      <h2>Bienvenido a INVERCLINIK</h2>
+
+      <form method="POST" action="validar_login.php">
+        <input type="text" name="usuario" placeholder="Usuario" required />
+        <input type="password" name="clave" placeholder="Contraseña" required />
+        <button type="submit">Iniciar sesión</button>
+        <a href="#" class="forgot-link">¿Olvidaste tu contraseña?</a>
+      </form>
+      <div id="resultado"></div>
     </div>
 </body>
+</html>
 <script>
     $("#confirm").click(function(event){
         event.preventDefault();
@@ -36,9 +31,10 @@
             url: "index_data.php",
             type: "POST",              
             data: datos,
+            dataType: "json",
             success: function(resp) {
                 if(resp.success){
-                    window.location.href = "inicio.php?iduser=" + resp.id;
+                    window.location.href = "dashboard/dashboard.php?iduser=" + resp.id;
                     $("#resultado").html("<p style='color:green;'>"+resp.message+"</p>");
                 } else {
                     $("#resultado").html("<p style='color:red;'>"+resp.message+"</p>");

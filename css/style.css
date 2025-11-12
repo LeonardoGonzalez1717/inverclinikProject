@@ -91,10 +91,9 @@ body {
   border-color: #f3c924;
 }
 /* Panel principal */
-.main-panel {
-  flex: 1;
+.main-content {
+  margin-left: 240px;
   padding: 30px;
-  overflow-y: auto;
 }
 
 /* Panel de alertas */
