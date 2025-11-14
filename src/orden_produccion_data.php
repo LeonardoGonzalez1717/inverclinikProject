@@ -1,15 +1,11 @@
 <?php
-// Desactivamos el encabezado JSON para esta acción
-// Lo haremos condicional
-
 require_once "../connection/connection.php";
 
 $action = $_POST['action'] ?? '';
 
 try {
-    // Si la acción es para devolver HTML, no usamos JSON
     if ($action === 'listar_html') {
-        // No enviar encabezado JSON
+
         $sql = "
             SELECT 
                 op.id AS orden_id,
@@ -32,10 +28,10 @@ try {
                 $ordenes[] = $row;
             }
         }
-
-        // Devolver HTML directamente
+        $i = 0;
         if (!empty($ordenes)) {
             foreach ($ordenes as $o) {
+                $i++;
                 $badgeClass = match($o['estado']) {
                     'finalizado' => 'success',
                     'en_proceso' => 'warning',
@@ -43,7 +39,7 @@ try {
                     default => 'danger'
                 };
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($o['orden_id']) . '</td>';
+                echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';

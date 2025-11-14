@@ -3,12 +3,12 @@
     <div class="logo"><a href="../dashboard/dashboard.php" title="Inicio"> INVERCLINIK</a></div>
     <nav>
         <ul>
-            <li><a href="ventas.php">Ventas</a></li>
-            <li><a href="../src/nuevo_producto.php">Producción</a></li>
-            <li><a href="../src/orden_produccion.php">Inventario</a></li>
-            <li><a href="compras.php">Compras</a></li>
-            <li><a href="pendientes.php">Pendientes</a></li>
-            <li><a href="reportes.php">Reportes</a></li>
+            <!-- <li><a href="ventas.php">Ventas</a></li> -->
+            <li><a href="../src/nuevo_producto.php">Recetas</a></li>
+            <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
+            <!-- <li><a href="compras.php">Compras</a></li> -->
+            <!-- <li><a href="pendientes.php">Pendientes</a></li> -->
+            <!-- <li><a href="reportes.php">Reportes</a></li> -->
         </ul>
     </nav>
     <div class="perfil">

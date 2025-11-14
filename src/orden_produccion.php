@@ -1,6 +1,9 @@
-<?php require_once "../template/header.php"; ?>
+<?php 
+// require_once "../template/header.php"; 
+?> 
 <?php
 require_once "../connection/connection.php";
+require_once "../template/navbar.php"; // Incluir la navbar
 
 $sqlRecetas = "
     SELECT rp.id, p.nombre AS producto_nombre, rt.nombre_rango AS rango_tallas_nombre
@@ -40,181 +43,248 @@ if ($resultOrdenes) {
     }
 }
 ?>
-<div class="navbar navbar-inverse navbar-fixed-top">
-            <div class="adjust-nav">
-                <div class="navbar-header">
-                    <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".sidebar-collapse">
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                        <span class="icon-bar"></span>
-                    </button>
-                    <a class="navbar-brand" href="#"><i class="fa fa-square-o "></i>&nbsp;TWO PAGE</a>
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Órdenes de Producción</title>
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="stylesheet" href="../css/navbar.css" />
+    <script src="../assets/js/jquery-3.7.1.min.js"></script>
+
+    <style>
+        /* Estilos generales */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Contenedor principal */
+        .container-wrapper {
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container-inner {
+            background-color: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Encabezados */
+        .main-title {
+            color: #0056b3; /* Azul principal */
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+            border-bottom: 3px solid #ffc107; /* Amarillo */
+            padding-bottom: 15px;
+        }
+
+        .subtitle {
+            color: #004085; /* Azul oscuro */
+            font-size: 18px;
+            text-align: center;
+            margin-top: 0;
+            margin-bottom: 25px;
+        }
+
+        /* Tabla */
+        .orders-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .orders-table th {
+            background-color: #0056b3; /* Azul principal */
+            color: white;
+            font-weight: bold;
+            padding: 14px;
+            text-align: left;
+        }
+
+        .orders-table td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .orders-table tr:nth-child(even) {
+            background-color: #f2f7ff; /* Azul claro */
+        }
+
+        .orders-table tr:hover {
+            background-color: #e7f3ff; /* Azul muy claro */
+        }
+
+        /* Mensaje cuando no hay datos */
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        /* Estilo para el contenedor de la tabla */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+
+        /* Botones */
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        /* Formulario */
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .mb-3 {
+            margin-bottom: 15px;
+        }
+
+        /* Botones del formulario */
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+
+        /* Vista oculta */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-content">
+        <div class="container-wrapper">
+            <div class="container-inner">
+                <h2 class="main-title">Órdenes de Producción</h2>
+                
+                <div class="row mb-3" id="vista-botones">
+                    <div class="col-md-12">
+                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Orden</button>
+                    </div>
                 </div>
-                <div class="navbar-collapse collapse">
-                    <ul class="nav navbar-nav navbar-right">
-                        <li><a href="#">See Website</a></li>
-                        <li><a href="#">Open Ticket</a></li>
-                        <li><a href="#">Report Bug</a></li>
-                    </ul>
+
+                <div id="contenedor-vistas">
+                    <div id="vista-listado">
+                        <h5 class="subtitle">Listado de Órdenes</h5>
+                        <div class="table-container">
+                            <table class="orders-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Producto</th>
+                                        <th>Cantidad</th>
+                                        <th>Inicio</th>
+                                        <th>Fin</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Los datos se cargarán dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="vista-crear" class="hidden">
+                        <h4 class="main-title">Crear Nueva Orden</h4>
+                        <form id="form-crear">
+                            <div class="mb-3">
+                                <label class="form-label">Receta</label>
+                                <select name="receta_id" id="receta_id" class="form-control" required>
+                                    <option value="">-- Seleccione una receta --</option>
+                                    <?php foreach ($recetas as $r): ?>
+                                        <option value="<?php echo htmlspecialchars($r['id']); ?>">
+                                            <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Cantidad a Producir</label>
+                                <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fecha Inicio</label>
+                                <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Fecha Fin</label>
+                                <input type="date" name="fecha_fin" id="fecha_fin" class="form-control">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Observaciones</label>
+                                <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Crear Orden</button>
+                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <input type="hidden" id="editar-orden-id" name="id" value="">
+                            <input type="hidden" id="action" value="">
+                        </form>
+                    </div>
                 </div>
-
-            </div>
-        </div>
-        <!-- /. NAV TOP  -->
-        <nav class="navbar-default navbar-side" style="top:50px" role="navigation">
-            <div class="sidebar-collapse">
-                <ul class="nav" id="main-menu">
-                    <li class="text-center user-image-back" style="display:flex; align-items:end; cursor: pointer;" onclick="userManagement()">
-                        <img src="assets/img/find_user.png" class="img-responsive" />
-                        <span style="font-size:20px; font-weight:400; color:#fff">Hola, <?=$row['username']?></span>
-                    </li>
-
-
-                    <li>
-                        <a href="index.html"><i class="fa fa-desktop "></i>Dashboard</a>
-                    </li>
-                    <li>
-                        <a href="#"><i class="fa fa-edit "></i>UI Elements<span class="fa arrow"></span></a>
-                        <ul class="nav nav-second-level">
-                            <li>
-                                <a href="src/nuevo_producto.php">Registrar recetas</a>
-                            </li>
-                            <li>
-                                <a href="src/orden_produccion.php">Ordenes de produccion</a>
-                            </li>
-                            <li>
-                                <a href="#">Free Link</a>
-                            </li>
-                        </ul>
-                    </li>
-
-                    <li>
-                        <a href="#"><i class="fa fa-table "></i>Table Examples</a>
-                    </li>
-                    <li>
-                        <a href="#"><i class="fa fa-edit "></i>Forms </a>
-                    </li>
-
-
-                    <li>
-                        <a href="#"><i class="fa fa-sitemap "></i>Multi-Level Dropdown<span class="fa arrow"></span></a>
-                        <ul class="nav nav-second-level">
-                            <li>
-                                <a href="#">Second Level Link</a>
-                            </li>
-                            <li>
-                                <a href="#">Second Level Link</a>
-                            </li>
-                            <li>
-                                <a href="#">Second Level Link<span class="fa arrow"></span></a>
-                                <ul class="nav nav-third-level">
-                                    <li>
-                                        <a href="#">Third Level Link</a>
-                                    </li>
-                                    <li>
-                                        <a href="#">Third Level Link</a>
-                                    </li>
-                                    <li>
-                                        <a href="#">Third Level Link</a>
-                                    </li>
-
-                                </ul>
-
-                            </li>
-                        </ul>
-                    </li>
-                    <li>
-                        <a href="#"><i class="fa fa-qrcode "></i>Tabs & Panels</a>
-                    </li>
-                    <li>
-                        <a href="#"><i class="fa fa-bar-chart-o"></i>Mettis Charts</a>
-                    </li>
-
-                    <li>
-                        <a href="#"><i class="fa fa-edit "></i>Last Link </a>
-                    </li>
-                    <li>
-                        <a href="blank.html"><i class="fa fa-table "></i>Blank Page</a>
-                    </li>
-                </ul>
-
-            </div>
-
-        </nav>
-<div id="page-wrapper">
-    <div id="page-inner">
-        <div class="row">
-            <div class="col-md-12">
-                <h2>Órdenes de Producción</h2>
-            </div>
-        </div>
-
-        <div class="row mb-3" id="vista-botones">
-            <div class="col-md-12">
-                <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Orden</button>
-            </div>
-        </div>
-
-        <div id="contenedor-vistas">
-            <div id="vista-listado">
-                <h5>Listado de Órdenes</h5>
-                <table class="table table-striped table-bordered table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Producto</th>
-                            <th>Cantidad</th>
-                            <th>Inicio</th>
-                            <th>Fin</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        
-                    </tbody>
-                </table>
-            </div>
-
-            <div id="vista-crear" class="hidden">
-                <h4>Crear Nueva Orden</h4>
-                <form id="form-crear">
-                    <div class="mb-3">
-                        <label class="form-label">Receta</label>
-                        <select name="receta_id" id="receta_id" class="form-control" required>
-                            <option value="">-- Seleccione una receta --</option>
-                            <?php foreach ($recetas as $r): ?>
-                                <option value="<?php echo htmlspecialchars($r['id']); ?>">
-                                    <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cantidad a Producir</label>
-                        <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha Inicio</label>
-                        <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha Fin</label>
-                        <input type="date" name="fecha_fin" id="fecha_fin" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
-                        <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Crear Orden</button>
-                    <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
-                    <input type="hidden" id="editar-orden-id" name="id" value="">
-                    <input type="hidden" id="action" value="">
-                </form>
             </div>
         </div>
     </div>
-</div>
 
 <script>
 
