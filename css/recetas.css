@@ -1,0 +1,206 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    margin: 0;
+    padding: 0;
+}
+
+/* Contenedor principal */
+.container-wrapper {
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container-inner {
+    background-color: white;
+    border-radius: 10px;
+    padding: 25px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Encabezados */
+.main-title {
+    color: #0056b3;
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    text-align: center;
+    border-bottom: 3px solid #ffc107;
+    padding-bottom: 15px;
+}
+
+.subtitle {
+    color: #004085;
+    font-size: 18px;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 25px;
+}
+
+/* Tabla */
+.recipe-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.recipe-table th {
+    background-color: #0056b3;
+    color: white;
+    font-weight: bold;
+    padding: 14px;
+    text-align: left;
+}
+
+.recipe-table td {
+    padding: 12px;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.recipe-table tr:nth-child(even) {
+    background-color: #f2f7ff;
+}
+
+.recipe-table tr:hover {
+    background-color: #e7f3ff;
+}
+
+/* Mensaje cuando no hay datos */
+.no-data {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Estilo para el contenedor de la tabla */
+.table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+}
+
+/* Botones */
+.btn {
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+}
+
+.btn-success {
+    background-color: #28a745;
+    color: white;
+    margin-bottom: 20px;
+}
+
+.btn-success:hover {
+    background-color: #218838;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+    margin-right: 10px;
+}
+
+.btn-primary:hover {
+    background-color: #0056b3;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background-color: #545b62;
+}
+
+.btn-sm {
+    padding: 5px 10px;
+    font-size: 14px;
+}
+
+/* Formulario */
+.form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #0056b3;
+    box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.25);
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #495057;
+}
+
+.mb-3 {
+    margin-bottom: 15px;
+}
+
+/* Vista oculta */
+.hidden {
+    display: none;
+}
+
+/* Utilidades adicionales */
+.text-center {
+    text-align: center;
+}
+
+.text-danger {
+    color: #dc3545;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .container-wrapper {
+        padding: 10px;
+    }
+
+    .container-inner {
+        padding: 15px;
+    }
+
+    .main-title {
+        font-size: 24px;
+    }
+
+    .subtitle {
+        font-size: 16px;
+    }
+
+    .recipe-table {
+        font-size: 14px;
+    }
+
+    .recipe-table th,
+    .recipe-table td {
+        padding: 8px;
+    }
+
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .btn-primary {
+        margin-right: 0;
+    }
+}

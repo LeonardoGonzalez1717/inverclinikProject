@@ -3,13 +3,25 @@
 ?> 
 <?php
 require_once "../connection/connection.php";
-require_once "../template/navbar.php"; // Incluir la navbar
+require_once "../template/navbar.php"; 
 
 $sqlRecetas = "
-    SELECT rp.id, p.nombre AS producto_nombre, rt.nombre_rango AS rango_tallas_nombre
+    SELECT 
+        rp.id, 
+        p.nombre AS producto_nombre, 
+        rt.nombre_rango AS rango_tallas_nombre,
+        rp.producto_id,
+        rp.rango_tallas_id,
+        rp.tipo_produccion_id,
+        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
     FROM recetas_productos rp
     INNER JOIN productos p ON rp.producto_id = p.id
     INNER JOIN rangos_tallas rt ON rp.rango_tallas_id = rt.id
+    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
+        AND rp2.rango_tallas_id = rp.rango_tallas_id 
+        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
+    LEFT JOIN insumos i ON rp2.insumo_id = i.id
+    GROUP BY rp.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
     ORDER BY p.nombre, rt.nombre_rango
 ";
 $resultRecetas = $conn->query($sqlRecetas);
@@ -20,19 +32,29 @@ if ($resultRecetas) {
     }
 }
 
-// Consultar órdenes de producción con nombres de producto
 $sqlOrdenes = "
     SELECT 
         op.id AS orden_id,
         p.nombre AS producto_nombre,
+        p.categoria AS producto_categoria,
         op.cantidad_a_producir,
         op.fecha_inicio,
         op.fecha_fin,
         op.estado,
-        op.observaciones, rp.id
+        op.observaciones,
+        rp.id AS receta_id,
+        rp.producto_id,
+        rp.rango_tallas_id,
+        rp.tipo_produccion_id,
+        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
     FROM ordenes_produccion op
     INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
     INNER JOIN productos p ON rp.producto_id = p.id
+    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
+        AND rp2.rango_tallas_id = rp.rango_tallas_id 
+        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
+    LEFT JOIN insumos i ON rp2.insumo_id = i.id
+    GROUP BY op.id, rp.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
     ORDER BY op.creado_en DESC
 ";
 $resultOrdenes = $conn->query($sqlOrdenes);
@@ -55,7 +77,6 @@ if ($resultOrdenes) {
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
 
     <style>
-        /* Estilos generales */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f8f9fa;
@@ -231,7 +252,10 @@ if ($resultOrdenes) {
                                     <tr>
                                         <th>ID</th>
                                         <th>Producto</th>
+                                        <th>Categoría</th>
                                         <th>Cantidad</th>
+                                        <th>Costo por Unidad</th>
+                                        <th>Costo Total</th>
                                         <th>Inicio</th>
                                         <th>Fin</th>
                                         <th>Estado</th>
@@ -239,7 +263,6 @@ if ($resultOrdenes) {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <!-- Los datos se cargarán dinámicamente -->
                                 </tbody>
                             </table>
                         </div>
@@ -253,7 +276,8 @@ if ($resultOrdenes) {
                                 <select name="receta_id" id="receta_id" class="form-control" required>
                                     <option value="">-- Seleccione una receta --</option>
                                     <?php foreach ($recetas as $r): ?>
-                                        <option value="<?php echo htmlspecialchars($r['id']); ?>">
+                                        <option value="<?php echo htmlspecialchars($r['id']); ?>" 
+                                                data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>">
                                             <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
                                         </option>
                                     <?php endforeach; ?>
@@ -262,6 +286,16 @@ if ($resultOrdenes) {
                             <div class="mb-3">
                                 <label class="form-label">Cantidad a Producir</label>
                                 <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Costo por Unidad ($)</label>
+                                <input type="text" id="costo_por_unidad" class="form-control" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted">Costo de la receta por unidad de producto</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Costo Total de Producción ($)</label>
+                                <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
+                                <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Fecha Inicio</label>
@@ -303,10 +337,60 @@ function cargarListado() {
     });
     limpiarFormulario();
 }
+
+function calcularCostoTotal() {
+    var recetaId = $('#receta_id').val();
+    var cantidad = parseFloat($('#cantidad_a_producir').val()) || 0;
+    
+    if (recetaId && cantidad > 0) {
+        var costoUnitario = parseFloat($('#receta_id option:selected').data('costo')) || 0;
+        
+        if (costoUnitario > 0) {
+            $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
+            var costoTotal = costoUnitario * cantidad;
+            $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
+        } else {
+            // Si no tiene costo en el data, obtenerlo del servidor
+            obtenerCostoReceta(recetaId, cantidad);
+        }
+    } else {
+        $('#costo_por_unidad').val('');
+        $('#costo_total_produccion').val('');
+    }
+}
+
+function obtenerCostoReceta(recetaId, cantidad) {
+    $.post('orden_produccion_data.php', {
+        action: 'obtener_costo_receta',
+        receta_id: recetaId
+    }, function(resp) {
+        if (resp && resp.success) {
+            var costoUnitario = parseFloat(resp.costo_por_unidad) || 0;
+            if (costoUnitario > 0) {
+                $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
+                var costoTotal = costoUnitario * cantidad;
+                $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
+            }
+        }
+    }, 'json');
+}
+
+$(document).ready(function() {
+    $('#receta_id').on('change', function() {
+        calcularCostoTotal();
+    });
+    
+    $('#cantidad_a_producir').on('input', function() {
+        calcularCostoTotal();
+    });
+});
+
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
-
     $('#receta_id').val('');
+    $('#cantidad_a_producir').val('');
+    $('#costo_por_unidad').val('');
+    $('#costo_total_produccion').val('');
     $('#obser').val('');          
     $('#editar-orden-id').val('');
 }

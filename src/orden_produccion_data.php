@@ -10,14 +10,25 @@ try {
             SELECT 
                 op.id AS orden_id,
                 p.nombre AS producto_nombre,
+                p.categoria AS producto_categoria,
                 op.cantidad_a_producir,
                 op.fecha_inicio,
                 op.fecha_fin,
                 op.estado,
-                op.observaciones, rp.id
+                op.observaciones,
+                rp.id AS receta_id,
+                rp.producto_id,
+                rp.rango_tallas_id,
+                rp.tipo_produccion_id,
+                COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
             FROM ordenes_produccion op
             INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
             INNER JOIN productos p ON rp.producto_id = p.id
+            LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
+                AND rp2.rango_tallas_id = rp.rango_tallas_id 
+                AND rp2.tipo_produccion_id = rp.tipo_produccion_id
+            LEFT JOIN insumos i ON rp2.insumo_id = i.id
+            GROUP BY op.id, rp.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
             ORDER BY op.creado_en DESC
         ";
 
@@ -38,10 +49,18 @@ try {
                     'pendiente' => 'info',
                     default => 'danger'
                 };
+                
+                $costoPorUnidad = floatval($o['costo_por_unidad'] ?? 0);
+                $cantidad = floatval($o['cantidad_a_producir'] ?? 0);
+                $costoTotal = $costoPorUnidad * $cantidad;
+                
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
+                echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
+                echo '<td>$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
+                echo '<td style="font-weight: bold; color: #0056b3;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
                 echo '<td>' . ($o['fecha_fin'] ? date('d/m/Y', strtotime($o['fecha_fin'])) : '—') . '</td>';
                 echo '<td><span class="badge bg-' . $badgeClass . '">' . htmlspecialchars($o['estado']) . '</span></td>';
@@ -49,18 +68,60 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="7" class="text-center">No hay órdenes de producción</td></tr>';
+            echo '<tr><td colspan="10" class="text-center">No hay órdenes de producción</td></tr>';
         }
         $conn->close();
-        exit; // Terminamos aquí
+        exit;
     }
 
-    // Para el resto de acciones, usamos JSON
     header('Content-Type: application/json');
 
     switch ($action) {
+        case 'obtener_costo_receta':
+            $receta_id = $_POST['receta_id'] ?? null;
+            if (!$receta_id) {
+                throw new Exception("ID de receta requerido");
+            }
+            
+            $sqlReceta = "SELECT producto_id, rango_tallas_id, tipo_produccion_id 
+                         FROM recetas_productos WHERE id = ?";
+            $stmtReceta = $conn->prepare($sqlReceta);
+            $stmtReceta->bind_param("i", $receta_id);
+            $stmtReceta->execute();
+            $resultReceta = $stmtReceta->get_result();
+            
+            if ($rowReceta = $resultReceta->fetch_assoc()) {
+                $sqlCosto = "
+                    SELECT SUM(rp.cantidad_por_unidad * i.costo_unitario) AS costo_por_unidad
+                    FROM recetas_productos rp
+                    INNER JOIN insumos i ON rp.insumo_id = i.id
+                    WHERE rp.producto_id = ? 
+                      AND rp.rango_tallas_id = ? 
+                      AND rp.tipo_produccion_id = ?
+                ";
+                $stmtCosto = $conn->prepare($sqlCosto);
+                $stmtCosto->bind_param("iii", 
+                    $rowReceta['producto_id'], 
+                    $rowReceta['rango_tallas_id'], 
+                    $rowReceta['tipo_produccion_id']
+                );
+                $stmtCosto->execute();
+                $resultCosto = $stmtCosto->get_result();
+                
+                if ($rowCosto = $resultCosto->fetch_assoc()) {
+                    echo json_encode([
+                        'success' => true, 
+                        'costo_por_unidad' => $rowCosto['costo_por_unidad'] ?? 0
+                    ]);
+                } else {
+                    throw new Exception("No se pudo calcular el costo de la receta");
+                }
+            } else {
+                throw new Exception("Receta no encontrada");
+            }
+            break;
+
         case 'crear':
-            // ... tu código de crear (ya corregido) ...
             $receta_id = $_POST['receta_id'] ?? null;
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
@@ -121,7 +182,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar órdenes</td></tr>';
+        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar órdenes</td></tr>';
     }
 }
 
