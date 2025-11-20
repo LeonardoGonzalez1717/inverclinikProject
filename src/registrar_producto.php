@@ -88,7 +88,7 @@ if ($resultTipos) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear Nueva Receta</h5>
+                        <h4 class="main-title">Crear Nueva Receta</h4>
                         <form id="form-crear">
                             <div class="mb-3">
                                 <label class="form-label">Producto</label>
@@ -289,31 +289,6 @@ function limpiarFormularioInsumo() {
     $('#nuevo-costo-calculado').val('');
 }
 
-function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
-}
-
-function cargarListado() {
-    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
-    limpiarFormulario();
-}
-
-function limpiarFormulario() {
-    $('#form-crear')[0].reset();
-    insumosAgregados = [];
-    actualizarTablaInsumos();
-    limpiarFormularioInsumo();
-    $('#editar-receta-id').val('');
-}
-
 $(document).ready(function() {
     $('#nuevo-insumo-id, #nuevo-cantidad').on('change input', function() {
         var insumoId = $('#nuevo-insumo-id').val();
@@ -362,7 +337,7 @@ $("#form-crear").on("submit", function(e) {
         producto_id: producto_id,
         rango_tallas_id: rango_tallas_id,
         tipo_produccion_id: tipo_produccion_id,
-        insumos: JSON.stringify(insumosAgregados),  // Convertir a JSON string
+        insumos: insumosAgregados,
         observaciones: observaciones
     };
     
@@ -385,6 +360,47 @@ $("#form-crear").on("submit", function(e) {
         }
     });
 });
+
+function mostrarVista(vista) {
+    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
+        el.classList.add('hidden');
+    });
+    const vistaElement = document.getElementById('vista-' + vista);
+    if (vistaElement) {
+        vistaElement.classList.remove('hidden');
+    }
+}
+
+function cargarListado() {
+    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
+        $('#vista-listado tbody').html(html);
+    });
+    limpiarFormulario();
+}
+
+function limpiarFormulario() {
+    $('#form-crear')[0].reset();
+    insumosAgregados = [];
+    actualizarTablaInsumos();
+    limpiarFormularioInsumo();
+    $('#editar-receta-id').val('');
+}
+
+function editarReceta(data) {
+    $('#producto_id').val(data.producto_id);
+    $('#insumo_id').val(data.insumo_id);
+    $('#rango_tallas_id').val(data.rango_tallas_id);
+    $('#tipo_produccion_id').val(data.tipo_produccion_id);
+    $('#cantidad_por_unidad').val(data.cantidad_por_unidad);
+    
+    setTimeout(function() {
+        calcularCostoInsumo();
+    }, 100);
+    
+    $('#observaciones').val(data.observaciones || '');
+    $('#editar-receta-id').val(data.id);
+    mostrarVista('crear');
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
