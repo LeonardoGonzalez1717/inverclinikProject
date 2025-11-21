@@ -1,0 +1,137 @@
+body {
+  margin: 0;
+  padding: 30px;
+  font-family: 'Open Sans', sans-serif;
+  background: #fff;
+  color: #333;
+}
+
+/* Encabezado alineado a la derecha */
+.reporte-header {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border-bottom: 2px solid #005bbe;
+  margin-bottom: 30px;
+  padding-bottom: 10px;
+}
+
+.logo-info {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 20px;
+}
+
+.logo-info img {
+  width: 80px;
+  height: auto;
+}
+
+.empresa-fecha h1 {
+  font-size: 22px;
+  color: #005bbe;
+  margin: 0;
+}
+
+.empresa-fecha p {
+  font-size: 14px;
+  color: #666;
+  margin: 4px 0 0;
+}
+
+.titulo-reporte {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.titulo-reporte h2 {
+  font-size: 20px;
+  color: #333;
+  margin: 0;
+}
+
+/* Tabla de datos */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px; /* espacio vertical entre filas */
+  margin-bottom: 30px;
+}
+
+
+.table th {
+  padding: 12px 16px;
+  font-size: 14px;
+  text-align: center;
+  background-color: #ffffff;
+  border: none;
+}
+
+.table td {
+  padding: 10px 16px;
+  font-size: 14px;
+  text-align: center;
+  border: none;
+}
+
+.table tbody tr {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Pie del reporte */
+.reporte-footer {
+  text-align: right;
+  font-size: 12px;
+  color: #999;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+  margin-top: 40px;
+}
+
+.contenido-principal {
+  margin-left: 0 !important;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: #fff;
+  min-height: 100vh;
+}
+
+/* Estilos para impresión */
+@media print {
+  body {
+    background: none;
+    padding: 0;
+    margin: 0;
+    color: #000;
+  }
+
+  .reporte-header img {
+    width: 60px;
+  }
+
+  .reporte-header h1 {
+    font-size: 18px;
+    color: #000;
+  }
+
+  .table {
+    font-size: 12px;
+  }
+
+  .table th, .table td {
+    padding: 6px 10px;
+    color: #000;
+  }
+
+  .reporte-footer {
+    font-size: 10px;
+    color: #000;
+    border-top: 1px solid #000;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}

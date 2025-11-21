@@ -1,7 +1,5 @@
 <?php
 require_once "../template/header.php";
-require_once "../connection/connection.php";
-require_once "../template/navbar.php";
 
 $sqlProductos = "SELECT id, nombre FROM productos ORDER BY nombre";
 $resultProductos = $conn->query($sqlProductos);
@@ -46,10 +44,6 @@ if ($resultTipos) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Recetas</title>
-    <link rel="stylesheet" href="../css/style.css" />
-    <link rel="stylesheet" href="../css/navbar.css" />
-    <link rel="stylesheet" href="../css/recetas.css" />
-    <script src="../assets/js/jquery-3.7.1.min.js"></script>
 </head>
 <body>
     <div class="main-content">

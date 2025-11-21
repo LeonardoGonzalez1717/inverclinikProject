@@ -1,9 +1,5 @@
 <?php 
-// require_once "../template/header.php"; 
-?> 
-<?php
-require_once "../connection/connection.php";
-require_once "../template/navbar.php"; 
+require_once "../template/header.php"; 
 
 $sqlRecetas = "
     SELECT 
@@ -72,9 +68,6 @@ if ($resultOrdenes) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Órdenes de Producción</title>
-    <link rel="stylesheet" href="../css/style.css" />
-    <link rel="stylesheet" href="../css/navbar.css" />
-    <script src="../assets/js/jquery-3.7.1.min.js"></script>
 
     <style>
         body {

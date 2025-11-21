@@ -1,25 +1,34 @@
+/* === CONTENEDOR PRINCIPAL === */
 .sidebar {
   position: fixed;
   top: 0;
   left: 0;
   width: 260px;
   height: 100%;
-  background-color: #005bbe;
+  background: linear-gradient(to bottom, #005bbe, #003a7e);
   color: #fff;
   padding: 20px;
-  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
+/* === LOGO === */
+.logo {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
 .logo a {
-  font-size: 1.4em;
+  font-size: 1.8em; /* antes 1.6em */
   font-weight: bold;
   color: #ffffff;
   text-decoration: none;
+  display: inline-block;
 }
 
+/* === MENÚ PRINCIPAL === */
 nav ul {
   list-style: none;
   padding: 0;
@@ -36,14 +45,68 @@ nav ul li a {
   font-weight: 500;
   padding: 8px 12px;
   display: block;
-  border-radius: 6px;
-  transition: background-color 0.3s;
+  border-radius: 4px;
+  font-size: 1.8em;
+  transition: background-color 0.3s, color 0.3s;
 }
 
 nav ul li a:hover {
-  background-color: #337fd6;
+  background-color: rgba(243, 201, 36, 0.2);
+  color: #f3c924;
 }
 
+/* === DROPDOWN === */
+.collapsible-toggle {
+  background-color: transparent;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  padding: 10px;
+  width: 100%;
+  font-size: 1em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.collapsible-toggle:hover {
+  background-color: rgba(243, 201, 36, 0.2);
+  color: #f3c924;
+  border-color: #f3c924;
+}
+
+.collapsible-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.collapsible.open .collapsible-content {
+  max-height: 500px; /* suficiente para mostrar todos los elementos */
+}
+
+.collapsible-content li a {
+  background-color: transparent;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  padding: 10px;
+  font-size: 1em;
+  border-radius: 4px;
+  text-decoration: none;
+  display: block;
+  margin-top: 8px;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.collapsible-content li a:hover {
+  background-color: rgba(243, 201, 36, 0.2);
+  color: #f3c924;
+  border-color: #f3c924;
+}
+
+/* === BOTONES DE PERFIL === */
 .perfil {
   margin-top: auto;
   display: flex;
@@ -52,16 +115,20 @@ nav ul li a:hover {
 }
 
 .perfil button {
-  background-color: #f3c924;
-  color: #000;
-  border: none;
+  background-color: transparent;
+  color: #ffffff;
+  border: 1px solid #ffffff;
   padding: 10px;
-  font-weight: bold;
-  border-radius: 6px;
+  margin-top: 5px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  width: 100%;
+  font-size: 1em;
+  border-radius: 4px;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .perfil button:hover {
-  background-color: #ffe066;
+  background-color: rgba(243, 201, 36, 0.2);
+  color: #f3c924;
+  border-color: #f3c924;
 }

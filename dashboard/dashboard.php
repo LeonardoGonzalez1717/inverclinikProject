@@ -1,7 +1,6 @@
 <?php 
 require_once('../template/header.php');
 require_once '../helpers/Modal.php';
-require_once('../template/navbar.php');
 
 $id = $_GET['iduser'] ?? 1;
 $sql = "SELECT * from users where id = $id";
@@ -14,8 +13,6 @@ $row = mysqli_fetch_assoc($result);
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="../css/style.css" />
-  <link rel="stylesheet" href="../css/navbar.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>

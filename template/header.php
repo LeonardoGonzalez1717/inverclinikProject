@@ -1,4 +1,9 @@
 <?php
+if (empty($sin_sidebar)) {
+    include 'navbar.php';
+}
+require_once "../connection/connection.php";
+
 if (!defined('ROOT_PATH')) {
     $levels = 3;
     $path = __DIR__;
@@ -19,10 +24,14 @@ require_once ROOT_PATH . '/connection/connection.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>INVERCLINIK</title>
 
-    <link href="assets/css/bootstrap.css" rel="stylesheet" />
-    <link href="assets/css/font-awesome.css" rel="stylesheet" />
-    <link href="assets/css/custom.css" rel="stylesheet" />
-
-    <script src="assets/js/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="../assets/css/bootstrap.css">
+    <link rel="stylesheet" href="../assets/css/font-awesome.css">
+    <link rel="stylesheet" href="../assets/css/custom.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/reportes.css">
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/navbar.css">
     
+    <script src="../assets/js/jquery-3.7.1.min.js"></script>
+
 </head>

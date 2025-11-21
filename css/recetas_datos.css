@@ -1,0 +1,48 @@
+.filtro-reporte {
+  margin-bottom: 40px;
+  padding: 20px;
+  background-color: #eef4ff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.filtro-reporte h2 {
+  margin-bottom: 20px;
+  color: #005bbe;
+  font-size: 20px;
+}
+
+.filtro-grupo {
+  margin-bottom: 15px;
+}
+
+.filtro-grupo label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #333;
+}
+
+.filtro-grupo input,
+.filtro-grupo select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.filtro-reporte button {
+  background-color: #005bbe;
+  color: #fff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.filtro-reporte button:hover {
+  background-color: #0045a0;
+}

@@ -1,15 +1,11 @@
 <?php
 require_once('../template/header.php');
-require_once('../template/navbar.php');
 ?>
 
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="../css/style.css" />
-  <link rel="stylesheet" href="../css/navbar.css" />
-  <script src="../assets/js/jquery.min.js"></script>
 </head>
 <body>
   <div class="main-content">

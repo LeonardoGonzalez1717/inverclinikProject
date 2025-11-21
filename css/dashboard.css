@@ -1,0 +1,98 @@
+/* DASHBOARD */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f4f6f8;
+  color: #333;
+}
+
+/* Contenedor principal */
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+}
+
+/* Panel principal */
+.main-content {
+  margin-left: 240px;
+  padding: 30px;
+}
+
+/* Panel de alertas */
+.alertas {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.alert-card {
+  flex: 1;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  border-left: 6px solid #005bbe;
+}
+
+.alert-card.produccion {
+  border-left-color: #f3c924;
+}
+
+.alert-card.pagos {
+  border-left-color: #f3c924;
+}
+
+.alert-card.inventario {
+  border-left-color: #f3c924;
+}
+
+.alert-card h3 {
+  margin-bottom: 10px;
+  font-size: 1.2em;
+  color: #005bbe;
+}
+
+.alert-card p {
+  font-size: 0.95em;
+  margin-bottom: 5px;
+}
+
+/* Estadísticas */
+.estadisticas h2 {
+  margin-bottom: 20px;
+  font-size: 1.4em;
+  color: #005bbe;
+}
+
+.graficos {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.graficos > div {
+  flex: 1;
+  background-color: #fff;
+  height: 250px;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.indicadores {
+  display: flex;
+  gap: 40px;
+  font-size: 1em;
+  color: #444;
+}
+
+.indicadores p strong {
+  color: #005bbe;
+}
+/* FIN DASHBOARD */
+
+
