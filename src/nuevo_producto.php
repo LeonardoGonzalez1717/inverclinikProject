@@ -66,12 +66,12 @@ if ($resultTipos) {
                                     <tr>
                                         <th>ID</th>
                                         <th>Producto</th>
-                                        <th>Insumo</th>
                                         <th>Rango de Tallas</th>
                                         <th>Tipo de Producción</th>
-                                        <th>Cantidad por Unidad</th>
-                                        <th>Costo por Unidad</th>
+                                        <th>Cantidad de Insumos</th>
+                                        <th>Costo Total</th>
                                         <th>Observaciones</th>
+                                        <th>Fecha Creación</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -146,9 +146,9 @@ if ($resultTipos) {
                                             <label class="form-label">Costo Calculado</label>
                                             <input type="text" id="nuevo-costo-calculado" class="form-control" readonly placeholder="$0.00">
                                         </div>
-                                        <div class="col-md-1 mb-2 d-flex align-items-end">
-                                            <button type="button" class="btn btn-success" id="btn-agregar-insumo" style="width: 100%;">
-                                                <i class="fa fa-plus"></i> Agregar
+                                        <div class="col-md-1 mb-2 d-flex align-items-end" style="position: relative; top: 22px;">
+                                            <button type="button" class="btn btn-success" id="btn-agregar-insumo" style="width: fit-content; margin-bottom: 0;">
+                                                <i class="fa fa-plus"></i>
                                             </button>
                                         </div>
                                     </div>
@@ -158,11 +158,11 @@ if ($resultTipos) {
                                     <table class="table table-bordered" id="tabla-insumos" style="display: none;">
                                         <thead style="background-color: #0056b3; color: white;">
                                             <tr>
-                                                <th>Insumo</th>
-                                                <th>Cantidad</th>
-                                                <th>Costo Unitario</th>
-                                                <th>Costo Total</th>
-                                                <th>Acción</th>
+                                                <th style="color: black;">Insumo</th>
+                                                <th style="color: black;">Cantidad</th>
+                                                <th style="color: black;">Costo Unitario</th>
+                                                <th style="color: black;">Costo Total</th>
+                                                <th style="color: black;">Acción</th>
                                             </tr>
                                         </thead>
                                         <tbody id="tbody-insumos">
@@ -242,13 +242,13 @@ function eliminarInsumo(index) {
 
 function actualizarTablaInsumos() {
     var tbody = $('#tbody-insumos');
-    tbody.empty();
     
     var costoTotalReceta = 0;
+    var htmlRows = '';
     
     insumosAgregados.forEach(function(insumo, index) {
         costoTotalReceta += insumo.costo_total;
-        var row = `
+        htmlRows += `
             <tr>
                 <td>${insumo.insumo_nombre}</td>
                 <td>${insumo.cantidad_por_unidad}</td>
@@ -261,9 +261,9 @@ function actualizarTablaInsumos() {
                 </td>
             </tr>
         `;
-        tbody.append(row);
     });
     
+    tbody.html(htmlRows);
     $('#costo-total-receta').text('$' + costoTotalReceta.toFixed(2));
     
     if (insumosAgregados.length > 0) {

@@ -6,10 +6,18 @@
             <li class="collapsible">
               <button class="collapsible-toggle">Procesos</button>
               <ul class="collapsible-content">
+                <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
+                <li><a href="../src/movimientos_inventario.php">Movimientos de Inventario</a></li>
+              </ul>
+            </li>
+        </ul>
+        <ul>
+            <li class="collapsible">
+              <button class="collapsible-toggle">Registros</button>
+              <ul class="collapsible-content">
                 <li><a href="../src/gestionar_productos.php">Gestionar Productos</a></li>
                 <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                 <li><a href="../src/nuevo_producto.php">Recetas</a></li>
-                <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
               </ul>
             </li>
         </ul>

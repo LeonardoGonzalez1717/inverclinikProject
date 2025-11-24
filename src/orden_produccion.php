@@ -1,23 +1,47 @@
 <?php 
 require_once "../template/header.php"; 
 
+$createRecetasUnicas = "
+CREATE TABLE IF NOT EXISTS recetas (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    producto_id INT NOT NULL,
+    rango_tallas_id INT NOT NULL,
+    tipo_produccion_id INT NOT NULL,
+    observaciones TEXT,
+    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+";
+$conn->query($createRecetasUnicas);
+
+$checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
+$row = $checkRecetas->fetch_assoc();
+if ($row['count'] == 0) {
+    $sqlInsertRecetas = "
+        INSERT IGNORE INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones)
+        SELECT DISTINCT producto_id, rango_tallas_id, tipo_produccion_id, NULL
+        FROM recetas_productos
+    ";
+    $conn->query($sqlInsertRecetas);
+}
+
 $sqlRecetas = "
     SELECT 
-        rp.id, 
+        r.id, 
         p.nombre AS producto_nombre, 
         rt.nombre_rango AS rango_tallas_nombre,
-        rp.producto_id,
-        rp.rango_tallas_id,
-        rp.tipo_produccion_id,
-        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
-    FROM recetas_productos rp
-    INNER JOIN productos p ON rp.producto_id = p.id
-    INNER JOIN rangos_tallas rt ON rp.rango_tallas_id = rt.id
-    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
-        AND rp2.rango_tallas_id = rp.rango_tallas_id 
-        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
-    LEFT JOIN insumos i ON rp2.insumo_id = i.id
-    GROUP BY rp.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
+        r.producto_id,
+        r.rango_tallas_id,
+        r.tipo_produccion_id,
+        COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
+    FROM recetas r
+    INNER JOIN productos p ON r.producto_id = p.id
+    INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
+    LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
+        AND rp.rango_tallas_id = r.rango_tallas_id 
+        AND rp.tipo_produccion_id = r.tipo_produccion_id
+    LEFT JOIN insumos i ON rp.insumo_id = i.id
+    GROUP BY r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id
     ORDER BY p.nombre, rt.nombre_rango
 ";
 $resultRecetas = $conn->query($sqlRecetas);
@@ -38,19 +62,19 @@ $sqlOrdenes = "
         op.fecha_fin,
         op.estado,
         op.observaciones,
-        rp.id AS receta_id,
-        rp.producto_id,
-        rp.rango_tallas_id,
-        rp.tipo_produccion_id,
-        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
+        r.id AS receta_id,
+        r.producto_id,
+        r.rango_tallas_id,
+        r.tipo_produccion_id,
+        COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
     FROM ordenes_produccion op
-    INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
-    INNER JOIN productos p ON rp.producto_id = p.id
-    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
-        AND rp2.rango_tallas_id = rp.rango_tallas_id 
-        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
-    LEFT JOIN insumos i ON rp2.insumo_id = i.id
-    GROUP BY op.id, rp.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
+    INNER JOIN recetas r ON op.receta_producto_id = r.id
+    INNER JOIN productos p ON r.producto_id = p.id
+    LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
+        AND rp.rango_tallas_id = r.rango_tallas_id 
+        AND rp.tipo_produccion_id = r.tipo_produccion_id
+    LEFT JOIN insumos i ON rp.insumo_id = i.id
+    GROUP BY op.id, r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id
     ORDER BY op.creado_en DESC
 ";
 $resultOrdenes = $conn->query($sqlOrdenes);
@@ -77,7 +101,6 @@ if ($resultOrdenes) {
             padding: 0;
         }
 
-        /* Contenedor principal */
         .container-wrapper {
             min-height: 100vh;
             padding: 20px;
@@ -92,17 +115,17 @@ if ($resultOrdenes) {
 
         /* Encabezados */
         .main-title {
-            color: #0056b3; /* Azul principal */
+            color: #0056b3;
             font-size: 28px;
             font-weight: bold;
             margin-bottom: 10px;
             text-align: center;
-            border-bottom: 3px solid #ffc107; /* Amarillo */
+            border-bottom: 3px solid #ffc107;
             padding-bottom: 15px;
         }
 
         .subtitle {
-            color: #004085; /* Azul oscuro */
+            color: #004085;
             font-size: 18px;
             text-align: center;
             margin-top: 0;
@@ -120,7 +143,7 @@ if ($resultOrdenes) {
         }
 
         .orders-table th {
-            background-color: #0056b3; /* Azul principal */
+            background-color: #0056b3;
             color: white;
             font-weight: bold;
             padding: 14px;
@@ -133,14 +156,13 @@ if ($resultOrdenes) {
         }
 
         .orders-table tr:nth-child(even) {
-            background-color: #f2f7ff; /* Azul claro */
+            background-color: #f2f7ff;
         }
 
         .orders-table tr:hover {
-            background-color: #e7f3ff; /* Azul muy claro */
+            background-color: #e7f3ff;
         }
 
-        /* Mensaje cuando no hay datos */
         .no-data {
             text-align: center;
             padding: 40px;
@@ -148,13 +170,11 @@ if ($resultOrdenes) {
             font-style: italic;
         }
 
-        /* Estilo para el contenedor de la tabla */
         .table-container {
             overflow-x: auto;
             margin-top: 20px;
         }
 
-        /* Botones */
         .btn-success {
             background-color: #28a745;
             color: white;
@@ -170,13 +190,13 @@ if ($resultOrdenes) {
             background-color: #218838;
         }
 
-        /* Formulario */
         .form-control {
             width: 100%;
             padding: 10px;
             border: 1px solid #ced4da;
             border-radius: 4px;
             font-size: 14px;
+            height: auto;
         }
 
         .form-label {
@@ -190,7 +210,6 @@ if ($resultOrdenes) {
             margin-bottom: 15px;
         }
 
-        /* Botones del formulario */
         .btn-primary {
             background-color: #007bff;
             color: white;
@@ -218,7 +237,6 @@ if ($resultOrdenes) {
             background-color: #545b62;
         }
 
-        /* Vista oculta */
         .hidden {
             display: none;
         }
@@ -251,7 +269,6 @@ if ($resultOrdenes) {
                                         <th>Costo Total</th>
                                         <th>Inicio</th>
                                         <th>Fin</th>
-                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -267,7 +284,7 @@ if ($resultOrdenes) {
                             <div class="mb-3">
                                 <label class="form-label">Receta</label>
                                 <select name="receta_id" id="receta_id" class="form-control" required>
-                                    <option value="">-- Seleccione una receta --</option>
+                                    <option value=""></option>
                                     <?php foreach ($recetas as $r): ?>
                                         <option value="<?php echo htmlspecialchars($r['id']); ?>" 
                                                 data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>">
@@ -289,6 +306,11 @@ if ($resultOrdenes) {
                                 <label class="form-label">Costo Total de Producción ($)</label>
                                 <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
                                 <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
+                            </div>
+                            <div class="mb-3" id="stock-insumos-container" style="display: none;">
+                                <label class="form-label">Stock Actual de Insumos</label>
+                                <div id="stock-insumos-list" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;">
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Fecha Inicio</label>
@@ -343,7 +365,6 @@ function calcularCostoTotal() {
             var costoTotal = costoUnitario * cantidad;
             $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
         } else {
-            // Si no tiene costo en el data, obtenerlo del servidor
             obtenerCostoReceta(recetaId, cantidad);
         }
     } else {
@@ -368,9 +389,43 @@ function obtenerCostoReceta(recetaId, cantidad) {
     }, 'json');
 }
 
+function cargarStockInsumos(recetaId) {
+    if (!recetaId) {
+        $('#stock-insumos-container').hide();
+        return;
+    }
+    
+    $.post('orden_produccion_data.php', {
+        action: 'obtener_stock_insumos',
+        receta_id: recetaId
+    }, function(resp) {
+        if (resp && resp.success && resp.insumos) {
+            var html = '<table style="width: 100%; font-size: 14px;">';
+            html += '<thead><tr style="background-color: #0056b3; color: white;"><th style="padding: 8px;">Insumo</th><th style="padding: 8px;">Cantidad por Unidad</th><th style="padding: 8px;">Stock Actual</th></tr></thead>';
+            html += '<tbody>';
+            
+            resp.insumos.forEach(function(insumo) {
+                var stockClass = parseFloat(insumo.stock_actual) > 0 ? 'color: #28a745; font-weight: bold;' : 'color: #dc3545; font-weight: bold;';
+                html += '<tr>';
+                html += '<td style="padding: 5px;">' + insumo.insumo_nombre + ' (' + insumo.unidad_medida + ')</td>';
+                html += '<td style="padding: 5px;">' + parseFloat(insumo.cantidad_por_unidad).toFixed(4) + '</td>';
+                html += '<td style="padding: 5px; ' + stockClass + '">' + parseFloat(insumo.stock_actual).toFixed(2) + '</td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            $('#stock-insumos-list').html(html);
+            $('#stock-insumos-container').show();
+        } else {
+            $('#stock-insumos-container').hide();
+        }
+    }, 'json');
+}
+
 $(document).ready(function() {
     $('#receta_id').on('change', function() {
         calcularCostoTotal();
+        cargarStockInsumos($(this).val());
     });
     
     $('#cantidad_a_producir').on('input', function() {

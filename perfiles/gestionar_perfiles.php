@@ -2,74 +2,209 @@
 require_once('../template/header.php');
 ?>
 
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Perfiles</title>
 </head>
 <body>
-  <div class="main-content">
-    <section class="gestion-usuarios">
-      <h2>Gestión de usuarios</h2>
-      <button id="btnNuevoUsuario" class="btn-agregar">Registrar nuevo usuario</button>
+    <div class="main-content">
+        <div class="container-wrapper">
+            <div class="container-inner">
+                <h2 class="main-title">Gestión de Perfiles</h2>
+                
+                <div class="row mb-3" id="vista-botones">
+                    <div class="col-md-12">
+                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Usuario</button>
+                    </div>
+                </div>
 
-      <table class="tabla-usuarios">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Usuario</th>
-            <th>Correo</th>
-            <th>Rol</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="listaUsuarios">
-          <!-- Se llena dinámicamente -->
-        </tbody>
-      </table>
+                <div id="contenedor-vistas">
+                    <div id="vista-listado">
+                        <h5 class="subtitle">Lista de Usuarios</h5>
+                        <div class="table-container">
+                            <table class="recipe-table">
+                                <thead>
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Usuario</th>
+                                        <th>Correo</th>
+                                        <th>Login</th>
+                                        <th>Rol</th>
+                                        <th>Fecha Creación</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="listaUsuarios">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
 
-      <div id="resultadoUsuarios"></div>
-    </section>
-  </div>
+                    <div id="vista-crear" class="hidden">
+                        <h5 class="subtitle">Crear/Editar Usuario</h5>
+                        <form id="form-crear">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre de Usuario <span style="color: red;">*</span></label>
+                                <input type="text" name="username" id="username" class="form-control" required 
+                                       maxlength="255" placeholder="Ej: leonardo">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Contraseña <span style="color: red;">*</span></label>
+                                <input type="password" name="password" id="password" class="form-control" 
+                                       placeholder="Dejar vacío para mantener la actual (solo al editar)">
+                                <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Login <span style="color: red;">*</span></label>
+                                <input type="text" name="login" id="login" class="form-control" required 
+                                       maxlength="255" placeholder="Ej: leo1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
+                                <input type="email" name="correo" id="correo" class="form-control" required 
+                                       maxlength="255" placeholder="Ej: usuario@ejemplo.com">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Rol <span style="color: red;">*</span></label>
+                                <select name="rol" id="rol" class="form-control" required>
+                                    <option value="">Seleccione un rol</option>
+                                    <option value="superadmin">Superadmin</option>
+                                    <option value="administrador">Administrador</option>
+                                    <option value="cliente">Cliente</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Guardar Usuario</button>
+                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <input type="hidden" id="editar-usuario-id" name="id" value="">
+                            <input type="hidden" id="action" value="">
+                        </form>
+                    </div>
+                </div>
+
+                <div id="resultadoUsuarios" class="mt-3"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    $(document).ready(function() {
+        cargarListado();
+    });
+
+    function mostrarVista(vista) {
+        if (vista === 'crear') {
+            $('#vista-listado').addClass('hidden');
+            $('#vista-crear').removeClass('hidden');
+            $('#vista-botones').hide();
+        } else {
+            $('#vista-crear').addClass('hidden');
+            $('#vista-listado').removeClass('hidden');
+            $('#vista-botones').show();
+        }
+    }
+
+    function limpiarFormulario() {
+        $('#form-crear')[0].reset();
+        $('#editar-usuario-id').val('');
+        $('#action').val('crear');
+        $('#password').attr('required', true);
+    }
+
+    function cargarListado() {
+        $.post('perfiles_data.php', {
+            action: 'listar_html'
+        }, function(html) {
+            $('#listaUsuarios').html(html);
+        }).fail(function() {
+            $('#listaUsuarios').html('<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>');
+        });
+    }
+
+    $('#form-crear').on('submit', function(e) {
+        e.preventDefault();
+        
+        var formData = {
+            action: $('#editar-usuario-id').val() ? 'editar' : 'crear',
+            id: $('#editar-usuario-id').val() || null,
+            username: $('#username').val(),
+            password: $('#password').val(),
+            login: $('#login').val(),
+            correo: $('#correo').val(),
+            rol: $('#rol').val()
+        };
+
+        if (formData.action === 'editar' && !formData.password) {
+            delete formData.password;
+        }
+
+        $.post('perfiles_data.php', formData, function(resp) {
+            if (resp.success) {
+                $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
+                setTimeout(function() {
+                    $('#resultadoUsuarios').html('');
+                    mostrarVista('listado');
+                    cargarListado();
+                }, 1500);
+            } else {
+                $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
+            }
+        }, 'json').fail(function(xhr) {
+            var resp = JSON.parse(xhr.responseText);
+            $('#resultadoUsuarios').html('<div class="alert alert-danger">' + (resp.message || 'Error al procesar la solicitud') + '</div>');
+        });
+    });
+
+    function editarUsuario(id) {
+        $.post('perfiles_data.php', {
+            action: 'obtener',
+            id: id
+        }, function(resp) {
+            if (resp.success) {
+                var user = resp.usuario;
+                $('#editar-usuario-id').val(user.id);
+                $('#username').val(user.username);
+                $('#password').val('');
+                $('#password').removeAttr('required');
+                $('#login').val(user.login);
+                $('#correo').val(user.correo);
+                $('#rol').val(user.rol || '');
+                $('#action').val('editar');
+                mostrarVista('crear');
+            } else {
+                $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
+            }
+        }, 'json').fail(function(xhr) {
+            var resp = JSON.parse(xhr.responseText);
+            $('#resultadoUsuarios').html('<div class="alert alert-danger">' + (resp.message || 'Error al cargar usuario') + '</div>');
+        });
+    }
+
+    function eliminarUsuario(id) {
+        if (!confirm('¿Está seguro de eliminar este usuario?')) {
+            return;
+        }
+
+        $.post('perfiles_data.php', {
+            action: 'eliminar',
+            id: id
+        }, function(resp) {
+            if (resp.success) {
+                $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
+                setTimeout(function() {
+                    $('#resultadoUsuarios').html('');
+                    cargarListado();
+                }, 1500);
+            } else {
+                $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
+            }
+        }, 'json').fail(function(xhr) {
+            var resp = JSON.parse(xhr.responseText);
+            $('#resultadoUsuarios').html('<div class="alert alert-danger">' + (resp.message || 'Error al eliminar usuario') + '</div>');
+        });
+    }
+    </script>
 </body>
 </html>
-
-<script>
-$(document).ready(function() {
-  $.getJSON('usuarios_data.php', function(data) {
-    let html = '';
-    data.forEach(user => {
-      html += `
-        <tr>
-          <td>${user.id}</td>
-          <td>${user.username}</td>
-          <td>${user.email}</td>
-          <td>${user.rol}</td>
-          <td>
-            <button class="btn-editar" onclick="editarUsuario(${user.id})">Modificar</button>
-            <button class="btn-eliminar" onclick="eliminarUsuario(${user.id})">Eliminar</button>
-          </td>
-        </tr>
-      `;
-    });
-    $('#listaUsuarios').html(html);
-  });
-
-  $('#btnNuevoUsuario').click(function() {
-    window.location.href = 'registrar_usuario.php';
-  });
-});
-
-function editarUsuario(id) {
-  window.location.href = `editar_usuario.php?id=${id}`;
-}
-
-function eliminarUsuario(id) {
-  if (confirm('¿Eliminar este usuario?')) {
-    $.post(`eliminar_usuario.php?id=${id}`, function(resp) {
-      $('#resultadoUsuarios').text(resp.message);
-      setTimeout(() => location.reload(), 1500);
-    }, 'json');
-  }
-}
-</script>
