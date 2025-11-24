@@ -5,28 +5,55 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        // Asegurar que la tabla recetas existe
+        $createRecetasUnicas = "
+        CREATE TABLE IF NOT EXISTS recetas (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            producto_id INT NOT NULL,
+            rango_tallas_id INT NOT NULL,
+            tipo_produccion_id INT NOT NULL,
+            observaciones TEXT,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+        ";
+        $conn->query($createRecetasUnicas);
+
+        // Migrar datos si la tabla está vacía
+        $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
+        $row = $checkRecetas->fetch_assoc();
+        if ($row['count'] == 0) {
+            $sqlInsertRecetas = "
+                INSERT IGNORE INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones)
+                SELECT DISTINCT producto_id, rango_tallas_id, tipo_produccion_id, NULL
+                FROM recetas_productos
+            ";
+            $conn->query($sqlInsertRecetas);
+        }
+
         $sql = "
             SELECT 
-                rp.id,
+                r.id,
                 p.nombre AS producto_nombre,
-                i.nombre AS insumo_nombre,
                 rt.nombre_rango AS rango_tallas_nombre,
                 tp.nombre AS tipo_produccion_nombre,
-                rp.cantidad_por_unidad,
-                i.costo_unitario AS costo_unitario_insumo,
-                (rp.cantidad_por_unidad * i.costo_unitario) AS costo_calculado,
-                COALESCE(rp.costo_por_unidad, (rp.cantidad_por_unidad * i.costo_unitario)) AS costo_por_unidad,
-                rp.observaciones,
-                rp.producto_id,
-                rp.insumo_id,
-                rp.rango_tallas_id,
-                rp.tipo_produccion_id
-            FROM recetas_productos rp
-            INNER JOIN productos p ON rp.producto_id = p.id
-            INNER JOIN insumos i ON rp.insumo_id = i.id
-            INNER JOIN rangos_tallas rt ON rp.rango_tallas_id = rt.id
-            INNER JOIN tipos_produccion tp ON rp.tipo_produccion_id = tp.id
-            ORDER BY rp.id DESC
+                r.observaciones,
+                r.producto_id,
+                r.rango_tallas_id,
+                r.tipo_produccion_id,
+                r.creado_en,
+                COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_total,
+                COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
+            FROM recetas r
+            INNER JOIN productos p ON r.producto_id = p.id
+            INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
+            INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+            LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
+                AND rp.rango_tallas_id = r.rango_tallas_id 
+                AND rp.tipo_produccion_id = r.tipo_produccion_id
+            LEFT JOIN insumos i ON rp.insumo_id = i.id
+            GROUP BY r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en
+            ORDER BY r.id DESC
         ";
 
         $result = $conn->query($sql);
@@ -38,16 +65,19 @@ try {
         }
 
         if (!empty($recetas)) {
+            $i = 0;
             foreach ($recetas as $r) {
+                $i++;
+                $fecha = $r['creado_en'] ? date('d/m/Y H:i', strtotime($r['creado_en'])) : '';
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($r['id']) . '</td>';
+                echo '<td>' .$i. '</td>';
                 echo '<td>' . htmlspecialchars($r['producto_nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($r['insumo_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['rango_tallas_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['tipo_produccion_nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($r['cantidad_por_unidad']) . '</td>';
-                echo '<td>$' . number_format($r['costo_por_unidad'] ?? 0, 2, '.', ',') . '</td>';
+                echo '<td>' . htmlspecialchars($r['cantidad_insumos']) . '</td>';
+                echo '<td>$' . number_format($r['costo_total'] ?? 0, 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($r['observaciones'] ?? '') . '</td>';
+                echo '<td>' . $fecha . '</td>';
                 echo '<td>';
                 echo '<button class="btn btn-sm btn-primary" onclick="editarReceta(' . htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
                 echo '</td>';
@@ -69,7 +99,6 @@ try {
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
             $observaciones = $_POST['observaciones'] ?? '';
             
-            // Manejar insumos: puede venir como array o como string JSON
             $insumos = $_POST['insumos'] ?? [];
             if (is_string($insumos)) {
                 $insumos = json_decode($insumos, true) ?? [];
@@ -82,8 +111,32 @@ try {
                 throw new Exception("Todos los campos son obligatorios y debes agregar al menos un insumo");
             }
             
+            $createRecetasUnicas = "
+            CREATE TABLE IF NOT EXISTS recetas (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                producto_id INT NOT NULL,
+                rango_tallas_id INT NOT NULL,
+                tipo_produccion_id INT NOT NULL,
+                observaciones TEXT,
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+            ";
+            $conn->query($createRecetasUnicas);
+            
             $conn->begin_transaction();
             try {
+                // Primero, insertar o actualizar el registro en la tabla recetas usando ON DUPLICATE KEY UPDATE
+                $stmtReceta = $conn->prepare("
+                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones)
+                    VALUES (?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones)
+                ");
+                $stmtReceta->bind_param("iiis", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones);
+                $stmtReceta->execute();
+                $stmtReceta->close();
+                
+                // Luego, insertar los insumos en recetas_productos
                 foreach ($insumos as $insumo) {
                     $checkSql = "SELECT id FROM recetas_productos 
                                 WHERE producto_id = ? AND insumo_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
@@ -92,9 +145,8 @@ try {
                     $checkStmt->execute();
                     $result = $checkStmt->get_result();
                     
-                    if ($result->num_rows > 0) {
-                        throw new Exception("Ya existe una receta con el insumo: " . $insumo['insumo_nombre']);
-                    }
+                    
+                    $checkStmt->close();
                     
                     $stmt = $conn->prepare("
                         INSERT INTO recetas_productos (producto_id, insumo_id, rango_tallas_id, tipo_produccion_id, cantidad_por_unidad, costo_por_unidad, observaciones)
@@ -111,6 +163,7 @@ try {
                         $observaciones
                     );
                     $stmt->execute();
+                    $stmt->close();
                 }
                 
                 $conn->commit();
