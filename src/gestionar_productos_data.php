@@ -24,11 +24,12 @@ try {
                 $productos[] = $row;
             }
         }
-
+        $i = 0;
         if (!empty($productos)) {
             foreach ($productos as $p) {
+                $i++;
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($p['id']) . '</td>';
+                echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($p['categoria'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($p['tipo_genero'] ?? '-') . '</td>';

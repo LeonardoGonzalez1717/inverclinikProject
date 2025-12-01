@@ -70,6 +70,7 @@ if ($resultTipos) {
                                         <th>Tipo de Producción</th>
                                         <th>Cantidad de Insumos</th>
                                         <th>Costo Total</th>
+                                        <th>Precio Total</th>
                                         <th>Observaciones</th>
                                         <th>Fecha Creación</th>
                                         <th>Acciones</th>
@@ -182,6 +183,12 @@ if ($resultTipos) {
                             </div>
 
                             <div class="mb-3">
+                                <label class="form-label">Precio Total del Producto ($) <span style="color: red;">*</span></label>
+                                <input type="number" step="0.01" min="0" name="precio_total" id="precio_total" class="form-control" placeholder="0.00" required>
+                                <small class="form-text text-muted">Ingrese el precio de venta total del producto terminado</small>
+                            </div>
+
+                            <div class="mb-3">
                                 <label class="form-label">Observaciones Generales</label>
                                 <textarea name="observaciones" id="observaciones" class="form-control" rows="3"></textarea>
                             </div>
@@ -269,7 +276,13 @@ function actualizarTablaInsumos() {
     if (insumosAgregados.length > 0) {
         $('#tabla-insumos').show();
         $('#mensaje-sin-insumos').hide();
-        $('#btn-guardar-receta').prop('disabled', false);
+        // Validar que también haya precio total del producto
+        var precioTotal = parseFloat($('#precio_total').val()) || 0;
+        if (precioTotal > 0) {
+            $('#btn-guardar-receta').prop('disabled', false);
+        } else {
+            $('#btn-guardar-receta').prop('disabled', true);
+        }
     } else {
         $('#tabla-insumos').hide();
         $('#mensaje-sin-insumos').show();
@@ -306,6 +319,7 @@ function limpiarFormulario() {
     actualizarTablaInsumos();
     limpiarFormularioInsumo();
     $('#editar-receta-id').val('');
+    $('#precio_total').val('');
 }
 
 $(document).ready(function() {
@@ -331,6 +345,16 @@ $(document).ready(function() {
             agregarInsumo();
         }
     });
+    
+    // Validar precio total del producto para habilitar botón guardar
+    $('#precio_total').on('input', function() {
+        var precioTotal = parseFloat($(this).val()) || 0;
+        if (insumosAgregados.length > 0 && precioTotal > 0) {
+            $('#btn-guardar-receta').prop('disabled', false);
+        } else {
+            $('#btn-guardar-receta').prop('disabled', true);
+        }
+    });
 });
 
 $("#form-crear").on("submit", function(e) {
@@ -344,10 +368,16 @@ $("#form-crear").on("submit", function(e) {
     var producto_id = $("#producto_id").val();
     var rango_tallas_id = $("#rango_tallas_id").val();
     var tipo_produccion_id = $("#tipo_produccion_id").val();
+    var precio_total = parseFloat($("#precio_total").val()) || 0;
     var observaciones = $("#observaciones").val() || "";
     
     if (!producto_id || !rango_tallas_id || !tipo_produccion_id) {
         alert('Por favor completa todos los campos requeridos');
+        return;
+    }
+    
+    if (precio_total <= 0) {
+        alert('Por favor ingresa un precio total del producto válido');
         return;
     }
     
@@ -356,6 +386,7 @@ $("#form-crear").on("submit", function(e) {
         producto_id: producto_id,
         rango_tallas_id: rango_tallas_id,
         tipo_produccion_id: tipo_produccion_id,
+        precio_total: precio_total,
         insumos: JSON.stringify(insumosAgregados),  // Convertir a JSON string
         observaciones: observaciones
     };
