@@ -1,12 +1,11 @@
 <?php
+session_start();
 include 'connection/connection.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-
 $usuario = $_POST['usuario'] ?? '';
 $clave   = $_POST['clave'] ?? '';
-
 
 if (empty($usuario) || empty($clave)) {
     echo json_encode([
@@ -17,33 +16,37 @@ if (empty($usuario) || empty($clave)) {
     exit;
 }
 
-$usuario = mysqli_real_escape_string($conn, $usuario);
-$clave   = mysqli_real_escape_string($conn, $clave);
+// Usar consulta solo por username
+$sql = "SELECT * FROM users WHERE username = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("s", $usuario);
+$stmt->execute();
+$result = $stmt->get_result();
 
+if ($row = $result->fetch_assoc()) {
+    // Validar contraseña encriptada
+    if (password_verify($clave, $row['password'])) {
+        $_SESSION['iduser']   = $row['id'];
+        $_SESSION['username'] = $row['username'];
+        $_SESSION['rol']      = $row['rol'];
 
-$sql = "SELECT * FROM users WHERE username = '$usuario' AND password = '$clave'";
-$result = mysqli_query($conn, $sql);
-
-if (!$result) {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Error en la consulta: ' . mysqli_error($conn)
-    ]);
-} else {
-    if (mysqli_num_rows($result) == 1) {
-        $row = mysqli_fetch_assoc($result);
         echo json_encode([
             'success' => true,
             'message' => 'Login exitoso',
-            'user' => $row['username'],
-            'id' => $row['id']
+            'user'    => $row['username'],
+            'id'      => $row['id']
         ]);
     } else {
         echo json_encode([
             'success' => false,
-            'message' => 'Usuario o contraseña incorrectos.'
+            'message' => 'Contraseña incorrecta.'
         ]);
     }
+} else {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Usuario no encontrado.'
+    ]);
 }
 
 mysqli_close($conn);

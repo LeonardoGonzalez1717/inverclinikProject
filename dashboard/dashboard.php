@@ -2,7 +2,7 @@
 require_once('../template/header.php');
 require_once '../helpers/Modal.php';
 
-$id = $_GET['iduser'] ?? 1;
+$id = $_SESSION['iduser'];
 $sql = "SELECT * from users where id = $id";
 $result = mysqli_query($conn, $sql);
 $row = mysqli_fetch_assoc($result);

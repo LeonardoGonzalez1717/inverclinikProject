@@ -19,6 +19,7 @@ try {
         } else {        
             $i = 0;
             foreach ($usuarios as $user) {
+                // $user['password'] = password_verify($user['password'], $user['password']);
                 $i++;
                 $fecha = date('d/m/Y H:i', strtotime($user['createdAt']));
                 $rol = $user['rol'] ?? 'No asignado';
@@ -40,9 +41,9 @@ try {
     } elseif ($action === 'crear') {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
-        $login = $_POST['login'] ?? '';
-        $correo = $_POST['correo'] ?? '';
-        $rol = $_POST['rol'] ?? '';
+        $login    = $_POST['login'] ?? '';
+        $correo   = $_POST['correo'] ?? '';
+        $rol      = $_POST['rol'] ?? '';
 
         if (empty($username) || empty($password) || empty($login) || empty($correo) || empty($rol)) {
             throw new Exception("Todos los campos son obligatorios");
@@ -53,6 +54,7 @@ try {
             throw new Exception("Rol no válido");
         }
 
+        // Validar duplicados
         $sqlCheck = "SELECT id FROM users WHERE username = ? OR login = ? OR correo = ?";
         $stmtCheck = $conn->prepare($sqlCheck);
         $stmtCheck->bind_param("sss", $username, $login, $correo);
@@ -64,26 +66,25 @@ try {
         }
         $stmtCheck->close();
 
+        // Encriptar la contraseña antes de guardar
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+
         $stmt = $conn->prepare("INSERT INTO users (username, password, login, correo, rol) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sisss", $username, $password, $login, $correo, $rol);
+        $stmt->bind_param("sssss", $username, $hash, $login, $correo, $rol);
         $stmt->execute();
         
-        echo json_encode(['success' => true, 'message' => 'Usuario creado exitosamente', 'id' => $conn->insert_id]);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Usuario creado exitosamente',
+            'id' => $conn->insert_id
+        ]);
         $stmt->close();
     } elseif ($action === 'editar') {
-        $id = $_POST['id'] ?? null;
-        if (!$id) {
-            throw new Exception("ID de usuario requerido");
-        }
-
-        $username = $_POST['username'] ?? '';
-        $password = $_POST['password'] ?? '';
-        $login = $_POST['login'] ?? '';
-        $correo = $_POST['correo'] ?? '';
+        $id  = $_POST['id'] ?? null;
         $rol = $_POST['rol'] ?? '';
 
-        if (empty($username) || empty($login) || empty($correo) || empty($rol)) {
-            throw new Exception("Usuario, login, correo y rol son obligatorios");
+        if (!$id) {
+            throw new Exception("ID de usuario requerido");
         }
 
         $rolesPermitidos = ['superadmin', 'administrador', 'cliente'];
@@ -91,27 +92,15 @@ try {
             throw new Exception("Rol no válido");
         }
 
-        $sqlCheck = "SELECT id FROM users WHERE (username = ? OR login = ? OR correo = ?) AND id != ?";
-        $stmtCheck = $conn->prepare($sqlCheck);
-        $stmtCheck->bind_param("sssi", $username, $login, $correo, $id);
-        $stmtCheck->execute();
-        $resultCheck = $stmtCheck->get_result();
-        
-        if ($resultCheck->num_rows > 0) {
-            throw new Exception("El usuario, login o correo ya existe");
-        }
-        $stmtCheck->close();
-
-        if (!empty($password)) {
-            $stmt = $conn->prepare("UPDATE users SET username = ?, password = ?, login = ?, correo = ?, rol = ? WHERE id = ?");
-            $stmt->bind_param("sisssi", $username, $password, $login, $correo, $rol, $id);
-        } else {
-            $stmt = $conn->prepare("UPDATE users SET username = ?, login = ?, correo = ?, rol = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $username, $login, $correo, $rol, $id);
-        }
+        // Solo actualizamos el rol
+        $stmt = $conn->prepare("UPDATE users SET rol = ? WHERE id = ?");
+        $stmt->bind_param("si", $rol, $id);
         $stmt->execute();
-        
-        echo json_encode(['success' => true, 'message' => 'Usuario actualizado exitosamente']);
+
+        echo json_encode([
+            'success' => true,
+            'message' => 'Rol actualizado exitosamente'
+        ]);
         $stmt->close();
     } elseif ($action === 'obtener') {
         $id = $_POST['id'] ?? null;
@@ -132,15 +121,28 @@ try {
         $stmt->close();
     } elseif ($action === 'eliminar') {
         $id = $_POST['id'] ?? null;
+        $idActivo = $_SESSION['iduser'] ?? null;
+
         if (!$id) {
             throw new Exception("ID de usuario requerido");
+        }
+
+        if ($id == $idActivo) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'No puedes eliminar tu propio usuario mientras estás logueado.'
+            ]);
+            exit;
         }
 
         $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         
-        echo json_encode(['success' => true, 'message' => 'Usuario eliminado exitosamente']);
+        echo json_encode([
+            'success' => true,
+            'message' => 'Usuario eliminado exitosamente'
+        ]);
         $stmt->close();
     } else {
         throw new Exception("Acción no válida");

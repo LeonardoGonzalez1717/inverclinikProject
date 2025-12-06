@@ -33,7 +33,7 @@
         </ul>
     </nav>
     <div class="perfil">
-        <button onclick="window.location.href='perfil.php'">Perfil</button>
+        <button onclick="window.location.href='../perfiles/perfil.php'">Perfil</button>
         <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <button onclick="window.location.href='../template/logout.php'">Cerrar sesión</button>
     </div>
