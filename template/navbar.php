@@ -32,12 +32,15 @@
               <li><a href="../reportes/insumos_view.php" target="_blank">Reporte de Insumos</a></li>
               <li><a href="../reportes/ordenes_view.php" target="_blank">Reporte de Ordenes</a></li>
               <li><a href="../reportes/productos_view.php" target="_blank">Reporte de Productos</a></li>
+              <li><a href="../reportes/ordenes_produccion_view.php" target="_blank">Reporte de Ordenes P.</a></li>
+              <li><a href="../reportes/inventario_materia_prima_view.php" target="_blank">Reporte de Materia Prima</a></li>
+              <li><a href="../reportes/inventario_productos_view.php" target="_blank">Reporte de Stock</a></li>
             </ul>
           </li>
         </ul>
     </nav>
     <div class="perfil">
-        <button onclick="window.location.href='perfil.php'">Perfil</button>
+        <button onclick="window.location.href='../perfiles/perfil.php'">Perfil</button>
         <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <button onclick="window.location.href='../template/logout.php'">Cerrar sesión</button>
     </div>

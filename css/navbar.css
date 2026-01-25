@@ -4,14 +4,27 @@
   top: 0;
   left: 0;
   width: 260px;
-  height: 100%;
+  height: 100vh; /* Cambiamos 100% por 100vh para asegurar el alto de pantalla */
   background: linear-gradient(to bottom, #005bbe, #003a7e);
   color: #fff;
   padding: 20px;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  
+  /* === ESTO ARREGLA EL SCROLL === */
+  overflow-y: auto;  /* Permite scroll vertical si el contenido excede el alto */
+  overflow-x: hidden; /* Evita que aparezca scroll horizontal */
+  /* justify-content:flex-start ; */
+}
+
+/* Opcional: Para que la barra de scroll no se vea fea (estilo moderno) */
+.sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+.sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 /* === LOGO === */
@@ -45,7 +58,7 @@ nav ul li a {
   padding: 8px 12px;
   display: block;
   border-radius: 4px;
-  font-size: 1.8em;
+  font-size: 1.1em;
   transition: background-color 0.3s, color 0.3s;
 }
 

@@ -44,7 +44,7 @@ require_once('../template/header.php');
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear/Editar Usuario</h5>
+                        <h5 class="subtitle">Crear Usuario</h5>
                         <form id="form-crear">
                             <div class="mb-3">
                                 <label class="form-label">Nombre de Usuario <span style="color: red;">*</span></label>
@@ -106,15 +106,32 @@ require_once('../template/header.php');
         }
     }
 
+    function prepararCrear() {
+        $('#editar-usuario-id').val('');
+        $('#username').val('').prop('readonly', false);
+        $('#login').val('').prop('readonly', false);
+        $('#correo').val('').prop('readonly', false);
+        $('#password').val('').prop('readonly', false).attr('required', true);
+        $('#rol').val('');
+        $('#action').val('crear');
+        mostrarVista('crear');
+    }
+
     function limpiarFormulario() {
         $('#form-crear')[0].reset();
         $('#editar-usuario-id').val('');
         $('#action').val('crear');
         $('#password').attr('required', true);
+
+        $('#username').prop('readonly', false);
+        $('#login').prop('readonly', false);
+        $('#correo').prop('readonly', false);
+        $('#password').prop('readonly', false);
+
     }
 
     function cargarListado() {
-        $.post('perfiles_data.php', {
+        $.post('gestionar_perfiles_data.php', {
             action: 'listar_html'
         }, function(html) {
             $('#listaUsuarios').html(html);
@@ -122,6 +139,13 @@ require_once('../template/header.php');
             $('#listaUsuarios').html('<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>');
         });
     }
+
+    // $.post('gestionar_perfiles_data.php', { action: 'eliminar', id: usuarioId }, function(response) {
+    //     alert(response.message);
+    //     if (response.success) {
+    //         cargarListado();
+    //     }
+    // }, 'json');
 
     $('#form-crear').on('submit', function(e) {
         e.preventDefault();
@@ -140,7 +164,7 @@ require_once('../template/header.php');
             delete formData.password;
         }
 
-        $.post('perfiles_data.php', formData, function(resp) {
+        $.post('gestionar_perfiles_data.php', formData, function(resp) {
             if (resp.success) {
                 $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
                 setTimeout(function() {
@@ -158,20 +182,21 @@ require_once('../template/header.php');
     });
 
     function editarUsuario(id) {
-        $.post('perfiles_data.php', {
+        $.post('gestionar_perfiles_data.php', {
             action: 'obtener',
             id: id
         }, function(resp) {
             if (resp.success) {
                 var user = resp.usuario;
+
                 $('#editar-usuario-id').val(user.id);
-                $('#username').val(user.username);
-                $('#password').val('');
-                $('#password').removeAttr('required');
-                $('#login').val(user.login);
-                $('#correo').val(user.correo);
-                $('#rol').val(user.rol || '');
+                $('#username').val(user.username).prop('readonly', true);
+                $('#password').val('').prop('readonly', true);
+                $('#login').val(user.login).prop('readonly', true);
+                $('#correo').val(user.correo).prop('readonly', true);
+                $('#rol').val(user.rol || ''); // este queda editable
                 $('#action').val('editar');
+
                 mostrarVista('crear');
             } else {
                 $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
@@ -187,7 +212,7 @@ require_once('../template/header.php');
             return;
         }
 
-        $.post('perfiles_data.php', {
+        $.post('gestionar_perfiles_data.php', {
             action: 'eliminar',
             id: id
         }, function(resp) {

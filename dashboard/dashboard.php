@@ -2,7 +2,7 @@
 require_once('../template/header.php');
 require_once '../helpers/Modal.php';
 
-$id = $_GET['iduser'] ?? 1;
+$id = $_SESSION['iduser'];
 $sql = "SELECT * from users where id = $id";
 $result = mysqli_query($conn, $sql);
 $row = mysqli_fetch_assoc($result);
@@ -21,18 +21,18 @@ $row = mysqli_fetch_assoc($result);
     <div class="main-panel">
         <section class="alertas">
           <div class="alert-card produccion">
-            <h3> Producción</h3>
-            <p>Órdenes activas: <span id="ordenesActivas">3</span></p>
-            <p>Retrasos detectados: <span id="retrasos">1</span></p>
+            <h3> Gestión de Producción</h3>
+            <p>Órdenes activas: <span id="ordenesActivas"></span></p>
+            <p>Retrasos detectados: <span id="retrasos"></span></p>
           </div>
           <div class="alert-card pagos">
             <h3> Pagos/Cobros</h3>
-            <p>Ventas por cobrar: <span id="ventasPendientes">2</span></p>
-            <p>Compras por pagar: <span id="comprasPendientes">1</span></p>
+            <p>Ventas por cobrar: <span id="ventasPendientes"></span></p>
+            <p>Compras por pagar: <span id="comprasPendientes"></span></p>
           </div>
           <div class="alert-card inventario">
-            <h3> Falta Materia Prima</h3>
-            <p>Insumos bajos: <span id="insumosBajos">4</span></p>
+            <h3> Disponibilidad de Insumos</h3>
+            <p>Stock Crítico: <span id="insumosBajos"></span></p>
           </div>
         </section>
   
@@ -47,9 +47,7 @@ $row = mysqli_fetch_assoc($result);
             </div>
           </div>
           <div class="indicadores">
-            <p>Total ventas: <strong>$12,500</strong></p>
-            <p>Uniformes producidos: <strong>320</strong></p>
-            <p>Insumo más usado: <strong>Tela Jean</strong></p>
+            
           </div>
         </section>
     </div>
@@ -58,55 +56,71 @@ $row = mysqli_fetch_assoc($result);
 </html>
 
 <script>
-const ctxVentas = document.getElementById('graficoVentas').getContext('2d');
-new Chart(ctxVentas, {
-  type: 'bar',
-  data: {
-    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Encargo',
-        data: [12, 19, 14, 17, 20, 15],
-        backgroundColor: '#005bbe'
-      },
-      {
-        label: 'Stock',
-        data: [8, 11, 9, 10, 12, 9],
-        backgroundColor: '#f3c924'
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position: 'top' },
-      title: {
-        display: true,
-        text: 'Ventas mensuales por tipo'
-      }
-    }
-  }
-});
+  async function cargarDashboard() {
+    try {
+        const response = await fetch('dashboard_datos.php');
+        const data = await response.json();
 
-const ctxProduccion = document.getElementById('graficoProduccion').getContext('2d');
-new Chart(ctxProduccion, {
-  type: 'pie',
-  data: {
-    labels: ['Bata médica', 'Mono industrial', 'Pijama quirúrgico'],
-    datasets: [{
-      data: [45, 30, 25],
-      backgroundColor: ['#005bbe', '#f3c924', '#4a90e2']
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: { position: 'bottom' },
-      title: {
-        display: true,
-        text: 'Distribución de producción por prenda'
-      }
+        // 1. Llenar Tarjetas (KPIs)
+        document.getElementById('ordenesActivas').textContent = data.kpis.activas;
+        document.getElementById('retrasos').textContent = data.kpis.retrasos;
+        document.getElementById('ventasPendientes').textContent = data.kpis.v_pendientes;
+        document.getElementById('comprasPendientes').textContent = data.kpis.c_pagar;
+        document.getElementById('insumosBajos').textContent = data.kpis.bajos;
+
+        // Alerta visual de retrasos
+        if(parseInt(data.kpis.retrasos) > 0) {
+            document.querySelector('.alert-card.produccion').style.borderLeft = "5px solid red";
+        }
+
+        // 2. Gráfico de Torta (Producción)
+        const ctxPie = document.getElementById('graficoProduccion').getContext('2d');
+        new Chart(ctxPie, {
+          type: 'pie',
+          data: {
+            labels: data.pie_chart.map(item => item.nombre),
+            datasets: [{
+                data: data.pie_chart.map(item => item.total),
+                backgroundColor: ['#005bbe', '#f3c924', '#4a90e2', '#ff6384', '#36a2eb']
+            }]
+          },
+          options: { responsive: true }
+        });
+
+        const ctxBar = document.getElementById('graficoVentas').getContext('2d'); 
+        
+        const estadosColores = {
+            'pendiente': '#f3c924',
+            'en_proceso': '#36a2eb',
+            'finalizado': '#005bbe',
+            'cancelado': '#dc3545'
+        };
+
+        new Chart(ctxBar, {
+          type: 'bar',
+          data: {
+              labels: data.bar_chart.map(item => item.estado),
+              datasets: [{
+                  label: 'Cantidad de Órdenes',
+                  data: data.bar_chart.map(item => item.total),
+                  backgroundColor: data.bar_chart.map(item => estadosColores[item.estado] || '#6c757d')
+              }]
+          },
+          options: {
+              responsive: true,
+              scales: {
+                  y: { beginAtZero: true, ticks: { stepSize: 1 } }
+              },
+              plugins: {
+                  title: { display: true, text: 'Flujo de Trabajo Actual' }
+              }
+          }
+      });
+
+    } catch (error) {
+        console.error("Error al cargar datos:", error);
     }
   }
-});
+
+  document.addEventListener('DOMContentLoaded', cargarDashboard);
 </script>

@@ -1,4 +1,8 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 if (empty($sin_sidebar)) {
     include 'navbar.php';
 }
@@ -35,6 +39,7 @@ require_once ROOT_PATH . '/connection/connection.php';
     <link rel="stylesheet" href="../css/reportes.css">
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/navbar.css">
+    <link rel="stylesheet" href="../css/perfil.css">
     
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
 
