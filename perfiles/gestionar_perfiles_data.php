@@ -5,7 +5,7 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        $sql = "SELECT id, username, correo, login, rol, createdAt FROM users ORDER BY id DESC";
+        $sql = "SELECT id, username, correo, rol, createdAt FROM users ORDER BY id DESC";
         $result = $conn->query($sql);
         $usuarios = [];
         if ($result) {
@@ -15,7 +15,7 @@ try {
         }
 
         if (empty($usuarios)) {
-            echo '<tr><td colspan="7" class="text-center">No hay usuarios registrados</td></tr>';
+            echo '<tr><td colspan="6" class="text-center">No hay usuarios registrados</td></tr>';
         } else {        
             $i = 0;
             foreach ($usuarios as $user) {
@@ -28,7 +28,6 @@ try {
                 echo '<td>' . $i . '</td>';
                 echo '<td>' . htmlspecialchars($user['username']) . '</td>';
                 echo '<td>' . htmlspecialchars($user['correo']) . '</td>';
-                echo '<td>' . htmlspecialchars($user['login']) . '</td>';
                 echo '<td>' . htmlspecialchars($rolDisplay) . '</td>';
                 echo '<td>' . $fecha . '</td>';
                 echo '<td>';
@@ -41,11 +40,10 @@ try {
     } elseif ($action === 'crear') {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
-        $login    = $_POST['login'] ?? '';
         $correo   = $_POST['correo'] ?? '';
         $rol      = $_POST['rol'] ?? '';
 
-        if (empty($username) || empty($password) || empty($login) || empty($correo) || empty($rol)) {
+        if (empty($username) || empty($password) || empty($correo) || empty($rol)) {
             throw new Exception("Todos los campos son obligatorios");
         }
 
@@ -55,22 +53,22 @@ try {
         }
 
         // Validar duplicados
-        $sqlCheck = "SELECT id FROM users WHERE username = ? OR login = ? OR correo = ?";
+        $sqlCheck = "SELECT id FROM users WHERE username = ? OR correo = ?";
         $stmtCheck = $conn->prepare($sqlCheck);
-        $stmtCheck->bind_param("sss", $username, $login, $correo);
+        $stmtCheck->bind_param("ss", $username, $correo);
         $stmtCheck->execute();
         $resultCheck = $stmtCheck->get_result();
         
         if ($resultCheck->num_rows > 0) {
-            throw new Exception("El usuario, login o correo ya existe");
+            throw new Exception("El usuario o correo ya existe");
         }
         $stmtCheck->close();
 
         // Encriptar la contraseña antes de guardar
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt = $conn->prepare("INSERT INTO users (username, password, login, correo, rol) VALUES (?, ?, ?, ?, ?)");
-        $stmt->bind_param("sssss", $username, $hash, $login, $correo, $rol);
+        $stmt = $conn->prepare("INSERT INTO users (username, password, correo, rol) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssss", $username, $hash, $correo, $rol);
         $stmt->execute();
         
         echo json_encode([
@@ -108,7 +106,7 @@ try {
             throw new Exception("ID de usuario requerido");
         }
 
-        $stmt = $conn->prepare("SELECT id, username, password, login, correo, rol FROM users WHERE id = ?");
+        $stmt = $conn->prepare("SELECT id, username, password, correo, rol FROM users WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -152,7 +150,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         } else {
-            echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar usuarios</td></tr>';
+            echo '<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>';
         }
 }
 

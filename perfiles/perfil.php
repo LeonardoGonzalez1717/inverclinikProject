@@ -2,7 +2,7 @@
 <?php
 $iduser = $_SESSION['iduser'];
 
-$sql = "SELECT id, username, correo, login, rol, createdAt FROM users WHERE id = ?";
+$sql = "SELECT id, username, correo, rol, createdAt FROM users WHERE id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $iduser);
 $stmt->execute();
@@ -28,12 +28,6 @@ $row = $result->fetch_assoc();
             <label class="form-label">Nombre de Usuario</label>
             <input type="text" name="username" class="form-control" required
                   value="<?= htmlspecialchars($row['username']) ?>">
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label">Login</label>
-            <input type="text" name="login" class="form-control" required
-                  value="<?= htmlspecialchars($row['login']) ?>">
           </div>
 
           <div class="mb-3">
