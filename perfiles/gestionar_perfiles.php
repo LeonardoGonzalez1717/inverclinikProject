@@ -31,7 +31,6 @@ require_once('../template/header.php');
                                         <th>N°</th>
                                         <th>Usuario</th>
                                         <th>Correo</th>
-                                        <th>Login</th>
                                         <th>Rol</th>
                                         <th>Fecha Creación</th>
                                         <th>Acciones</th>
@@ -56,11 +55,6 @@ require_once('../template/header.php');
                                 <input type="password" name="password" id="password" class="form-control" 
                                        placeholder="Dejar vacío para mantener la actual (solo al editar)">
                                 <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Login <span style="color: red;">*</span></label>
-                                <input type="text" name="login" id="login" class="form-control" required 
-                                       maxlength="255" placeholder="Ej: leo1">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
@@ -109,7 +103,6 @@ require_once('../template/header.php');
     function prepararCrear() {
         $('#editar-usuario-id').val('');
         $('#username').val('').prop('readonly', false);
-        $('#login').val('').prop('readonly', false);
         $('#correo').val('').prop('readonly', false);
         $('#password').val('').prop('readonly', false).attr('required', true);
         $('#rol').val('');
@@ -124,7 +117,6 @@ require_once('../template/header.php');
         $('#password').attr('required', true);
 
         $('#username').prop('readonly', false);
-        $('#login').prop('readonly', false);
         $('#correo').prop('readonly', false);
         $('#password').prop('readonly', false);
 
@@ -155,7 +147,6 @@ require_once('../template/header.php');
             id: $('#editar-usuario-id').val() || null,
             username: $('#username').val(),
             password: $('#password').val(),
-            login: $('#login').val(),
             correo: $('#correo').val(),
             rol: $('#rol').val()
         };
@@ -192,7 +183,6 @@ require_once('../template/header.php');
                 $('#editar-usuario-id').val(user.id);
                 $('#username').val(user.username).prop('readonly', true);
                 $('#password').val('').prop('readonly', true);
-                $('#login').val(user.login).prop('readonly', true);
                 $('#correo').val(user.correo).prop('readonly', true);
                 $('#rol').val(user.rol || ''); // este queda editable
                 $('#action').val('editar');

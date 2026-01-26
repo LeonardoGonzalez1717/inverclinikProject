@@ -23,6 +23,25 @@ CREATE TABLE IF NOT EXISTS movimientos_inventario_detalle (
 
 $conn->query($createTableSQL);
 
+// Agregar campo tipo_movimiento a inventario si no existe
+$checkColumnInventario = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
+if ($checkColumnInventario->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE inventario 
+                     ADD COLUMN tipo_movimiento ENUM('compra', 'orden_produccion', 'manual', 'ajuste') 
+                     DEFAULT 'manual' 
+                     AFTER stock_actual");
+        $conn->query("ALTER TABLE inventario 
+                     ADD COLUMN referencia_id INT NULL 
+                     AFTER tipo_movimiento");
+        $conn->query("ALTER TABLE inventario 
+                     ADD INDEX idx_tipo_movimiento (tipo_movimiento)");
+        $conn->query("UPDATE inventario SET tipo_movimiento = 'manual' WHERE tipo_movimiento IS NULL");
+    } catch (Exception $e) {
+        // Si falla, continuar sin el campo
+    }
+}
+
 $checkColumn = $conn->query("SHOW COLUMNS FROM movimientos_inventario_detalle LIKE 'orden_produccion_id'");
 if ($checkColumn->num_rows == 0) {
     $conn->query("ALTER TABLE movimientos_inventario_detalle ADD COLUMN orden_produccion_id INT NULL");
@@ -98,28 +117,59 @@ try {
         $tipoInventario = $_POST['tipo_inventario'] ?? 'materia_prima';
         
         if ($tipoInventario === 'materia_prima') {
-            $sql = "
-                SELECT 
-                    inv.insumo_id,
-                    i.nombre AS insumo_nombre,
-                    i.unidad_medida,
-                    inv.stock_actual,
-                    DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion,
-                    m.tipo AS ultimo_tipo_movimiento
-                FROM inventario inv
-                INNER JOIN insumos i ON inv.insumo_id = i.id
-                LEFT JOIN (
-                    SELECT m1.insumo_id, m1.tipo
-                    FROM movimientos_inventario_detalle m1
-                    INNER JOIN (
-                        SELECT insumo_id, MAX(fecha_movimiento) AS max_fecha
-                        FROM movimientos_inventario_detalle
-                        GROUP BY insumo_id
-                    ) m2 ON m1.insumo_id = m2.insumo_id AND m1.fecha_movimiento = m2.max_fecha
-                ) m ON inv.insumo_id = m.insumo_id
-                WHERE i.activo = 1
-                ORDER BY i.nombre ASC
-            ";
+            // Verificar si existe la columna tipo_movimiento
+            $checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
+            $tieneTipoMovimiento = $checkColumn->num_rows > 0;
+            
+            if ($tieneTipoMovimiento) {
+                $sql = "
+                    SELECT 
+                        inv.insumo_id,
+                        i.nombre AS insumo_nombre,
+                        i.unidad_medida,
+                        inv.stock_actual,
+                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion,
+                        COALESCE(inv.tipo_movimiento, 'manual') AS tipo_movimiento,
+                        m.tipo AS ultimo_tipo_movimiento
+                    FROM inventario inv
+                    INNER JOIN insumos i ON inv.insumo_id = i.id
+                    LEFT JOIN (
+                        SELECT m1.insumo_id, m1.tipo
+                        FROM movimientos_inventario_detalle m1
+                        INNER JOIN (
+                            SELECT insumo_id, MAX(fecha_movimiento) AS max_fecha
+                            FROM movimientos_inventario_detalle
+                            GROUP BY insumo_id
+                        ) m2 ON m1.insumo_id = m2.insumo_id AND m1.fecha_movimiento = m2.max_fecha
+                    ) m ON inv.insumo_id = m.insumo_id
+                    WHERE i.activo = 1
+                    ORDER BY i.nombre ASC
+                ";
+            } else {
+                $sql = "
+                    SELECT 
+                        inv.insumo_id,
+                        i.nombre AS insumo_nombre,
+                        i.unidad_medida,
+                        inv.stock_actual,
+                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion,
+                        'manual' AS tipo_movimiento,
+                        m.tipo AS ultimo_tipo_movimiento
+                    FROM inventario inv
+                    INNER JOIN insumos i ON inv.insumo_id = i.id
+                    LEFT JOIN (
+                        SELECT m1.insumo_id, m1.tipo
+                        FROM movimientos_inventario_detalle m1
+                        INNER JOIN (
+                            SELECT insumo_id, MAX(fecha_movimiento) AS max_fecha
+                            FROM movimientos_inventario_detalle
+                            GROUP BY insumo_id
+                        ) m2 ON m1.insumo_id = m2.insumo_id AND m1.fecha_movimiento = m2.max_fecha
+                    ) m ON inv.insumo_id = m.insumo_id
+                    WHERE i.activo = 1
+                    ORDER BY i.nombre ASC
+                ";
+            }
 
             $result = $conn->query($sql);
             $inventario = [];
@@ -133,12 +183,30 @@ try {
                 $i = 0;
                 foreach ($inventario as $inv) {
                     $i++;
+                    
                     $badgeClass = '';
                     $tipoTexto = '-';
                     
                     if (!empty($inv['ultimo_tipo_movimiento'])) {
                         $badgeClass = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'badge-entrada' : 'badge-salida';
                         $tipoTexto = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'Entrada' : 'Salida';
+                    }
+                    
+                    // Mostrar el origen del movimiento (compra, orden_produccion, manual, ajuste)
+                    $tipoMovimiento = $inv['tipo_movimiento'] ?? 'manual';
+                    $tipoMovimientoTexto = '';
+                    switch($tipoMovimiento) {
+                        case 'compra':
+                            $tipoMovimientoTexto = '<span style="color: #0056b3; font-weight: bold;">Compra</span>';
+                            break;
+                        case 'orden_produccion':
+                            $tipoMovimientoTexto = '<span style="color: #6c757d; font-weight: bold;">Orden Producción</span>';
+                            break;
+                        case 'ajuste':
+                            $tipoMovimientoTexto = '<span style="color: #ffc107; font-weight: bold;">Ajuste</span>';
+                            break;
+                        default:
+                            $tipoMovimientoTexto = '<span style="color: #28a745; font-weight: bold;">Manual</span>';
                     }
                     
                     echo '<tr>';
@@ -150,11 +218,12 @@ try {
                     } else {
                         echo '<td>' . htmlspecialchars($tipoTexto) . '</td>';
                     }
+                    echo '<td>' . $tipoMovimientoTexto . '</td>';
                     echo '<td><strong>' . number_format($inv['stock_actual'], 2, '.', ',') . '</strong></td>';
                     echo '</tr>';
                 }
             } else {
-                echo '<tr><td colspan="5" class="text-center">No hay registros en el inventario de materia prima</td></tr>';
+                echo '<tr><td colspan="6" class="text-center">No hay registros en el inventario de materia prima</td></tr>';
             }
         } else {
             $sql = "
@@ -275,8 +344,15 @@ try {
             $insumo_id = $_POST['insumo_id'] ?? null;
             $receta_id = $_POST['receta_id'] ?? null;
             $tipo = $_POST['tipo'] ?? '';
+            $tipo_movimiento = $_POST['tipo_movimiento'] ?? 'manual';
             $cantidad = $_POST['cantidad'] ?? 0;
             $observaciones = $_POST['observaciones'] ?? '';
+            
+            // Validar tipo_movimiento
+            $tipos_validos = ['compra', 'orden_produccion', 'manual', 'ajuste'];
+            if (!in_array($tipo_movimiento, $tipos_validos)) {
+                $tipo_movimiento = 'manual';
+            }
 
             if (empty($tipo_inventario)) {
                 throw new Exception("El tipo de inventario es obligatorio");
@@ -342,14 +418,28 @@ try {
                     $stmtMovimiento->execute();
                     $stmtMovimiento->close();
 
-                    $stmtInventario = $conn->prepare("
-                        INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                        VALUES (?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE 
-                            stock_actual = VALUES(stock_actual),
-                            ultima_actualizacion = NOW()
-                    ");
-                    $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
+                    // Verificar si existe la columna tipo_movimiento
+                    $checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
+                    if ($checkColumn->num_rows > 0) {
+                        $stmtInventario = $conn->prepare("
+                            INSERT INTO inventario (insumo_id, stock_actual, tipo_movimiento, ultima_actualizacion)
+                            VALUES (?, ?, ?, NOW())
+                            ON DUPLICATE KEY UPDATE 
+                                stock_actual = VALUES(stock_actual),
+                                tipo_movimiento = VALUES(tipo_movimiento),
+                                ultima_actualizacion = NOW()
+                        ");
+                        $stmtInventario->bind_param("ids", $insumo_id, $nuevoStock, $tipo_movimiento);
+                    } else {
+                        $stmtInventario = $conn->prepare("
+                            INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
+                            VALUES (?, ?, NOW())
+                            ON DUPLICATE KEY UPDATE 
+                                stock_actual = VALUES(stock_actual),
+                                ultima_actualizacion = NOW()
+                        ");
+                        $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
+                    }
                     $stmtInventario->execute();
                     $stmtInventario->close();
 

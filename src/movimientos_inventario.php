@@ -169,6 +169,7 @@ if ($resultRecetas) {
                                                 <th>Última Actualización</th>
                                                 <th>Insumo</th>
                                                 <th>Último Movimiento</th>
+                                                <th>Origen del Movimiento</th>
                                                 <th>Stock Actual</th>
                                             </tr>
                                         </thead>
@@ -267,6 +268,17 @@ if ($resultRecetas) {
                                     <option value="entrada">Entrada</option>
                                     <option value="salida">Salida</option>
                                 </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Origen del Movimiento <span style="color: red;">*</span></label>
+                                <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required>
+                                    <option value="manual">Manual</option>
+                                    <option value="compra">Compra</option>
+                                    <option value="orden_produccion">Orden de Producción</option>
+                                    <option value="ajuste">Ajuste de Inventario</option>
+                                </select>
+                                <small class="form-text text-muted">Selecciona el origen de este movimiento de inventario</small>
                             </div>
 
                             <div class="mb-3">
@@ -405,6 +417,7 @@ function limpiarFormulario() {
     $('#insumo_id').val('');
     $('#receta_id').val('');
     $('#tipo').val('');
+    $('#tipo_movimiento').val('manual');
     $('#cantidad').val('');
     $('#observaciones').val('');
     $('#campo-materia-prima').hide();
@@ -467,12 +480,15 @@ $("#form-crear").on("submit", function(e) {
         }
     }
 
+    const tipoMovimiento = $("#tipo_movimiento").val();
+    
     const datos = {
         action: 'crear',
         tipo_inventario: tipoInventario,
         insumo_id: tipoInventario === 'materia_prima' ? insumoId : null,
         receta_id: tipoInventario === 'productos' ? recetaId : null,
         tipo: tipo,
+        tipo_movimiento: tipoMovimiento,
         cantidad: cantidad,
         observaciones: observaciones
     };

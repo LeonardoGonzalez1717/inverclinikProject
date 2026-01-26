@@ -330,14 +330,29 @@ try {
                         $stmtMovimiento->execute();
                         $stmtMovimiento->close();
                         
-                        $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                            VALUES (?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE 
-                                stock_actual = VALUES(stock_actual),
-                                ultima_actualizacion = NOW()
-                        ");
-                        $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
+                        // Verificar si existe la columna tipo_movimiento
+                        $checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
+                        if ($checkColumn->num_rows > 0) {
+                            $stmtInventario = $conn->prepare("
+                                INSERT INTO inventario (insumo_id, stock_actual, tipo_movimiento, referencia_id, ultima_actualizacion)
+                                VALUES (?, ?, 'orden_produccion', ?, NOW())
+                                ON DUPLICATE KEY UPDATE 
+                                    stock_actual = VALUES(stock_actual),
+                                    tipo_movimiento = VALUES(tipo_movimiento),
+                                    referencia_id = VALUES(referencia_id),
+                                    ultima_actualizacion = NOW()
+                            ");
+                            $stmtInventario->bind_param("idi", $insumoId, $nuevoStock, $id);
+                        } else {
+                            $stmtInventario = $conn->prepare("
+                                INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
+                                VALUES (?, ?, NOW())
+                                ON DUPLICATE KEY UPDATE 
+                                    stock_actual = VALUES(stock_actual),
+                                    ultima_actualizacion = NOW()
+                            ");
+                            $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
+                        }
                         $stmtInventario->execute();
                         $stmtInventario->close();
                     }

@@ -5,6 +5,12 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        // Verificar si existe la columna imagen, si no, agregarla
+        $checkColumn = $conn->query("SHOW COLUMNS FROM productos LIKE 'imagen'");
+        if ($checkColumn->num_rows == 0) {
+            $conn->query("ALTER TABLE productos ADD COLUMN imagen VARCHAR(255) NULL AFTER descripcion");
+        }
+        
         $sql = "
             SELECT 
                 id,
@@ -12,6 +18,7 @@ try {
                 categoria,
                 tipo_genero,
                 descripcion,
+                imagen,
                 fecha_creacion
             FROM productos
             ORDER BY fecha_creacion DESC, nombre ASC
@@ -24,11 +31,12 @@ try {
                 $productos[] = $row;
             }
         }
-
+        $i = 0;
         if (!empty($productos)) {
             foreach ($productos as $p) {
+                $i++;
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($p['id']) . '</td>';
+                echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($p['categoria'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($p['tipo_genero'] ?? '-') . '</td>';
@@ -48,12 +56,25 @@ try {
 
     header('Content-Type: application/json');
 
+    // Verificar si existe la columna imagen, si no, agregarla
+    $checkColumn = $conn->query("SHOW COLUMNS FROM productos LIKE 'imagen'");
+    if ($checkColumn->num_rows == 0) {
+        $conn->query("ALTER TABLE productos ADD COLUMN imagen VARCHAR(255) NULL AFTER descripcion");
+    }
+    
+    // Crear directorio para imágenes si no existe
+    $uploadDir = '../assets/img/productos/';
+    if (!file_exists($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
             $categoria = trim($_POST['categoria'] ?? '');
             $tipo_genero = trim($_POST['tipo_genero'] ?? '');
             $descripcion = trim($_POST['descripcion'] ?? '');
+            $imagen = null;
 
             if (empty($nombre)) {
                 throw new Exception("El nombre del producto es obligatorio");
@@ -69,16 +90,41 @@ try {
                 throw new Exception("Ya existe un producto con el nombre: " . $nombre);
             }
 
+            // Manejar subida de imagen
+            if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES['imagen'];
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+                $maxSize = 5 * 1024 * 1024; // 5MB
+                
+                if (!in_array($file['type'], $allowedTypes)) {
+                    throw new Exception("Tipo de archivo no permitido. Solo se permiten JPG, PNG y GIF.");
+                }
+                
+                if ($file['size'] > $maxSize) {
+                    throw new Exception("El archivo es demasiado grande. Tamaño máximo: 5MB.");
+                }
+                
+                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $newFileName = 'producto_' . time() . '_' . uniqid() . '.' . $extension;
+                $uploadPath = $uploadDir . $newFileName;
+                
+                if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                    $imagen = $newFileName;
+                } else {
+                    throw new Exception("Error al subir la imagen.");
+                }
+            }
+
             $stmt = $conn->prepare("
-                INSERT INTO productos (nombre, categoria, tipo_genero, descripcion)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO productos (nombre, categoria, tipo_genero, descripcion, imagen)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             $categoria = empty($categoria) ? null : $categoria;
             $tipo_genero = empty($tipo_genero) ? null : $tipo_genero;
             $descripcion = empty($descripcion) ? null : $descripcion;
 
-            $stmt->bind_param("ssss", $nombre, $categoria, $tipo_genero, $descripcion);
+            $stmt->bind_param("sssss", $nombre, $categoria, $tipo_genero, $descripcion, $imagen);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Producto creado exitosamente', 'id' => $conn->insert_id]);
             break;
@@ -91,9 +137,21 @@ try {
             $categoria = trim($_POST['categoria'] ?? '');
             $tipo_genero = trim($_POST['tipo_genero'] ?? '');
             $descripcion = trim($_POST['descripcion'] ?? '');
+            $imagenActual = $_POST['imagen_actual'] ?? null;
 
             if (empty($nombre)) {
                 throw new Exception("El nombre del producto es obligatorio");
+            }
+
+            $checkSql = "SELECT id, imagen FROM productos WHERE id = ?";
+            $checkStmt = $conn->prepare($checkSql);
+            $checkStmt->bind_param("i", $id);
+            $checkStmt->execute();
+            $result = $checkStmt->get_result();
+            $productoActual = $result->fetch_assoc();
+            
+            if (!$productoActual) {
+                throw new Exception("Producto no encontrado");
             }
 
             $checkSql = "SELECT id FROM productos WHERE nombre = ? AND id != ?";
@@ -106,12 +164,45 @@ try {
                 throw new Exception("Ya existe otro producto con el nombre: " . $nombre);
             }
 
+            $imagen = $imagenActual; // Mantener la imagen actual por defecto
+
+            // Manejar subida de nueva imagen
+            if (isset($_FILES['imagen']) && $_FILES['imagen']['error'] === UPLOAD_ERR_OK) {
+                $file = $_FILES['imagen'];
+                $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
+                $maxSize = 5 * 1024 * 1024; // 5MB
+                
+                if (!in_array($file['type'], $allowedTypes)) {
+                    throw new Exception("Tipo de archivo no permitido. Solo se permiten JPG, PNG y GIF.");
+                }
+                
+                if ($file['size'] > $maxSize) {
+                    throw new Exception("El archivo es demasiado grande. Tamaño máximo: 5MB.");
+                }
+                
+                // Eliminar imagen anterior si existe
+                if ($productoActual['imagen'] && file_exists($uploadDir . $productoActual['imagen'])) {
+                    unlink($uploadDir . $productoActual['imagen']);
+                }
+                
+                $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
+                $newFileName = 'producto_' . time() . '_' . uniqid() . '.' . $extension;
+                $uploadPath = $uploadDir . $newFileName;
+                
+                if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+                    $imagen = $newFileName;
+                } else {
+                    throw new Exception("Error al subir la imagen.");
+                }
+            }
+
             $stmt = $conn->prepare("
                 UPDATE productos 
                 SET nombre = ?, 
                     categoria = ?, 
                     tipo_genero = ?, 
-                    descripcion = ?
+                    descripcion = ?,
+                    imagen = ?
                 WHERE id = ?
             ");
 
@@ -119,7 +210,7 @@ try {
             $tipo_genero = empty($tipo_genero) ? null : $tipo_genero;
             $descripcion = empty($descripcion) ? null : $descripcion;
 
-            $stmt->bind_param("ssssi", $nombre, $categoria, $tipo_genero, $descripcion, $id);
+            $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Producto actualizado exitosamente']);
             break;

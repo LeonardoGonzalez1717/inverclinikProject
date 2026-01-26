@@ -74,6 +74,13 @@ require_once "../connection/connection.php";
                                 <textarea name="descripcion" id="descripcion" class="form-control" rows="4" 
                                           placeholder="Descripción detallada del producto..."></textarea>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Imagen del Producto</label>
+                                <input type="file" name="imagen" id="imagen" class="form-control" accept="image/*">
+                                <small class="form-text text-muted">Formatos permitidos: JPG, PNG, GIF. Tamaño máximo: 5MB</small>
+                                <div id="imagen-preview" style="margin-top: 10px;"></div>
+                                <input type="hidden" id="imagen-actual" name="imagen_actual" value="">
+                            </div>
                             <button type="submit" class="btn btn-primary">Guardar Producto</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-producto-id" name="id" value="">
@@ -110,6 +117,8 @@ function limpiarFormulario() {
     $('#tipo_genero').val('');
     $('#descripcion').val('');
     $('#editar-producto-id').val('');
+    $('#imagen-actual').val('');
+    $('#imagen-preview').html('');
 }
 
 function editarProducto(data) {
@@ -118,6 +127,15 @@ function editarProducto(data) {
     $('#tipo_genero').val(data.tipo_genero || '');
     $('#descripcion').val(data.descripcion || '');
     $('#editar-producto-id').val(data.id);
+    $('#imagen-actual').val(data.imagen || '');
+    
+    // Mostrar imagen actual si existe
+    if (data.imagen) {
+        $('#imagen-preview').html('<img src="../assets/img/productos/' + data.imagen + '" style="max-width: 200px; max-height: 200px; border-radius: 6px; margin-top: 10px;"><br><small>Imagen actual</small>');
+    } else {
+        $('#imagen-preview').html('');
+    }
+    
     mostrarVista('crear');
 }
 
@@ -126,21 +144,38 @@ document.addEventListener('DOMContentLoaded', function() {
     cargarListado();
 });
 
+// Preview de imagen
+$("#imagen").on("change", function(e) {
+    var file = e.target.files[0];
+    if (file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            $("#imagen-preview").html('<img src="' + e.target.result + '" style="max-width: 200px; max-height: 200px; border-radius: 6px; margin-top: 10px;">');
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
 $("#form-crear").on("submit", function(e) {
     e.preventDefault();
 
     var idProducto = $("#editar-producto-id").val();
+    var formData = new FormData();
+    
+    formData.append('action', idProducto ? "editar" : "crear");
+    if (idProducto) formData.append('id', idProducto);
+    formData.append('nombre', $("#nombre").val());
+    formData.append('categoria', $("#categoria").val() || "");
+    formData.append('tipo_genero', $("#tipo_genero").val() || "");
+    formData.append('descripcion', $("#descripcion").val() || "");
+    formData.append('imagen_actual', $("#imagen-actual").val() || "");
+    
+    var imagenFile = $("#imagen")[0].files[0];
+    if (imagenFile) {
+        formData.append('imagen', imagenFile);
+    }
 
-    var datos = {
-        action: idProducto ? "editar" : "crear",
-        id: idProducto || null,
-        nombre: $("#nombre").val(),
-        categoria: $("#categoria").val() || "",
-        tipo_genero: $("#tipo_genero").val() || "",
-        descripcion: $("#descripcion").val() || ""
-    };
-
-    if (!datos.nombre || datos.nombre.trim() === '') {
+    if (!$("#nombre").val() || $("#nombre").val().trim() === '') {
         alert('El nombre del producto es obligatorio');
         return;
     }
@@ -148,19 +183,23 @@ $("#form-crear").on("submit", function(e) {
     $.ajax({
         url: "gestionar_productos_data.php",
         type: "POST",
-        data: datos,
+        data: formData,
+        processData: false,
+        contentType: false,
         success: function(resp) {
             if (resp && resp.success) {
                 alert(resp.message);
                 mostrarVista("listado");
                 cargarListado();
+                limpiarFormulario();
             } else {
                 alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
             }
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+            var resp = JSON.parse(xhr.responseText);
+            alert("Error: " + (resp ? resp.message : "Error de conexión."));
         }
     });
 });

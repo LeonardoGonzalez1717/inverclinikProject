@@ -8,6 +8,8 @@
               <ul class="collapsible-content">
                 <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
                 <li><a href="../src/movimientos_inventario.php">Movimientos de Inventario</a></li>
+                <li><a href="../src/registrar_compra.php">Registrar Compra</a></li>
+                <li><a href="../src/registrar_venta.php">Registrar Venta</a></li>
               </ul>
             </li>
         </ul>
@@ -18,6 +20,8 @@
                 <li><a href="../src/gestionar_productos.php">Gestionar Productos</a></li>
                 <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                 <li><a href="../src/nuevo_producto.php">Recetas</a></li>
+                <li><a href="../src/gestionar_proveedores.php">Proveedores</a></li>
+                <li><a href="../src/gestionar_clientes.php">Clientes</a></li>
               </ul>
             </li>
         </ul>

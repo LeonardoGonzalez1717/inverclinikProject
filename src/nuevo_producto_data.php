@@ -1,6 +1,18 @@
 <?php
 require_once "../connection/connection.php";
 
+// Verificar y agregar columna precio_total a la tabla recetas si no existe
+$checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
+if ($checkColumnRecetas->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE recetas 
+                     ADD COLUMN precio_total DECIMAL(10,2) DEFAULT 0.00 
+                     AFTER observaciones");
+    } catch (Exception $e) {
+        // La columna ya existe o hay un error, continuar
+    }
+}
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -13,11 +25,24 @@ try {
             rango_tallas_id INT NOT NULL,
             tipo_produccion_id INT NOT NULL,
             observaciones TEXT,
+            precio_total DECIMAL(10,2) DEFAULT 0.00,
             creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
         ";
         $conn->query($createRecetasUnicas);
+        
+        // Verificar y agregar columna precio_total si no existe (para tablas existentes)
+        $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
+        if ($checkColumnRecetas->num_rows == 0) {
+            try {
+                $conn->query("ALTER TABLE recetas 
+                             ADD COLUMN precio_total DECIMAL(10,2) DEFAULT 0.00 
+                             AFTER observaciones");
+            } catch (Exception $e) {
+                // La columna ya existe o hay un error, continuar
+            }
+        }
 
         // Migrar datos si la tabla está vacía
         $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
@@ -43,6 +68,7 @@ try {
                 r.tipo_produccion_id,
                 r.creado_en,
                 COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_total,
+                COALESCE(r.precio_total, 0) AS precio_total,
                 COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
             FROM recetas r
             INNER JOIN productos p ON r.producto_id = p.id
@@ -52,7 +78,7 @@ try {
                 AND rp.rango_tallas_id = r.rango_tallas_id 
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en
+            GROUP BY r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total
             ORDER BY r.id DESC
         ";
 
@@ -76,6 +102,7 @@ try {
                 echo '<td>' . htmlspecialchars($r['tipo_produccion_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['cantidad_insumos']) . '</td>';
                 echo '<td>$' . number_format($r['costo_total'] ?? 0, 2, '.', ',') . '</td>';
+                echo '<td>$' . number_format($r['precio_total'] ?? 0, 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($r['observaciones'] ?? '') . '</td>';
                 echo '<td>' . $fecha . '</td>';
                 echo '<td>';
@@ -84,7 +111,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="9" class="text-center">No se encontraron recetas registradas</td></tr>';
+            echo '<tr><td colspan="10" class="text-center">No se encontraron recetas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -97,6 +124,7 @@ try {
             $producto_id = $_POST['producto_id'] ?? null;
             $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
+            $precio_total = floatval($_POST['precio_total'] ?? 0);
             $observaciones = $_POST['observaciones'] ?? '';
             
             $insumos = $_POST['insumos'] ?? [];
@@ -111,6 +139,10 @@ try {
                 throw new Exception("Todos los campos son obligatorios y debes agregar al menos un insumo");
             }
             
+            if ($precio_total <= 0) {
+                throw new Exception("El precio total del producto debe ser mayor a 0");
+            }
+            
             $createRecetasUnicas = "
             CREATE TABLE IF NOT EXISTS recetas (
                 id INT PRIMARY KEY AUTO_INCREMENT,
@@ -118,21 +150,34 @@ try {
                 rango_tallas_id INT NOT NULL,
                 tipo_produccion_id INT NOT NULL,
                 observaciones TEXT,
+                precio_total DECIMAL(10,2) DEFAULT 0.00,
                 creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
             ";
             $conn->query($createRecetasUnicas);
             
+            // Verificar y agregar columna precio_total si no existe
+            $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
+            if ($checkColumnRecetas->num_rows == 0) {
+                try {
+                    $conn->query("ALTER TABLE recetas 
+                                 ADD COLUMN precio_total DECIMAL(10,2) DEFAULT 0.00 
+                                 AFTER observaciones");
+                } catch (Exception $e) {
+                    // La columna ya existe o hay un error, continuar
+                }
+            }
+            
             $conn->begin_transaction();
             try {
                 // Primero, insertar o actualizar el registro en la tabla recetas usando ON DUPLICATE KEY UPDATE
                 $stmtReceta = $conn->prepare("
-                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones)
-                    VALUES (?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones)
+                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones), precio_total = VALUES(precio_total)
                 ");
-                $stmtReceta->bind_param("iiis", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones);
+                $stmtReceta->bind_param("iiisd", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total);
                 $stmtReceta->execute();
                 $stmtReceta->close();
                 
@@ -158,7 +203,7 @@ try {
                         $insumo['insumo_id'], 
                         $rango_tallas_id, 
                         $tipo_produccion_id, 
-                        $insumo['cantidad_por_unidad'], 
+                        $insumo['cantidad_por_unidad'],
                         $insumo['costo_total'],
                         $observaciones
                     );
@@ -259,7 +304,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="9" class="text-center text-danger">Error al cargar recetas</td></tr>';
+        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar recetas</td></tr>';
     }
 }
 

@@ -1,7 +1,7 @@
 <?php
 require_once "../template/header.php";
 
-$sqlProveedores = "SELECT id, nombre FROM proveedores WHERE activo = 1 ORDER BY nombre";
+$sqlProveedores = "SELECT id, nombre FROM proveedores ORDER BY nombre";
 $resultProveedores = $conn->query($sqlProveedores);
 $proveedores = [];
 if ($resultProveedores) {
@@ -42,7 +42,6 @@ if ($resultProveedores) {
                                         <th>Unidad de Medida</th>
                                         <th>Costo Unitario</th>
                                         <th>Proveedor</th>
-                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -90,13 +89,6 @@ if ($resultProveedores) {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Estado</label>
-                                <select name="activo" id="activo" class="form-control">
-                                    <option value="1">Activo</option>
-                                    <option value="0">Inactivo</option>
-                                </select>
-                            </div>
                             <button type="submit" class="btn btn-primary">Guardar Insumo</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-insumo-id" name="id" value="">
@@ -132,7 +124,6 @@ function limpiarFormulario() {
     $('#unidad_medida').val('');
     $('#costo_unitario').val('');
     $('#proveedor_id').val('');
-    $('#activo').val('1');
     $('#editar-insumo-id').val('');
 }
 
@@ -141,7 +132,6 @@ function editarInsumo(data) {
     $('#unidad_medida').val(data.unidad_medida || '');
     $('#costo_unitario').val(data.costo_unitario || '');
     $('#proveedor_id').val(data.proveedor_id || '');
-    $('#activo').val(data.activo !== undefined ? data.activo : '1');
     $('#editar-insumo-id').val(data.id);
     mostrarVista('crear');
 }
@@ -162,8 +152,7 @@ $("#form-crear").on("submit", function(e) {
         nombre: $("#nombre").val(),
         unidad_medida: $("#unidad_medida").val(),
         costo_unitario: $("#costo_unitario").val(),
-        proveedor_id: $("#proveedor_id").val() || null,
-        activo: $("#activo").val()
+        proveedor_id: $("#proveedor_id").val() || null
     };
 
     if (!datos.nombre || datos.nombre.trim() === '') {

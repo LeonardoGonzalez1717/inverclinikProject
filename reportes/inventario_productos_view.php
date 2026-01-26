@@ -45,7 +45,7 @@ $result = $conn->query($sql);
             <tbody>
                 <?php while ($row = $result->fetch_assoc()): ?>
                     <tr>
-                        <td><?= htmlspecialchars($row['id']) ?></td>
+                        <td><?= $i++ ?></td>
                         <td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($row['producto']) ?></td>
                         <td><?= htmlspecialchars($row['rango_tallas'] ?? '—') ?></td>
