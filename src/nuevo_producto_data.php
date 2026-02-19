@@ -181,21 +181,16 @@ try {
                 $stmtReceta->execute();
                 $stmtReceta->close();
                 
-                // Luego, insertar los insumos en recetas_productos
+                // Luego, insertar o actualizar los insumos en recetas_productos
                 foreach ($insumos as $insumo) {
-                    $checkSql = "SELECT id FROM recetas_productos 
-                                WHERE producto_id = ? AND insumo_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
-                    $checkStmt = $conn->prepare($checkSql);
-                    $checkStmt->bind_param("iiii", $producto_id, $insumo['insumo_id'], $rango_tallas_id, $tipo_produccion_id);
-                    $checkStmt->execute();
-                    $result = $checkStmt->get_result();
-                    
-                    
-                    $checkStmt->close();
-                    
+                    // Usar INSERT ... ON DUPLICATE KEY UPDATE para manejar duplicados
                     $stmt = $conn->prepare("
                         INSERT INTO recetas_productos (producto_id, insumo_id, rango_tallas_id, tipo_produccion_id, cantidad_por_unidad, costo_por_unidad, observaciones)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE 
+                            cantidad_por_unidad = VALUES(cantidad_por_unidad),
+                            costo_por_unidad = VALUES(costo_por_unidad),
+                            observaciones = VALUES(observaciones)
                     ");
                     
                     $stmt->bind_param("iiiidds", 
