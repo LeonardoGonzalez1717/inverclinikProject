@@ -135,8 +135,21 @@ try {
                 $insumos = [];
             }
             
-            if (!$producto_id || !$rango_tallas_id || !$tipo_produccion_id || empty($insumos)) {
-                throw new Exception("Todos los campos son obligatorios y debes agregar al menos un insumo");
+            // Validaciones individuales con mensajes específicos
+            if (!$producto_id) {
+                throw new Exception("Debes seleccionar un producto");
+            }
+            
+            if (!$rango_tallas_id) {
+                throw new Exception("Debes seleccionar un rango de tallas");
+            }
+            
+            if (!$tipo_produccion_id) {
+                throw new Exception("Debes seleccionar un tipo de producción");
+            }
+            
+            if (empty($insumos)) {
+                throw new Exception("Debes agregar al menos un insumo a la receta");
             }
             
             if ($precio_total <= 0) {
