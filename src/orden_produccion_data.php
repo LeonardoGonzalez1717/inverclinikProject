@@ -17,21 +17,23 @@ try {
                 op.estado,
                 op.observaciones,
                 r.id AS receta_id,
-                r.producto_id,
-                r.rango_tallas_id,
-                r.tipo_produccion_id,
-                COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
+                rp.producto_id,
+                rp.rango_tallas_id,
+                rp.tipo_produccion_id,
+                COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
             FROM ordenes_produccion op
-            INNER JOIN recetas r ON op.receta_producto_id = r.id
-            INNER JOIN productos p ON r.producto_id = p.id
-            LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
-                AND rp.rango_tallas_id = r.rango_tallas_id 
-                AND rp.tipo_produccion_id = r.tipo_produccion_id
-            LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY op.id, r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id
-            ORDER BY op.creado_en DESC
+            INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
+            INNER JOIN productos p ON rp.producto_id = p.id
+            LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+                AND r.rango_tallas_id = rp.rango_tallas_id 
+                AND r.tipo_produccion_id = rp.tipo_produccion_id
+            LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
+                AND rp2.rango_tallas_id = rp.rango_tallas_id 
+                AND rp2.tipo_produccion_id = rp.tipo_produccion_id
+            LEFT JOIN insumos i ON rp2.insumo_id = i.id
+            GROUP BY op.id, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
+            ORDER BY op.id DESC
         ";
-
         $result = $conn->query($sql);
         $ordenes = [];
         if ($result) {
@@ -134,21 +136,7 @@ try {
 
             $conn->begin_transaction();
             try {
-                $stmt = $conn->prepare("
-                    INSERT INTO ordenes_produccion (receta_producto_id, cantidad_a_producir, fecha_inicio, fecha_fin, observaciones, estado)
-                    VALUES (?, ?, ?, ?, ?, 'pendiente')
-                ");
-
-                if($_POST['orden_id'] == ""){
-                    $msg = "orden creada";
-                }else{
-                    $msg = "orden editada";
-                }
-                $stmt->bind_param("idsss", $receta_id, $cantidad, $fecha_inicio, $fecha_fin, $observaciones);
-                $stmt->execute();
-                $ordenId = $conn->insert_id;
-                $stmt->close();
-
+                // Primero obtener la información de la receta
                 $sqlRecetaInfo = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
                 $stmtRecetaInfo = $conn->prepare($sqlRecetaInfo);
                 $stmtRecetaInfo->bind_param("i", $receta_id);
@@ -164,31 +152,150 @@ try {
                 $rango_tallas_id = $rowRecetaInfo['rango_tallas_id'];
                 $tipo_produccion_id = $rowRecetaInfo['tipo_produccion_id'];
 
-                $createInventarioProductos = "
-                CREATE TABLE IF NOT EXISTS inventario_productos (
-                    producto_id INT NOT NULL,
-                    rango_tallas_id INT NOT NULL,
-                    tipo_produccion_id INT NOT NULL,
-                    stock_actual DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-                    ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    PRIMARY KEY (producto_id, rango_tallas_id, tipo_produccion_id)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-                ";
-                $conn->query($createInventarioProductos);
+                // Validar que haya insumos disponibles en el inventario
+                $sqlInsumosReceta = "SELECT rp.insumo_id, rp.cantidad_por_unidad, i.nombre AS insumo_nombre
+                                    FROM recetas_productos rp
+                                    INNER JOIN insumos i ON rp.insumo_id = i.id
+                                    WHERE rp.producto_id = ? 
+                                      AND rp.rango_tallas_id = ? 
+                                      AND rp.tipo_produccion_id = ?";
+                $stmtInsumosReceta = $conn->prepare($sqlInsumosReceta);
+                $stmtInsumosReceta->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                $stmtInsumosReceta->execute();
+                $resultInsumosReceta = $stmtInsumosReceta->get_result();
+                
+                $insumosFaltantes = array();
+                $cantidadProducir = floatval($cantidad);
+                
+                while ($rowInsumo = $resultInsumosReceta->fetch_assoc()) {
+                    $insumoId = $rowInsumo['insumo_id'];
+                    $cantidadPorUnidad = floatval($rowInsumo['cantidad_por_unidad']);
+                    $insumoNombre = $rowInsumo['insumo_nombre'];
+                    $cantidadNecesaria = $cantidadPorUnidad * $cantidadProducir;
+                    
+                    // Obtener stock actual del insumo
+                    $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
+                    $stmtStockInsumo->bind_param("i", $insumoId);
+                    $stmtStockInsumo->execute();
+                    $resultStockInsumo = $stmtStockInsumo->get_result();
+                    
+                    $stockActual = 0;
+                    if ($rowStockInsumo = $resultStockInsumo->fetch_assoc()) {
+                        $stockActual = floatval($rowStockInsumo['stock_actual']);
+                    }
+                    $stmtStockInsumo->close();
+                    
+                    // Validar si hay stock suficiente
+                    if ($stockActual < $cantidadNecesaria) {
+                        $insumosFaltantes[] = [
+                            'insumo' => $insumoNombre,
+                            'stock_disponible' => $stockActual,
+                            'cantidad_necesaria' => $cantidadNecesaria,
+                            'faltante' => $cantidadNecesaria - $stockActual
+                        ];
+                    }
+                }
+                $stmtInsumosReceta->close();
+                
+                // Si hay insumos faltantes, lanzar error
+                if (!empty($insumosFaltantes)) {
+                    $mensajeError = "No hay suficiente stock de insumos para crear la orden de producción:\n\n";
+                    foreach ($insumosFaltantes as $faltante) {
+                        $mensajeError .= "• {$faltante['insumo']}\n";
+                        $mensajeError .= "  Disponible: " . number_format($faltante['stock_disponible'], 2) . "\n";
+                        $mensajeError .= "  Necesario: " . number_format($faltante['cantidad_necesaria'], 2) . "\n";
+                        $mensajeError .= "  Faltante: " . number_format($faltante['faltante'], 2) . "\n\n";
+                    }
+                    throw new Exception($mensajeError);
+                }
 
-                $createMovimientosProductos = "
-                CREATE TABLE IF NOT EXISTS movimientos_productos_detalle (
-                    id INT PRIMARY KEY AUTO_INCREMENT,
-                    producto_id INT NOT NULL,
-                    rango_tallas_id INT NOT NULL,
-                    tipo_produccion_id INT NOT NULL,
-                    tipo ENUM('entrada', 'salida') NOT NULL,
-                    cantidad DECIMAL(12,2) NOT NULL,
-                    observaciones TEXT,
-                    fecha_movimiento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-                ";
-                $conn->query($createMovimientosProductos);
+                // Obtener el ID de recetas_productos que corresponde a esta receta
+                $sqlRecetaProducto = "SELECT id FROM recetas_productos 
+                                     WHERE producto_id = ? 
+                                       AND rango_tallas_id = ? 
+                                       AND tipo_produccion_id = ? 
+                                     LIMIT 1";
+                $stmtRecetaProducto = $conn->prepare($sqlRecetaProducto);
+                $stmtRecetaProducto->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                $stmtRecetaProducto->execute();
+                $resultRecetaProducto = $stmtRecetaProducto->get_result();
+                
+                if (!$rowRecetaProducto = $resultRecetaProducto->fetch_assoc()) {
+                    throw new Exception("No se encontró receta_producto asociada a esta receta");
+                }
+                $receta_producto_id = $rowRecetaProducto['id'];
+                $stmtRecetaProducto->close();
+
+                // Ahora insertar la orden con el ID correcto de recetas_productos
+                $stmt = $conn->prepare("
+                    INSERT INTO ordenes_produccion (receta_producto_id, cantidad_a_producir, fecha_inicio, fecha_fin, observaciones, estado)
+                    VALUES (?, ?, ?, ?, ?, 'pendiente')
+                ");
+                $stmt->bind_param("idsss", $receta_producto_id, $cantidad, $fecha_inicio, $fecha_fin, $observaciones);
+                $stmt->execute();
+                $ordenId = $conn->insert_id;
+                $stmt->close();
+
+                // Descontar insumos del inventario
+                $sqlInsumosParaDescontar = "SELECT rp.insumo_id, rp.cantidad_por_unidad
+                                            FROM recetas_productos rp
+                                            WHERE rp.producto_id = ? 
+                                              AND rp.rango_tallas_id = ? 
+                                              AND rp.tipo_produccion_id = ?";
+                $stmtInsumosDescontar = $conn->prepare($sqlInsumosParaDescontar);
+                $stmtInsumosDescontar->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                $stmtInsumosDescontar->execute();
+                $resultInsumosDescontar = $stmtInsumosDescontar->get_result();
+                
+                while ($rowInsumoDescontar = $resultInsumosDescontar->fetch_assoc()) {
+                    $insumoId = $rowInsumoDescontar['insumo_id'];
+                    $cantidadPorUnidad = floatval($rowInsumoDescontar['cantidad_por_unidad']);
+                    $cantidadTotal = $cantidadPorUnidad * $cantidadProducir;
+                    
+                    // Obtener stock actual del insumo
+                    $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
+                    $stmtStockInsumo->bind_param("i", $insumoId);
+                    $stmtStockInsumo->execute();
+                    $resultStockInsumo = $stmtStockInsumo->get_result();
+                    
+                    $stockActual = 0;
+                    if ($rowStockInsumo = $resultStockInsumo->fetch_assoc()) {
+                        $stockActual = floatval($rowStockInsumo['stock_actual']);
+                    }
+                    $stmtStockInsumo->close();
+                    
+                    // Calcular nuevo stock
+                    $nuevoStock = $stockActual - $cantidadTotal;
+                    if ($nuevoStock < 0) {
+                        $nuevoStock = 0;
+                    }
+                    
+                    // Registrar movimiento de salida
+                    $stmtMovimientoInsumo = $conn->prepare("
+                        INSERT INTO movimientos_inventario_detalle 
+                        (insumo_id, tipo, cantidad, observaciones, orden_produccion_id)
+                        VALUES (?, 'salida', ?, ?, ?)
+                    ");
+                    $obsMovimientoInsumo = "Descuento por creación de orden de producción #{$ordenId}";
+                    $stmtMovimientoInsumo->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimientoInsumo, $ordenId);
+                    $stmtMovimientoInsumo->execute();
+                    $stmtMovimientoInsumo->close();
+                    
+                    // Actualizar inventario de insumos
+                    $stmtInventarioInsumo = $conn->prepare("
+                        INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
+                        VALUES (?, ?, NOW())
+                        ON DUPLICATE KEY UPDATE 
+                            stock_actual = VALUES(stock_actual),
+                            ultima_actualizacion = NOW()
+                    ");
+                    $stmtInventarioInsumo->bind_param("id", $insumoId, $nuevoStock);
+                    $stmtInventarioInsumo->execute();
+                    $stmtInventarioInsumo->close();
+                }
+                $stmtInsumosDescontar->close();
 
                 $sqlStock = "SELECT stock_actual FROM inventario_productos 
                             WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
@@ -227,7 +334,7 @@ try {
                 $stmtInventario->close();
 
                 $conn->commit();
-                echo json_encode(['success' => true, 'message' => $msg, 'id' => $ordenId]);
+                echo json_encode(['success' => true, 'message' => 'Orden creada', 'id' => $ordenId]);
             } catch (Exception $e) {
                 $conn->rollback();
                 throw $e;
@@ -245,6 +352,10 @@ try {
             $ordenActual = $resultEstado->fetch_assoc();
             $stmtEstado->close();
 
+            if (!$ordenActual) {
+                throw new Exception("Orden no encontrada");
+            }
+
             $receta_id = $_POST['receta_id'] ?? null;
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
@@ -252,98 +363,122 @@ try {
             $estado = $_POST['estado'] ?? 'pendiente';
             $observaciones = $_POST['observaciones'] ?? '';
 
-            $stmt = $conn->prepare("
-                UPDATE ordenes_produccion 
-                SET receta_producto_id = ?, 
-                    cantidad_a_producir = ?, 
-                    fecha_inicio = ?, 
-                    fecha_fin = ?, 
-                    estado = ?, 
-                    observaciones = ?
-                WHERE id = ?
-            ");
-            $stmt->bind_param("idssssi", $receta_id, $cantidad, $fecha_inicio, $fecha_fin, $estado, $observaciones, $id);
-            $stmt->execute();
+            // Si se está cambiando la receta, obtener el recetas_productos.id correcto
+            $receta_producto_id = $ordenActual['receta_producto_id']; // Mantener el actual por defecto
             
-            if (($estado === 'en_proceso' || $estado === 'finalizado') && 
-                $ordenActual && 
-                $ordenActual['estado'] === 'pendiente') {
-                
-                $recetaId = $receta_id ?? $ordenActual['receta_producto_id'];
-                $cantidadProducir = $cantidad > 0 ? $cantidad : $ordenActual['cantidad_a_producir'];
-                
+            if ($receta_id) {
+                // Obtener información de la receta
                 $sqlRecetaInfo = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
                 $stmtRecetaInfo = $conn->prepare($sqlRecetaInfo);
-                $stmtRecetaInfo->bind_param("i", $recetaId);
+                $stmtRecetaInfo->bind_param("i", $receta_id);
                 $stmtRecetaInfo->execute();
                 $resultRecetaInfo = $stmtRecetaInfo->get_result();
                 
-                if (!$rowRecetaInfo = $resultRecetaInfo->fetch_assoc()) {
-                    throw new Exception("Receta no encontrada");
+                if ($rowRecetaInfo = $resultRecetaInfo->fetch_assoc()) {
+                    // Obtener un recetas_productos.id válido
+                    $sqlRecetaProducto = "SELECT id FROM recetas_productos 
+                                         WHERE producto_id = ? 
+                                           AND rango_tallas_id = ? 
+                                           AND tipo_produccion_id = ? 
+                                         LIMIT 1";
+                    $stmtRecetaProducto = $conn->prepare($sqlRecetaProducto);
+                    $stmtRecetaProducto->bind_param("iii", 
+                        $rowRecetaInfo['producto_id'], 
+                        $rowRecetaInfo['rango_tallas_id'], 
+                        $rowRecetaInfo['tipo_produccion_id']
+                    );
+                    $stmtRecetaProducto->execute();
+                    $resultRecetaProducto = $stmtRecetaProducto->get_result();
+                    if ($rowRecetaProducto = $resultRecetaProducto->fetch_assoc()) {
+                        $receta_producto_id = $rowRecetaProducto['id'];
+                    }
+                    $stmtRecetaProducto->close();
                 }
                 $stmtRecetaInfo->close();
+            }
+
+            $conn->begin_transaction();
+            try {
+                $stmt = $conn->prepare("
+                    UPDATE ordenes_produccion 
+                    SET receta_producto_id = ?, 
+                        cantidad_a_producir = ?, 
+                        fecha_inicio = ?, 
+                        fecha_fin = ?, 
+                        estado = ?, 
+                        observaciones = ?
+                    WHERE id = ?
+                ");
+                $stmt->bind_param("idssssi", $receta_producto_id, $cantidad, $fecha_inicio, $fecha_fin, $estado, $observaciones, $id);
+                $stmt->execute();
+                $stmt->close();
                 
-                $sqlReceta = "SELECT insumo_id, cantidad_por_unidad 
-                             FROM recetas_productos 
-                             WHERE producto_id = ? 
-                               AND rango_tallas_id = ? 
-                               AND tipo_produccion_id = ?";
-                $stmtReceta = $conn->prepare($sqlReceta);
-                $stmtReceta->bind_param("iii", 
-                    $rowRecetaInfo['producto_id'], 
-                    $rowRecetaInfo['rango_tallas_id'], 
-                    $rowRecetaInfo['tipo_produccion_id']
-                );
-                $stmtReceta->execute();
-                $resultReceta = $stmtReceta->get_result();
-                
-                $conn->begin_transaction();
-                try {
-                    while ($rowReceta = $resultReceta->fetch_assoc()) {
-                        $insumoId = $rowReceta['insumo_id'];
-                        $cantidadPorUnidad = floatval($rowReceta['cantidad_por_unidad']);
-                        $cantidadTotal = $cantidadPorUnidad * floatval($cantidadProducir);
+                // Si se cambia el estado a 'en_proceso' o 'finalizado' desde 'pendiente', descontar insumos
+                if (($estado === 'en_proceso' || $estado === 'finalizado') && 
+                    $ordenActual['estado'] === 'pendiente') {
+                    
+                    $recetaId = $receta_id ?? $ordenActual['receta_producto_id'];
+                    $cantidadProducir = $cantidad > 0 ? $cantidad : $ordenActual['cantidad_a_producir'];
+                    
+                    // Obtener información de la receta
+                    $sqlRecetaInfo = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
+                    $stmtRecetaInfo = $conn->prepare($sqlRecetaInfo);
+                    $stmtRecetaInfo->bind_param("i", $recetaId);
+                    $stmtRecetaInfo->execute();
+                    $resultRecetaInfo = $stmtRecetaInfo->get_result();
+                    
+                    if ($rowRecetaInfo = $resultRecetaInfo->fetch_assoc()) {
+                        $producto_id = $rowRecetaInfo['producto_id'];
+                        $rango_tallas_id = $rowRecetaInfo['rango_tallas_id'];
+                        $tipo_produccion_id = $rowRecetaInfo['tipo_produccion_id'];
                         
-                        $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
-                        $stmtStock = $conn->prepare($sqlStock);
-                        $stmtStock->bind_param("i", $insumoId);
-                        $stmtStock->execute();
-                        $resultStock = $stmtStock->get_result();
-                        $stockActual = 0;
-                        if ($rowStock = $resultStock->fetch_assoc()) {
-                            $stockActual = floatval($rowStock['stock_actual']);
-                        }
-                        $stmtStock->close();
+                        // Obtener los insumos de la receta
+                        $sqlInsumos = "SELECT insumo_id, cantidad_por_unidad 
+                                      FROM recetas_productos 
+                                      WHERE producto_id = ? 
+                                        AND rango_tallas_id = ? 
+                                        AND tipo_produccion_id = ?";
+                        $stmtInsumos = $conn->prepare($sqlInsumos);
+                        $stmtInsumos->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                        $stmtInsumos->execute();
+                        $resultInsumos = $stmtInsumos->get_result();
                         
-                        $nuevoStock = $stockActual - $cantidadTotal;
-                        if ($nuevoStock < 0) {
-                            $nuevoStock = 0;
-                        }
-                        
-                        $stmtMovimiento = $conn->prepare("
-                            INSERT INTO movimientos_inventario_detalle 
-                            (insumo_id, tipo, cantidad, observaciones, orden_produccion_id)
-                            VALUES (?, 'salida', ?, ?, ?)
-                        ");
-                        $obsMovimiento = "Descuento por orden de producción #{$id}";
-                        $stmtMovimiento->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimiento, $id);
-                        $stmtMovimiento->execute();
-                        $stmtMovimiento->close();
-                        
-                        // Verificar si existe la columna tipo_movimiento
-                        $checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
-                        if ($checkColumn->num_rows > 0) {
-                            $stmtInventario = $conn->prepare("
-                                INSERT INTO inventario (insumo_id, stock_actual, tipo_movimiento, referencia_id, ultima_actualizacion)
-                                VALUES (?, ?, 'orden_produccion', ?, NOW())
-                                ON DUPLICATE KEY UPDATE 
-                                    stock_actual = VALUES(stock_actual),
-                                    tipo_movimiento = VALUES(tipo_movimiento),
-                                    referencia_id = VALUES(referencia_id),
-                                    ultima_actualizacion = NOW()
+                        while ($rowInsumo = $resultInsumos->fetch_assoc()) {
+                            $insumoId = $rowInsumo['insumo_id'];
+                            $cantidadPorUnidad = floatval($rowInsumo['cantidad_por_unidad']);
+                            $cantidadTotal = $cantidadPorUnidad * floatval($cantidadProducir);
+                            
+                            // Obtener stock actual del insumo
+                            $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                            $stmtStock = $conn->prepare($sqlStock);
+                            $stmtStock->bind_param("i", $insumoId);
+                            $stmtStock->execute();
+                            $resultStock = $stmtStock->get_result();
+                            
+                            $stockActual = 0;
+                            if ($rowStock = $resultStock->fetch_assoc()) {
+                                $stockActual = floatval($rowStock['stock_actual']);
+                            }
+                            $stmtStock->close();
+                            
+                            // Calcular nuevo stock
+                            $nuevoStock = $stockActual - $cantidadTotal;
+                            if ($nuevoStock < 0) {
+                                $nuevoStock = 0;
+                            }
+                            
+                            // Registrar movimiento de salida
+                            $stmtMovimiento = $conn->prepare("
+                                INSERT INTO movimientos_inventario_detalle 
+                                (insumo_id, tipo, cantidad, observaciones, orden_produccion_id)
+                                VALUES (?, 'salida', ?, ?, ?)
                             ");
-                            $stmtInventario->bind_param("idi", $insumoId, $nuevoStock, $id);
-                        } else {
+                            $obsMovimiento = "Descuento por orden de producción #{$id}";
+                            $stmtMovimiento->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimiento, $id);
+                            $stmtMovimiento->execute();
+                            $stmtMovimiento->close();
+                            
+                            // Actualizar inventario
                             $stmtInventario = $conn->prepare("
                                 INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
                                 VALUES (?, ?, NOW())
@@ -352,19 +487,20 @@ try {
                                     ultima_actualizacion = NOW()
                             ");
                             $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
+                            $stmtInventario->execute();
+                            $stmtInventario->close();
                         }
-                        $stmtInventario->execute();
-                        $stmtInventario->close();
+                        $stmtInsumos->close();
                     }
-                    $stmtReceta->close();
-                    $conn->commit();
-                } catch (Exception $e) {
-                    $conn->rollback();
-                    throw new Exception("Error al descontar insumos: " . $e->getMessage());
+                    $stmtRecetaInfo->close();
                 }
+                
+                $conn->commit();
+                echo json_encode(['success' => true, 'message' => 'Orden actualizada']);
+            } catch (Exception $e) {
+                $conn->rollback();
+                throw $e;
             }
-            
-            echo json_encode(['success' => true, 'message' => 'Orden actualizada']);
             break;
 
         default:
@@ -372,13 +508,9 @@ try {
     }
 
 } catch (Exception $e) {
-    if ($action !== 'listar_html') {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
-    } else {
-        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar órdenes</td></tr>';
-    }
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => $e->getMessage()
+    ]);
 }
-
-$conn->close();
-?>

@@ -17,21 +17,6 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        // Asegurar que la tabla recetas existe
-        $createRecetasUnicas = "
-        CREATE TABLE IF NOT EXISTS recetas (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            producto_id INT NOT NULL,
-            rango_tallas_id INT NOT NULL,
-            tipo_produccion_id INT NOT NULL,
-            observaciones TEXT,
-            precio_total DECIMAL(10,2) DEFAULT 0.00,
-            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-        ";
-        $conn->query($createRecetasUnicas);
-        
         // Verificar y agregar columna precio_total si no existe (para tablas existentes)
         $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
         if ($checkColumnRecetas->num_rows == 0) {
@@ -135,7 +120,6 @@ try {
                 $insumos = [];
             }
             
-            // Validaciones individuales con mensajes específicos
             if (!$producto_id) {
                 throw new Exception("Debes seleccionar un producto");
             }
@@ -155,20 +139,6 @@ try {
             if ($precio_total <= 0) {
                 throw new Exception("El precio total del producto debe ser mayor a 0");
             }
-            
-            $createRecetasUnicas = "
-            CREATE TABLE IF NOT EXISTS recetas (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                producto_id INT NOT NULL,
-                rango_tallas_id INT NOT NULL,
-                tipo_produccion_id INT NOT NULL,
-                observaciones TEXT,
-                precio_total DECIMAL(10,2) DEFAULT 0.00,
-                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-            ";
-            $conn->query($createRecetasUnicas);
             
             // Verificar y agregar columna precio_total si no existe
             $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");

@@ -1,19 +1,6 @@
 <?php 
 require_once "../template/header.php"; 
 
-$createRecetasUnicas = "
-CREATE TABLE IF NOT EXISTS recetas (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    producto_id INT NOT NULL,
-    rango_tallas_id INT NOT NULL,
-    tipo_produccion_id INT NOT NULL,
-    observaciones TEXT,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-$conn->query($createRecetasUnicas);
-
 $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
 $row = $checkRecetas->fetch_assoc();
 if ($row['count'] == 0) {
@@ -63,22 +50,25 @@ $sqlOrdenes = "
         op.estado,
         op.observaciones,
         r.id AS receta_id,
-        r.producto_id,
-        r.rango_tallas_id,
-        r.tipo_produccion_id,
-        COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
+        rp.producto_id,
+        rp.rango_tallas_id,
+        rp.tipo_produccion_id,
+        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
     FROM ordenes_produccion op
-    INNER JOIN recetas r ON op.receta_producto_id = r.id
-    INNER JOIN productos p ON r.producto_id = p.id
-    LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
-        AND rp.rango_tallas_id = r.rango_tallas_id 
-        AND rp.tipo_produccion_id = r.tipo_produccion_id
-    LEFT JOIN insumos i ON rp.insumo_id = i.id
-    GROUP BY op.id, r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id
+    INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
+    INNER JOIN productos p ON rp.producto_id = p.id
+    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+        AND r.rango_tallas_id = rp.rango_tallas_id 
+        AND r.tipo_produccion_id = rp.tipo_produccion_id
+    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
+        AND rp2.rango_tallas_id = rp.rango_tallas_id 
+        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
+    LEFT JOIN insumos i ON rp2.insumo_id = i.id
+    GROUP BY op.id, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
     ORDER BY op.creado_en DESC
 ";
 $resultOrdenes = $conn->query($sqlOrdenes);
-$ordenes = [];
+$ordenes = array();
 if ($resultOrdenes) {
     while ($row = $resultOrdenes->fetch_assoc()) {
         $ordenes[] = $row;
@@ -486,6 +476,7 @@ $("#form-crear").on("submit", function(e) {
         url: "orden_produccion_data.php",
         type: "POST",
         data: datos,
+        dataType: "json",
         success: function(resp) {
             if (resp && resp.success) {
                 console.log(resp,"resp")
@@ -498,7 +489,16 @@ $("#form-crear").on("submit", function(e) {
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp && resp.message) {
+                    alert("Error: " + resp.message);
+                } else {
+                    alert("Error de conexión.");
+                }
+            } catch (e) {
+                alert("Error de conexión.");
+            }
         }
     });
 });

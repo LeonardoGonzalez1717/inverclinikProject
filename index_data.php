@@ -4,7 +4,7 @@ include 'connection/connection.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-$usuario = $_POST['usuario'] ?? '';
+$usuario = trim($_POST['usuario'] ?? '');
 $clave   = $_POST['clave'] ?? '';
 
 if (empty($usuario) || empty($clave)) {
@@ -64,9 +64,10 @@ if ($rowCliente = $resultCliente->fetch_assoc()) {
 }
 $stmtCliente->close();
 
-// Si no es cliente, verificar si es usuario (por username)
-$sql = "SELECT * FROM users WHERE username = ?";
+// Si no es cliente, verificar si es usuario (por correo)
+$sql = "SELECT * FROM users WHERE correo = ?";
 $stmt = $conn->prepare($sql);
+// var_dump($usuario);
 $stmt->bind_param("s", $usuario);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -106,7 +107,7 @@ if ($row = $result->fetch_assoc()) {
 } else {
     echo json_encode([
         'success' => false,
-        'message' => 'Usuario o correo no encontrado.'
+        'message' => 'Correo electrónico no encontrado.'
     ]);
 }
 

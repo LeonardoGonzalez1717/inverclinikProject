@@ -166,19 +166,6 @@ try {
             throw new Exception("ID de producto requerido");
         }
         
-        // Asegurar que las tablas existan
-        $createInventarioProductos = "
-        CREATE TABLE IF NOT EXISTS inventario_productos (
-            producto_id INT NOT NULL,
-            rango_tallas_id INT NOT NULL,
-            tipo_produccion_id INT NOT NULL,
-            stock_actual DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-            ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (producto_id, rango_tallas_id, tipo_produccion_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-        ";
-        $conn->query($createInventarioProductos);
-        
         // Obtener el precio_total y datos de la receta más reciente para este producto
         $sql = "
             SELECT precio_total, rango_tallas_id, tipo_produccion_id
@@ -278,36 +265,6 @@ try {
             if (!$venta_id) {
                 throw new Exception("Error al crear la venta");
             }
-
-            // Asegurar que las tablas de inventario de productos existan
-            $createInventarioProductos = "
-            CREATE TABLE IF NOT EXISTS inventario_productos (
-                producto_id INT NOT NULL,
-                rango_tallas_id INT NOT NULL,
-                tipo_produccion_id INT NOT NULL,
-                stock_actual DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-                ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                PRIMARY KEY (producto_id, rango_tallas_id, tipo_produccion_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-            ";
-            $conn->query($createInventarioProductos);
-
-            $createMovimientosProductos = "
-            CREATE TABLE IF NOT EXISTS movimientos_productos_detalle (
-                id INT PRIMARY KEY AUTO_INCREMENT,
-                producto_id INT NOT NULL,
-                rango_tallas_id INT NOT NULL,
-                tipo_produccion_id INT NOT NULL,
-                tipo ENUM('entrada', 'salida') NOT NULL,
-                cantidad DECIMAL(12,2) NOT NULL,
-                observaciones TEXT,
-                fecha_movimiento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_producto (producto_id, rango_tallas_id, tipo_produccion_id),
-                INDEX idx_fecha (fecha_movimiento),
-                INDEX idx_tipo (tipo)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-            ";
-            $conn->query($createMovimientosProductos);
 
             $stmtDetalle = $conn->prepare("
                 INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario)
