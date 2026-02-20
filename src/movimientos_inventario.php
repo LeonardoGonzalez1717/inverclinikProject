@@ -2,19 +2,6 @@
 require_once "../template/header.php";
 require_once "../connection/connection.php";
 
-$createRecetasUnicas = "
-CREATE TABLE IF NOT EXISTS recetas (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    producto_id INT NOT NULL,
-    rango_tallas_id INT NOT NULL,
-    tipo_produccion_id INT NOT NULL,
-    observaciones TEXT,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-$conn->query($createRecetasUnicas);
-
 $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
 $row = $checkRecetas->fetch_assoc();
 if ($row['count'] == 0) {

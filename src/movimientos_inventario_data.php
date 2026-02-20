@@ -1,28 +1,6 @@
 <?php
 require_once "../connection/connection.php";
 
-// Crear tabla de movimientos si no existe
-$createTableSQL = "
-CREATE TABLE IF NOT EXISTS movimientos_inventario_detalle (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    insumo_id INT NOT NULL,
-    tipo ENUM('entrada', 'salida') NOT NULL,
-    cantidad DECIMAL(12,2) NOT NULL,
-    origen VARCHAR(50) DEFAULT 'manual',
-    observaciones TEXT,
-    orden_produccion_id INT NULL,
-    fecha_movimiento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_insumo_id (insumo_id),
-    INDEX idx_fecha (fecha_movimiento),
-    INDEX idx_tipo (tipo),
-    INDEX idx_orden_produccion (orden_produccion_id),
-    FOREIGN KEY (insumo_id) REFERENCES insumos(id) ON DELETE CASCADE,
-    FOREIGN KEY (orden_produccion_id) REFERENCES ordenes_produccion(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-
-$conn->query($createTableSQL);
-
 // Agregar campo tipo_movimiento a inventario si no existe
 $checkColumnInventario = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
 if ($checkColumnInventario->num_rows == 0) {
@@ -54,50 +32,6 @@ if ($checkColumn->num_rows == 0) {
     }
 }
 
-$createInventarioProductos = "
-CREATE TABLE IF NOT EXISTS inventario_productos (
-    producto_id INT NOT NULL,
-    rango_tallas_id INT NOT NULL,
-    tipo_produccion_id INT NOT NULL,
-    stock_actual DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    ultima_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (producto_id, rango_tallas_id, tipo_produccion_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-$conn->query($createInventarioProductos);
-
-$createMovimientosProductos = "
-CREATE TABLE IF NOT EXISTS movimientos_productos_detalle (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    producto_id INT NOT NULL,
-    rango_tallas_id INT NOT NULL,
-    tipo_produccion_id INT NOT NULL,
-    tipo ENUM('entrada', 'salida') NOT NULL,
-    cantidad DECIMAL(12,2) NOT NULL,
-    observaciones TEXT,
-    fecha_movimiento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_producto (producto_id, rango_tallas_id, tipo_produccion_id),
-    INDEX idx_fecha (fecha_movimiento),
-    INDEX idx_tipo (tipo)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-$conn->query($createMovimientosProductos);
-
-$createRecetasUnicas = "
-CREATE TABLE IF NOT EXISTS recetas (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    producto_id INT NOT NULL,
-    rango_tallas_id INT NOT NULL,
-    tipo_produccion_id INT NOT NULL,
-    observaciones TEXT,
-    creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_receta (producto_id, rango_tallas_id, tipo_produccion_id),
-    FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
-    FOREIGN KEY (rango_tallas_id) REFERENCES rangos_tallas(id) ON DELETE CASCADE,
-    FOREIGN KEY (tipo_produccion_id) REFERENCES tipos_produccion(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-";
-$conn->query($createRecetasUnicas);
 
 $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
 $row = $checkRecetas->fetch_assoc();
