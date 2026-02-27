@@ -100,6 +100,12 @@ hr {
 pre {
   overflow: auto;
 }
+select.form-control {
+    height: auto !important; 
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    line-height: 1.5;
+}
 code,
 kbd,
 pre,

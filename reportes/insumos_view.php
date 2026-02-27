@@ -1,18 +1,34 @@
 <?php
 $sin_sidebar = true;
 require_once('../template/header.php');
+$iduser = $_SESSION['iduser'];
 
+$sql = "SELECT id, username, correo, rol, createdAt FROM users WHERE id = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $iduser);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
 // Filtros
 $where = [];
 
-if (!empty($_GET['nombre'])) {
-  $nombre = $conn->real_escape_string($_GET['nombre']);
+$insumo = isset($_GET['nombre']) ? trim($_GET['nombre']) : '';
+$unidad = isset($_GET['unidad_medida']) ? trim($_GET['unidad_medida']) : '';
+$estado = isset($_GET['estado']) ? trim($_GET['estado']) : '';
+
+if (!empty($insumo)) {
+  $nombre = $conn->real_escape_string($insumo);
   $where[] = "i.nombre LIKE '%$nombre%'";
 }
 
-if (!empty($_GET['unidad'])) {
-  $unidad = $conn->real_escape_string($_GET['unidad']);
+if (!empty($unidad)) {
+  $unidad = $conn->real_escape_string($unidad);
   $where[] = "i.unidad_medida = '$unidad'";
+}
+
+if (!empty($estado)) {
+  $estado = $conn->real_escape_string($estado);
+  $where[] = "i.activo = '$estado'";
 }
 
 $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";

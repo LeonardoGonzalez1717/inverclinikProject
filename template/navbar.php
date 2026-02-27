@@ -29,7 +29,7 @@
           <li class="collapsible">
             <button class="collapsible-toggle">Reportes</button>
             <ul class="collapsible-content">
-              <li><a href="../reportes/insumos_view.php" target="_blank">Reporte de Insumos</a></li>
+              <li><a href="../reportes/insumos_form.php">Reporte de Insumos</a></li>
               <li><a href="../reportes/ordenes_view.php" target="_blank">Reporte de Ordenes</a></li>
               <li><a href="../reportes/productos_view.php" target="_blank">Reporte de Productos</a></li>
               <li><a href="../reportes/ordenes_produccion_view.php" target="_blank">Reporte de Ordenes P.</a></li>
