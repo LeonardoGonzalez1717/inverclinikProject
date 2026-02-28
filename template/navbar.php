@@ -40,6 +40,16 @@
         </ul>
     </nav>
     <div class="perfil">
+        <ul>
+            <li class="collapsible">
+              <button class="collapsible-toggle">Herramientas</button>
+              <ul class="collapsible-content">
+                <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
+                <li><a href="../src">Auditoria</a></li>
+                <li><a href="../src">Manuales</a></li>
+              </ul>
+            </li>
+        </ul>
         <button onclick="window.location.href='../perfiles/perfil.php'">Perfil</button>
         <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <button onclick="window.location.href='../template/logout.php'">Cerrar sesión</button>
