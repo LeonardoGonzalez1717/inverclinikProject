@@ -9,6 +9,8 @@ try {
         $sql = "
             SELECT 
                 op.id AS orden_id,
+                op.tasa_cambiaria_id,
+                tc.tasa AS tasa_orden,
                 p.nombre AS producto_nombre,
                 p.categoria AS producto_categoria,
                 op.cantidad_a_producir,
@@ -24,6 +26,7 @@ try {
             FROM ordenes_produccion op
             INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
             INNER JOIN productos p ON rp.producto_id = p.id
+            LEFT JOIN tasas_cambiarias tc ON tc.id = op.tasa_cambiaria_id
             LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
                 AND r.rango_tallas_id = rp.rango_tallas_id 
                 AND r.tipo_produccion_id = rp.tipo_produccion_id
@@ -31,7 +34,7 @@ try {
                 AND rp2.rango_tallas_id = rp.rango_tallas_id 
                 AND rp2.tipo_produccion_id = rp.tipo_produccion_id
             LEFT JOIN insumos i ON rp2.insumo_id = i.id
-            GROUP BY op.id, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
+            GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
             ORDER BY op.id DESC
         ";
         $result = $conn->query($sql);

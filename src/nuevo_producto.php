@@ -36,6 +36,12 @@ if ($resultTipos) {
         $tipos[] = $row;
     }
 }
+
+$tasa_actual = null;
+$rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+if ($rt && $row_tasa = $rt->fetch_assoc()) {
+    $tasa_actual = (float) $row_tasa['tasa'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -163,6 +169,7 @@ if ($resultTipos) {
                                                 <th style="color: black;">Cantidad</th>
                                                 <th style="color: black;">Costo Unitario</th>
                                                 <th style="color: black;">Costo Total</th>
+                                                <th style="color: black;">Equiv. Bs.</th>
                                                 <th style="color: black;">Acción</th>
                                             </tr>
                                         </thead>
@@ -172,6 +179,7 @@ if ($resultTipos) {
                                             <tr style="background-color: #f2f7ff; font-weight: bold;">
                                                 <td colspan="3" style="text-align: right;">Costo Total de la Receta:</td>
                                                 <td id="costo-total-receta" style="color: #0056b3; font-size: 16px;">$0.00</td>
+                                                <td id="costo-total-receta-bs" style="color: #0056b3; font-size: 16px;">—</td>
                                                 <td></td>
                                             </tr>
                                         </tfoot>
@@ -205,6 +213,13 @@ if ($resultTipos) {
 
 <script>
 var insumosAgregados = [];
+var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+var tasaParaEquivalenteReceta = tasaCambiariaActual;
+
+function formatearBs(valor) {
+    if (valor == null || isNaN(valor)) return '—';
+    return 'Bs. ' + parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 
 function calcularCostoInsumo(insumoId, cantidad) {
     var costoUnitario = parseFloat($('#nuevo-insumo-id option:selected').data('costo')) || 0;
@@ -251,16 +266,22 @@ function actualizarTablaInsumos() {
     var tbody = $('#tbody-insumos');
     
     var costoTotalReceta = 0;
+    var costoTotalRecetaBs = 0;
     var htmlRows = '';
     
+    var tasa = tasaParaEquivalenteReceta;
     insumosAgregados.forEach(function(insumo, index) {
         costoTotalReceta += insumo.costo_total;
+        var equivBs = (tasa && tasa > 0) ? (insumo.costo_total * tasa) : null;
+        if (equivBs != null) costoTotalRecetaBs += equivBs;
+        var equivBsTexto = formatearBs(equivBs);
         htmlRows += `
             <tr>
                 <td>${insumo.insumo_nombre}</td>
                 <td>${insumo.cantidad_por_unidad}</td>
                 <td>$${insumo.costo_unitario.toFixed(2)}</td>
                 <td>$${insumo.costo_total.toFixed(2)}</td>
+                <td>${equivBsTexto}</td>
                 <td>
                     <button type="button" class="btn btn-sm btn-danger" onclick="eliminarInsumo(${index})">
                         <i class="fa fa-trash"></i> Eliminar
@@ -272,6 +293,7 @@ function actualizarTablaInsumos() {
     
     tbody.html(htmlRows);
     $('#costo-total-receta').text('$' + costoTotalReceta.toFixed(2));
+    $('#costo-total-receta-bs').text(formatearBs(costoTotalRecetaBs > 0 ? costoTotalRecetaBs : null));
     
     if (insumosAgregados.length > 0) {
         $('#tabla-insumos').show();
@@ -316,10 +338,33 @@ function cargarListado() {
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     insumosAgregados = [];
+    tasaParaEquivalenteReceta = tasaCambiariaActual;
     actualizarTablaInsumos();
     limpiarFormularioInsumo();
     $('#editar-receta-id').val('');
     $('#precio_total').val('');
+}
+
+function editarReceta(data) {
+    $('#producto_id').val(data.producto_id || '');
+    $('#rango_tallas_id').val(data.rango_tallas_id || '');
+    $('#tipo_produccion_id').val(data.tipo_produccion_id || '');
+    $('#precio_total').val(data.precio_total || '');
+    $('#observaciones').val(data.observaciones || '');
+    $('#editar-receta-id').val(data.id || '');
+    tasaParaEquivalenteReceta = (data.tasa_receta != null && parseFloat(data.tasa_receta) > 0) ? parseFloat(data.tasa_receta) : tasaCambiariaActual;
+    insumosAgregados = [];
+    if (data.id) {
+        $.post('nuevo_producto_data.php', { action: 'obtener_insumos_receta', id: data.id }, function(resp) {
+            if (resp && resp.success && resp.insumos) {
+                insumosAgregados = resp.insumos;
+                actualizarTablaInsumos();
+            }
+        }, 'json');
+    } else {
+        actualizarTablaInsumos();
+    }
+    mostrarVista('crear');
 }
 
 $(document).ready(function() {

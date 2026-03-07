@@ -63,11 +63,10 @@ require_once('../template/header.php');
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Rol <span style="color: red;">*</span></label>
-                                <select name="rol" id="rol" class="form-control" required>
+                                <select name="role_id" id="role_id" class="form-control" required>
                                     <option value="">Seleccione un rol</option>
-                                    <option value="superadmin">Superadmin</option>
-                                    <option value="administrador">Administrador</option>
-                                    <option value="cliente">Cliente</option>
+                                    <option value="1">Admin</option>
+                                    <option value="2">Supervisor</option>
                                 </select>
                             </div>
                             <button type="submit" class="btn btn-primary">Guardar Usuario</button>
@@ -105,7 +104,7 @@ require_once('../template/header.php');
         $('#username').val('').prop('readonly', false);
         $('#correo').val('').prop('readonly', false);
         $('#password').val('').prop('readonly', false).attr('required', true);
-        $('#rol').val('');
+        $('#role_id').val('');
         $('#action').val('crear');
         mostrarVista('crear');
     }
@@ -148,7 +147,7 @@ require_once('../template/header.php');
             username: $('#username').val(),
             password: $('#password').val(),
             correo: $('#correo').val(),
-            rol: $('#rol').val()
+            role_id: $('#role_id').val()
         };
 
         if (formData.action === 'editar' && !formData.password) {
@@ -184,7 +183,7 @@ require_once('../template/header.php');
                 $('#username').val(user.username).prop('readonly', true);
                 $('#password').val('').prop('readonly', true);
                 $('#correo').val(user.correo).prop('readonly', true);
-                $('#rol').val(user.rol || ''); // este queda editable
+                $('#role_id').val(user.role_id || ''); // este queda editable
                 $('#action').val('editar');
 
                 mostrarVista('crear');

@@ -12,9 +12,12 @@ try {
                 i.unidad_medida,
                 i.costo_unitario,
                 i.proveedor_id,
+                i.tasa_cambiaria_id,
+                tc.tasa AS tasa_insumo,
                 p.nombre AS proveedor_nombre
             FROM insumos i
             LEFT JOIN proveedores p ON i.proveedor_id = p.id
+            LEFT JOIN tasas_cambiarias tc ON tc.id = i.tasa_cambiaria_id
             ORDER BY i.nombre ASC
         ";
 
@@ -25,15 +28,20 @@ try {
                 $insumos[] = $row;
             }
         }
-        $orden = 0; 
+        $orden = 0;
         if (!empty($insumos)) {
             foreach ($insumos as $i) {
                 $orden++;
+                $costo = (float) ($i['costo_unitario'] ?? 0);
+                $tasa = isset($i['tasa_insumo']) && $i['tasa_insumo'] !== null ? (float) $i['tasa_insumo'] : 0;
+                $equivBs = ($tasa > 0 && $costo > 0) ? $costo * $tasa : null;
+                $equivBsFormato = $equivBs !== null ? 'Bs. ' . number_format($equivBs, 2, '.', ',') : '-';
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($orden) . '</td>';
                 echo '<td>' . htmlspecialchars($i['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($i['unidad_medida'] ?? '-') . '</td>';
-                echo '<td>$' . number_format($i['costo_unitario'] ?? 0, 2, '.', ',') . '</td>';
+                echo '<td>$' . number_format($costo, 2, '.', ',') . '</td>';
+                echo '<td>' . htmlspecialchars($equivBsFormato) . '</td>';
                 echo '<td>' . htmlspecialchars($i['proveedor_nombre'] ?? '-') . '</td>';
                 echo '<td>';
                 echo '<button class="btn btn-sm btn-primary" onclick="editarInsumo(' . htmlspecialchars(json_encode($i), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
@@ -41,7 +49,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="6" class="text-center">No se encontraron insumos registrados</td></tr>';
+            echo '<tr><td colspan="7" class="text-center">No se encontraron insumos registrados</td></tr>';
         }
         $conn->close();
         exit;
@@ -78,13 +86,19 @@ try {
                 throw new Exception("Ya existe un insumo con el nombre: " . $nombre);
             }
 
+            $tasa_cambiaria_id = null;
+            $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+            if ($rt && $row_tasa = $rt->fetch_assoc()) {
+                $tasa_cambiaria_id = (int) $row_tasa['id'];
+            }
+
             $stmt = $conn->prepare("
-                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, proveedor_id)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, proveedor_id, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
-            $stmt->bind_param("ssdi", $nombre, $unidad_medida, $costo_unitario, $proveedor_id);
+            $stmt->bind_param("ssdii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo creado exitosamente', 'id' => $conn->insert_id]);
             break;
@@ -120,17 +134,24 @@ try {
                 throw new Exception("Ya existe otro insumo con el nombre: " . $nombre);
             }
 
+            $tasa_cambiaria_id = null;
+            $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+            if ($rt && $row_tasa = $rt->fetch_assoc()) {
+                $tasa_cambiaria_id = (int) $row_tasa['id'];
+            }
+
             $stmt = $conn->prepare("
                 UPDATE insumos 
                 SET nombre = ?, 
                     unidad_medida = ?, 
                     costo_unitario = ?, 
-                    proveedor_id = ?
+                    proveedor_id = ?,
+                    tasa_cambiaria_id = ?
                 WHERE id = ?
             ");
 
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
-            $stmt->bind_param("ssdii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $id);
+            $stmt->bind_param("ssdiii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id, $id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo actualizado exitosamente']);
             break;
@@ -144,7 +165,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="6" class="text-center text-danger">Error al cargar insumos</td></tr>';
+        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar insumos</td></tr>';
     }
 }
 

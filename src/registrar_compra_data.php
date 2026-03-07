@@ -74,9 +74,12 @@ try {
                 c.numero_factura,
                 c.total,
                 c.estado,
+                c.tasa_cambiaria_id,
+                tc.tasa AS tasa_compra,
                 p.nombre AS proveedor_nombre
             FROM compras c
             INNER JOIN proveedores p ON c.proveedor_id = p.id
+            LEFT JOIN tasas_cambiarias tc ON tc.id = c.tasa_cambiaria_id
             WHERE c.id = ?
         ";
         
@@ -153,13 +156,16 @@ try {
                 c.numero_factura,
                 c.total,
                 c.estado,
+                c.tasa_cambiaria_id,
+                tc.tasa AS tasa_compra,
                 COALESCE(SUM(dc.cantidad), 0) AS cantidad_total,
                 COUNT(dc.id) AS cantidad_items,
                 p.nombre AS proveedor_nombre
             FROM compras c
             INNER JOIN proveedores p ON c.proveedor_id = p.id
+            LEFT JOIN tasas_cambiarias tc ON tc.id = c.tasa_cambiaria_id
             LEFT JOIN detalle_compra dc ON c.id = dc.compra_id
-            GROUP BY c.id, c.fecha, c.numero_factura, c.total, c.estado, p.nombre
+            GROUP BY c.id, c.fecha, c.numero_factura, c.total, c.estado, c.tasa_cambiaria_id, tc.tasa, p.nombre
             ORDER BY c.creado_en DESC, c.fecha DESC
         ";
 
@@ -174,6 +180,11 @@ try {
         if (!empty($compras)) {
             foreach ($compras as $c) {
                 $i++;
+                $totalBs = null;
+                if (!empty($c['tasa_compra']) && (float)$c['tasa_compra'] > 0) {
+                    $totalBs = (float)$c['total'] * (float)$c['tasa_compra'];
+                }
+                $totalBsTexto = $totalBs !== null ? 'Bs. ' . number_format($totalBs, 2, '.', ',') : '—';
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($c['proveedor_nombre']) . '</td>';
@@ -181,6 +192,7 @@ try {
                 echo '<td>' . htmlspecialchars($c['numero_factura'] ?? '-') . '</td>';
                 echo '<td>' . number_format($c['cantidad_total'], 2, '.', ',') .'</td>';
                 echo '<td>$' . number_format($c['total'], 2, '.', ',') . '</td>';
+                echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
                 $estadoBadge = '';
                 switch($c['estado']) {
                     case 'pendiente':
@@ -202,7 +214,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="7" class="text-center">No se encontraron compras registradas</td></tr>';
+            echo '<tr><td colspan="8" class="text-center">No se encontraron compras registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -238,16 +250,22 @@ try {
             $total += $cantidad * $costo_unitario;
         }
 
+        $tasa_cambiaria_id = null;
+        $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+        if ($rt && $row_tasa = $rt->fetch_assoc()) {
+            $tasa_cambiaria_id = (int) $row_tasa['id'];
+        }
+
         $conn->begin_transaction();
 
         try {
             $stmt = $conn->prepare("
-                INSERT INTO compras (proveedor_id, fecha, numero_factura, total, estado)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO compras (proveedor_id, fecha, numero_factura, total, estado, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
 
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
-            $stmt->bind_param("issds", $proveedor_id, $fecha, $numero_factura, $total, $estado);
+            $stmt->bind_param("issdsi", $proveedor_id, $fecha, $numero_factura, $total, $estado, $tasa_cambiaria_id);
             $stmt->execute();
             
             $compra_id = $conn->insert_id;

@@ -44,7 +44,9 @@ CREATE TABLE `compras` (
   `estado` enum('pendiente','recibido','cancelado') DEFAULT 'pendiente',
   `orden_produccion_id` int(11) DEFAULT NULL,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
+  `tasa_cambiaria_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -91,8 +93,10 @@ CREATE TABLE `insumos` (
   `unidad_medida` varchar(20) NOT NULL,
   `costo_unitario` decimal(10,2) NOT NULL DEFAULT 0.00,
   `proveedor_id` int(11) DEFAULT NULL,
+  `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar/actualizar el costo',
   `activo` tinyint(1) DEFAULT 1,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -177,7 +181,9 @@ CREATE TABLE `ordenes_produccion` (
   `observaciones` text DEFAULT NULL,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `usuario_id` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al crear la orden',
+  PRIMARY KEY (`id`),
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -241,8 +247,10 @@ CREATE TABLE `recetas` (
   `tipo_produccion_id` int(11) NOT NULL,
   `observaciones` text DEFAULT NULL,
   `precio_total` decimal(10,2) DEFAULT 0.00,
+  `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar el precio',
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -280,6 +288,17 @@ CREATE TABLE `tipos_produccion` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `roles`
+--
+
+CREATE TABLE `roles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(50) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
 -- Estructura de tabla para la tabla `users`
 --
 
@@ -288,10 +307,16 @@ CREATE TABLE `users` (
   `username` varchar(255) NOT NULL,
   `password` varchar(255) NOT NULL,
   `correo` varchar(255) NOT NULL,
+  `role_id` int(11) NOT NULL DEFAULT 1,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
-  `rol` varchar(250) NOT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  KEY `role_id` (`role_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Datos iniciales de roles
+--
+INSERT INTO `roles` (`id`, `nombre`) VALUES (1, 'admin'), (2, 'supervisor');
 
 -- --------------------------------------------------------
 
@@ -308,8 +333,27 @@ CREATE TABLE `ventas` (
   `estado` enum('pendiente','entregado','cancelado') DEFAULT 'pendiente',
   `orden_produccion_id` int(11) DEFAULT NULL,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`)
+  `tasa_cambiaria_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `tasas_cambiarias`
+--
+
+CREATE TABLE `tasas_cambiarias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tasa` decimal(18,8) NOT NULL COMMENT 'Tasa USD/BS',
+  `fecha_hora` datetime NOT NULL DEFAULT current_timestamp() COMMENT 'Fecha y hora del registro',
+  `origen` enum('bcv','manual') NOT NULL DEFAULT 'manual',
+  `usuario_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fecha_hora` (`fecha_hora`),
+  KEY `usuario_id` (`usuario_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Registro de tasas cambiarias por hora';
 
 -- --------------------------------------------------------
 
@@ -342,7 +386,8 @@ ALTER TABLE `detalle_venta`
 -- Indices de la tabla `insumos`
 --
 ALTER TABLE `insumos`
-  ADD KEY `proveedor` (`proveedor_id`);
+  ADD KEY `proveedor` (`proveedor_id`),
+  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
 
 --
 -- Indices de la tabla `inventario`
@@ -379,7 +424,8 @@ ALTER TABLE `movimientos_productos_detalle`
 --
 ALTER TABLE `ordenes_produccion`
   ADD KEY `receta_producto_id` (`receta_producto_id`),
-  ADD KEY `fk_ordenes_produccion_usuario` (`usuario_id`);
+  ADD KEY `fk_ordenes_produccion_usuario` (`usuario_id`),
+  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
 
 --
 -- Indices de la tabla `proveedores`
@@ -395,7 +441,8 @@ ALTER TABLE `ordenes_produccion`
 ALTER TABLE `recetas`
   ADD UNIQUE KEY `unique_receta` (`producto_id`,`rango_tallas_id`,`tipo_produccion_id`),
   ADD KEY `rango_tallas_id` (`rango_tallas_id`),
-  ADD KEY `tipo_produccion_id` (`tipo_produccion_id`);
+  ADD KEY `tipo_produccion_id` (`tipo_produccion_id`),
+  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
 
 --
 -- Indices de la tabla `recetas_productos`
@@ -409,6 +456,8 @@ ALTER TABLE `recetas_productos`
 --
 -- Indices de la tabla `users`
 --
+ALTER TABLE `users`
+  ADD KEY `role_id` (`role_id`);
 
 --
 -- Indices de la tabla `ventas`
@@ -428,7 +477,8 @@ ALTER TABLE `ventas`
 --
 ALTER TABLE `compras`
   ADD CONSTRAINT `fk_compras_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_compras_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_compras_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_compras_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `detalle_compra`
@@ -448,7 +498,8 @@ ALTER TABLE `detalle_venta`
 -- Filtros para la tabla `insumos`
 --
 ALTER TABLE `insumos`
-  ADD CONSTRAINT `fk_insumos_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_insumos_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_insumos_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `inventario`
@@ -467,7 +518,8 @@ ALTER TABLE `movimientos_inventario_detalle`
 --
 ALTER TABLE `ordenes_produccion`
   ADD CONSTRAINT `fk_ordenes_produccion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `ordenes_produccion_ibfk_1` FOREIGN KEY (`receta_producto_id`) REFERENCES `recetas_productos` (`id`);
+  ADD CONSTRAINT `ordenes_produccion_ibfk_1` FOREIGN KEY (`receta_producto_id`) REFERENCES `recetas_productos` (`id`),
+  ADD CONSTRAINT `fk_ordenes_produccion_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `recetas`
@@ -475,7 +527,8 @@ ALTER TABLE `ordenes_produccion`
 ALTER TABLE `recetas`
   ADD CONSTRAINT `recetas_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `recetas_ibfk_2` FOREIGN KEY (`rango_tallas_id`) REFERENCES `rangos_tallas` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `recetas_ibfk_3` FOREIGN KEY (`tipo_produccion_id`) REFERENCES `tipos_produccion` (`id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `recetas_ibfk_3` FOREIGN KEY (`tipo_produccion_id`) REFERENCES `tipos_produccion` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_recetas_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `recetas_productos`
@@ -487,11 +540,18 @@ ALTER TABLE `recetas_productos`
   ADD CONSTRAINT `recetas_productos_ibfk_4` FOREIGN KEY (`tipo_produccion_id`) REFERENCES `tipos_produccion` (`id`);
 
 --
+-- Filtros para la tabla `users`
+--
+ALTER TABLE `users`
+  ADD CONSTRAINT `fk_users_rol` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+--
 -- Filtros para la tabla `ventas`
 --
 ALTER TABLE `ventas`
   ADD CONSTRAINT `fk_ventas_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_ventas_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_ventas_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_ventas_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- --------------------------------------------------------
 

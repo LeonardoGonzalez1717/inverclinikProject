@@ -19,6 +19,12 @@ if ($resultProductos) {
         $productos[] = $row;
     }
 }
+
+$tasa_actual = null;
+$rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+if ($rt && $row_tasa = $rt->fetch_assoc()) {
+    $tasa_actual = (float) $row_tasa['tasa'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -53,6 +59,7 @@ if ($resultProductos) {
                                         <th>Número Factura</th>
                                         <th>Cantidad</th>
                                         <th>Total</th>
+                                        <th>Total Bs.</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -155,6 +162,7 @@ if ($resultProductos) {
                                         <th>Cantidad</th>
                                         <th>Precio Unitario</th>
                                         <th>Subtotal</th>
+                                        <th>Equiv. Bs.</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -164,10 +172,12 @@ if ($resultProductos) {
                                     <tr style="background-color: #f8f9fa; font-weight: bold;">
                                         <td colspan="3" style="text-align: right;">Total:</td>
                                         <td id="total-venta" style="color: #0056b3; font-size: 1.1em;">$0.00</td>
+                                        <td id="total-venta-bs" style="color: #0056b3; font-size: 1.1em;">—</td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
                             </table>
+                            <small class="text-muted" id="texto-tasa-informativa-venta"></small>
                         </div>
                     </div>
 
@@ -209,6 +219,12 @@ if ($resultProductos) {
 
 <script>
 var productosAgregados = [];
+var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+
+function formatearBs(valor) {
+    if (valor == null || isNaN(valor)) return '—';
+    return 'Bs. ' + parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 
 function mostrarVista(vista) {
     document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
@@ -283,14 +299,19 @@ function actualizarTablaProductos() {
     
     var totalVenta = 0;
     
+    var totalVentaBs = 0;
     productosAgregados.forEach(function(producto, index) {
         totalVenta += producto.subtotal;
+        var equivBs = (tasaCambiariaActual && tasaCambiariaActual > 0) ? (producto.subtotal * tasaCambiariaActual) : null;
+        if (equivBs != null) totalVentaBs += equivBs;
+        var equivBsTexto = formatearBs(equivBs);
         var row = `
             <tr>
                 <td>${producto.producto_nombre}</td>
                 <td>${producto.cantidad}</td>
                 <td>$${producto.precio_unitario.toFixed(2)}</td>
                 <td>$${producto.subtotal.toFixed(2)}</td>
+                <td>${equivBsTexto}</td>
                 <td>
                     <button type="button" class="btn btn-sm btn-danger" onclick="eliminarProducto(${index})">
                         <i class="fa fa-trash"></i> Eliminar
@@ -302,6 +323,12 @@ function actualizarTablaProductos() {
     });
     
     $('#total-venta').text('$' + totalVenta.toFixed(2));
+    $('#total-venta-bs').text(formatearBs(totalVentaBs > 0 ? totalVentaBs : null));
+    if (tasaCambiariaActual && tasaCambiariaActual > 0) {
+        $('#texto-tasa-informativa-venta').text('Tasa informativa: ' + tasaCambiariaActual.toFixed(4) + ' Bs/USD').show();
+    } else {
+        $('#texto-tasa-informativa-venta').hide();
+    }
     
     if (productosAgregados.length > 0) {
         $('#tabla-productos').show();
