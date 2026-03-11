@@ -507,3 +507,44 @@ body {
     border-radius: 8px;
 }
 
+.main-layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    /* margin-top: 20px; */
+}
+.sidebar-pedido {
+    flex: 1;
+    position: sticky;
+    top: 20px;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: sticky;
+    top: 20px;
+    min-width: 300px;
+}
+.quantity-input {
+    width: 60px;
+    padding: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 columnas iguales */
+    gap: 20px;
+    flex: 2.5;
+}
+
+@media (max-width: 992px) {
+    .products-grid { grid-template-columns: repeat(2, 1fr); } /* 2 columnas en tablets */
+}
+@media (max-width: 600px) {
+    .main-layout { flex-direction: column; }
+    .products-grid { grid-template-columns: 1fr; } /* 1 columna en móvil */
+}

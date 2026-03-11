@@ -1,7 +1,6 @@
 <?php
 session_start();
 include 'connection/connection.php';
-
 header('Content-Type: application/json; charset=utf-8');
 
 $usuario = trim($_POST['usuario'] ?? '');
@@ -75,45 +74,20 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($row = $result->fetch_assoc()) {
-    // Validar contraseña (puede estar encriptada o no)
-    $passwordValid = false;
-    
-    // Intentar verificar con password_verify (si está encriptada)
-    if (!empty($row['password']) && password_verify($clave, $row['password'])) {
-        $passwordValid = true;
-    } 
-    // Si no funciona, verificar directamente (para compatibilidad con passwords antiguos)
-    elseif ($clave == $row['password']) {
-        $passwordValid = true;
-    }
-    
-    if ($passwordValid) {
+    // Verificación flexible (Hash o Texto Plano para compatibilidad)
+    if (password_verify($clave, $row['password']) || $clave == $row['password']) {
         $_SESSION['iduser']   = $row['id'];
         $_SESSION['username'] = $row['username'];
         $_SESSION['role_id']  = (int) $row['role_id'];
         $_SESSION['rol']      = $row['rol'] ?? '';
         $_SESSION['tipo']    = 'usuario';
 
-        echo json_encode([
-            'success' => true,
-            'message' => 'Login exitoso',
-            'tipo'    => 'usuario',
-            'user'    => $row['username'],
-            'id'      => $row['id']
-        ]);
+        echo json_encode(['success' => true, 'message' => 'Acceso concedido', 'id' => $row['id']]);
     } else {
-        echo json_encode([
-            'success' => false,
-            'message' => 'Contraseña incorrecta.'
-        ]);
+        echo json_encode(['success' => false, 'message' => 'Contraseña administrativa incorrecta.']);
     }
 } else {
-    echo json_encode([
-        'success' => false,
-        'message' => 'Correo electrónico no encontrado.'
-    ]);
+    echo json_encode(['success' => false, 'message' => 'El administrador no existe.']);
 }
-
 $stmt->close();
-mysqli_close($conn);
-?>
+$conn->close();
