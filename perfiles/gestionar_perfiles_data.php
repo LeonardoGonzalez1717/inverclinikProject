@@ -1,11 +1,15 @@
 <?php
+session_start();
 require_once "../connection/connection.php";
 
 $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        $sql = "SELECT id, username, correo, rol, createdAt FROM users ORDER BY id DESC";
+        $sql = "SELECT u.id, u.username, u.correo, u.role_id, u.createdAt, r.nombre AS rol
+                FROM users u
+                LEFT JOIN roles r ON r.id = u.role_id
+                ORDER BY u.id DESC";
         $result = $conn->query($sql);
         $usuarios = [];
         if ($result) {
@@ -19,7 +23,6 @@ try {
         } else {        
             $i = 0;
             foreach ($usuarios as $user) {
-                // $user['password'] = password_verify($user['password'], $user['password']);
                 $i++;
                 $fecha = date('d/m/Y H:i', strtotime($user['createdAt']));
                 $rol = $user['rol'] ?? 'No asignado';
@@ -41,15 +44,14 @@ try {
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
         $correo   = $_POST['correo'] ?? '';
-        $rol      = $_POST['rol'] ?? '';
+        $role_id  = (int) ($_POST['role_id'] ?? 0);
 
-        if (empty($username) || empty($password) || empty($correo) || empty($rol)) {
+        if (empty($username) || empty($password) || empty($correo) || $role_id < 1) {
             throw new Exception("Todos los campos son obligatorios");
         }
 
-        $rolesPermitidos = ['superadmin', 'administrador', 'cliente'];
-        if (!in_array($rol, $rolesPermitidos)) {
-            throw new Exception("Rol no válido");
+        if (!in_array($role_id, [1, 2])) {
+            throw new Exception("Rol no válido (1=admin, 2=supervisor)");
         }
 
         // Validar duplicados
@@ -67,8 +69,8 @@ try {
         // Encriptar la contraseña antes de guardar
         $hash = password_hash($password, PASSWORD_DEFAULT);
 
-        $stmt = $conn->prepare("INSERT INTO users (username, password, correo, rol) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $username, $hash, $correo, $rol);
+        $stmt = $conn->prepare("INSERT INTO users (username, password, correo, role_id) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sssi", $username, $hash, $correo, $role_id);
         $stmt->execute();
         
         echo json_encode([
@@ -78,21 +80,20 @@ try {
         ]);
         $stmt->close();
     } elseif ($action === 'editar') {
-        $id  = $_POST['id'] ?? null;
-        $rol = $_POST['rol'] ?? '';
+        $id      = $_POST['id'] ?? null;
+        $role_id = (int) ($_POST['role_id'] ?? 0);
 
         if (!$id) {
             throw new Exception("ID de usuario requerido");
         }
 
-        $rolesPermitidos = ['superadmin', 'administrador', 'cliente'];
-        if (!in_array($rol, $rolesPermitidos)) {
-            throw new Exception("Rol no válido");
+        if (!in_array($role_id, [1, 2])) {
+            throw new Exception("Rol no válido (1=admin, 2=supervisor)");
         }
 
         // Solo actualizamos el rol
-        $stmt = $conn->prepare("UPDATE users SET rol = ? WHERE id = ?");
-        $stmt->bind_param("si", $rol, $id);
+        $stmt = $conn->prepare("UPDATE users SET role_id = ? WHERE id = ?");
+        $stmt->bind_param("ii", $role_id, $id);
         $stmt->execute();
 
         echo json_encode([
@@ -106,7 +107,7 @@ try {
             throw new Exception("ID de usuario requerido");
         }
 
-        $stmt = $conn->prepare("SELECT id, username, password, correo, rol FROM users WHERE id = ?");
+        $stmt = $conn->prepare("SELECT u.id, u.username, u.password, u.correo, u.role_id, r.nombre AS rol FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $result = $stmt->get_result();

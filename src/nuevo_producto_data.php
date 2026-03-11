@@ -44,6 +44,8 @@ try {
         $sql = "
             SELECT 
                 r.id,
+                r.tasa_cambiaria_id,
+                tc.tasa AS tasa_receta,
                 p.nombre AS producto_nombre,
                 rt.nombre_rango AS rango_tallas_nombre,
                 tp.nombre AS tipo_produccion_nombre,
@@ -59,11 +61,12 @@ try {
             INNER JOIN productos p ON r.producto_id = p.id
             INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
             INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+            LEFT JOIN tasas_cambiarias tc ON tc.id = r.tasa_cambiaria_id
             LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
                 AND rp.rango_tallas_id = r.rango_tallas_id 
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY r.id, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total
+            GROUP BY r.id, r.tasa_cambiaria_id, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total
             ORDER BY r.id DESC
         ";
 
@@ -91,7 +94,8 @@ try {
                 echo '<td>' . htmlspecialchars($r['observaciones'] ?? '') . '</td>';
                 echo '<td>' . $fecha . '</td>';
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarReceta(' . htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
+                echo '<button class="btn btn-sm btn-primary" onclick="editarReceta(' . htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8') . ')">Editar</button> ';
+                echo '<a href="receta_pdf.php?id=' . (int)$r['id'] . '" target="_blank" class="btn btn-sm btn-secondary">Ver PDF</a>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -152,15 +156,21 @@ try {
                 }
             }
             
+            $tasa_cambiaria_id = null;
+            $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+            if ($rt && $row_tasa = $rt->fetch_assoc()) {
+                $tasa_cambiaria_id = (int) $row_tasa['id'];
+            }
+
             $conn->begin_transaction();
             try {
                 // Primero, insertar o actualizar el registro en la tabla recetas usando ON DUPLICATE KEY UPDATE
                 $stmtReceta = $conn->prepare("
-                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones), precio_total = VALUES(precio_total)
+                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total, tasa_cambiaria_id)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
                 ");
-                $stmtReceta->bind_param("iiisd", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total);
+                $stmtReceta->bind_param("iiisdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total, $tasa_cambiaria_id);
                 $stmtReceta->execute();
                 $stmtReceta->close();
                 
@@ -217,6 +227,46 @@ try {
             } else {
                 throw new Exception("Insumo no encontrado");
             }
+            break;
+
+        case 'obtener_insumos_receta':
+            $id = (int) ($_POST['id'] ?? 0);
+            if (!$id) {
+                echo json_encode(['success' => false, 'message' => 'ID de receta requerido', 'insumos' => []]);
+                break;
+            }
+            $stmt = $conn->prepare("SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?");
+            $stmt->bind_param("i", $id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if (!$res || !($receta = $res->fetch_assoc())) {
+                echo json_encode(['success' => false, 'message' => 'Receta no encontrada', 'insumos' => []]);
+                break;
+            }
+            $stmt->close();
+            $sql = "SELECT rp.insumo_id, i.nombre AS insumo_nombre, rp.cantidad_por_unidad, rp.costo_por_unidad
+                    FROM recetas_productos rp
+                    INNER JOIN insumos i ON i.id = rp.insumo_id
+                    WHERE rp.producto_id = ? AND rp.rango_tallas_id = ? AND rp.tipo_produccion_id = ?";
+            $st = $conn->prepare($sql);
+            $st->bind_param("iii", $receta['producto_id'], $receta['rango_tallas_id'], $receta['tipo_produccion_id']);
+            $st->execute();
+            $res = $st->get_result();
+            $insumos = [];
+            while ($row = $res->fetch_assoc()) {
+                $cant = (float) $row['cantidad_por_unidad'];
+                $costoUni = $cant > 0 ? (float) $row['costo_por_unidad'] / $cant : 0;
+                $costoTotal = (float) $row['costo_por_unidad'];
+                $insumos[] = [
+                    'insumo_id' => (int) $row['insumo_id'],
+                    'insumo_nombre' => $row['insumo_nombre'],
+                    'cantidad_por_unidad' => $cant,
+                    'costo_unitario' => $costoUni,
+                    'costo_total' => $costoTotal
+                ];
+            }
+            $st->close();
+            echo json_encode(['success' => true, 'insumos' => $insumos]);
             break;
 
         case 'editar':

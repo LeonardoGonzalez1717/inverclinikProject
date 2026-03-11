@@ -74,6 +74,12 @@ if ($resultOrdenes) {
         $ordenes[] = $row;
     }
 }
+
+$tasa_actual = null;
+$rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+if ($rt && $row_tasa = $rt->fetch_assoc()) {
+    $tasa_actual = (float) $row_tasa['tasa'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -297,6 +303,11 @@ if ($resultOrdenes) {
                                 <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
                                 <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
                             </div>
+                            <div class="mb-3" id="contenedor-equivalente-bs" style="display: none;">
+                                <label class="form-label">Equivalente en Bs.</label>
+                                <input type="text" id="equivalente_bs" class="form-control" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted" id="texto-tasa-informativa"></small>
+                            </div>
                             <div class="mb-3" id="stock-insumos-container" style="display: none;">
                                 <label class="form-label">Stock Actual de Insumos</label>
                                 <div id="stock-insumos-list" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;">
@@ -326,6 +337,26 @@ if ($resultOrdenes) {
     </div>
 
 <script>
+var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+var tasaParaEquivalenteOrden = tasaCambiariaActual;
+
+function actualizarEquivalenteBs() {
+    var costoTotalDolares = parseFloat($('#costo_total_produccion').val().replace(/[^0-9.-]/g, '')) || 0;
+    var contenedor = $('#contenedor-equivalente-bs');
+    var tasa = tasaParaEquivalenteOrden;
+    if (!tasa || tasa <= 0) {
+        contenedor.hide();
+        return;
+    }
+    if (costoTotalDolares <= 0) {
+        contenedor.hide();
+        return;
+    }
+    var equivalenteBs = costoTotalDolares * tasa;
+    $('#equivalente_bs').val('Bs. ' + equivalenteBs.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    $('#texto-tasa-informativa').text('Tasa informativa: ' + tasa.toFixed(4) + ' Bs/USD');
+    contenedor.show();
+}
 
 function mostrarVista(vista) {
     document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
@@ -354,12 +385,14 @@ function calcularCostoTotal() {
             $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
             var costoTotal = costoUnitario * cantidad;
             $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
+            actualizarEquivalenteBs();
         } else {
             obtenerCostoReceta(recetaId, cantidad);
         }
     } else {
         $('#costo_por_unidad').val('');
         $('#costo_total_produccion').val('');
+        $('#contenedor-equivalente-bs').hide();
     }
 }
 
@@ -374,6 +407,7 @@ function obtenerCostoReceta(recetaId, cantidad) {
                 $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
                 var costoTotal = costoUnitario * cantidad;
                 $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
+                actualizarEquivalenteBs();
             }
         }
     }, 'json');
@@ -429,8 +463,10 @@ function limpiarFormulario() {
     $('#cantidad_a_producir').val('');
     $('#costo_por_unidad').val('');
     $('#costo_total_produccion').val('');
+    $('#equivalente-bs').hide();
     $('#obser').val('');          
     $('#editar-orden-id').val('');
+    tasaParaEquivalenteOrden = tasaCambiariaActual;
 }
 function formatearFecha(fecha) {
     if (!fecha || fecha === '0000-00-00') return '';
@@ -438,18 +474,18 @@ function formatearFecha(fecha) {
 }
 
 function editarOrden(data) {
-    console.log("asd")
     $('#id').val(data.id);
-    $('#receta_id').val(data.id);
+    $('#receta_id').val(data.receta_id);
     $('#cantidad_a_producir').val(data.cantidad_a_producir);
     $('#fecha_inicio').val(formatearFecha(data.fecha_inicio));
     $('#fecha_fin').val(formatearFecha(data.fecha_fin));
     $('#estado').val(data.estado);
     $('#observaciones').val(data.observaciones || '');
 
+    tasaParaEquivalenteOrden = (data.tasa_orden != null && parseFloat(data.tasa_orden) > 0) ? parseFloat(data.tasa_orden) : tasaCambiariaActual;
     $('#editar-orden-id').val(data.orden_id);
+    calcularCostoTotal();
     mostrarVista('crear');
-        
 }
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');

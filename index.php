@@ -1,3 +1,15 @@
+<?php
+$hay_admin = false;
+if (file_exists(__DIR__ . '/connection/connection.php')) {
+    include __DIR__ . '/connection/connection.php';
+    $chk = $conn->query("SELECT 1 FROM users WHERE role_id = 1 LIMIT 1");
+    if ($chk && $chk->num_rows > 0) {
+        $hay_admin = true;
+    }
+    if (isset($conn)) $conn->close();
+}
+?>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -20,7 +32,7 @@
             <input type="password" name="clave" placeholder="Contraseña" required />
             <div id="resultado"></div>
             <button type="submit" id="confirm">Iniciar sesión</button>
-            <a href="#" class="forgot-link">¿Olvidaste tu contraseña?</a>
+            <button type="button" id="btn-olvidaste" class="btn-forgot">¿Olvidaste tu contraseña?</button>
         </form>
 
         <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; display: flex; gap: 10px;">
@@ -69,6 +81,58 @@
             },
             error: function () {
                 $("#resultado").html("<p style='color:red;'>Error de conexión con el servidor.</p>");
+            }
+        });
+    });
+
+    $("#btn-abrir-crear-admin").on("click", function() {
+        $("#modal-crear-admin").css("display", "flex");
+        $("#form-crear-admin")[0].reset();
+        $("#msg-crear-admin").hide();
+    });
+
+    $("#cerrar-modal-crear-admin").on("click", function() {
+        $("#modal-crear-admin").css("display", "none");
+        $("#form-crear-admin")[0].reset();
+        $("#msg-crear-admin").hide();
+    });
+
+    $("#modal-crear-admin").on("click", function(e) {
+        if (e.target.id === "modal-crear-admin") {
+            $(this).css("display", "none");
+            $("#form-crear-admin")[0].reset();
+            $("#msg-crear-admin").hide();
+        }
+    });
+
+    $("#form-crear-admin").on("submit", function(e) {
+        e.preventDefault();
+        var $btn = $("#btn-crear-admin");
+        $btn.prop("disabled", true).text("Creando...");
+        $("#msg-crear-admin").hide();
+        $.ajax({
+            url: "crear_admin_data.php",
+            type: "POST",
+            data: {
+                action: "crear_admin",
+                username: $("#admin-username").val().trim(),
+                correo: $("#admin-correo").val().trim(),
+                password: $("#admin-password").val()
+            },
+            dataType: "json",
+            success: function(resp) {
+                if (resp.success) {
+                    $("#msg-crear-admin").css("color", "green").html(resp.message).show();
+                    $("#form-crear-admin")[0].reset();
+                    setTimeout(function() { location.reload(); }, 2500);
+                } else {
+                    $("#msg-crear-admin").css("color", "red").html(resp.message).show();
+                    $btn.prop("disabled", false).text("Crear administrador");
+                }
+            },
+            error: function() {
+                $("#msg-crear-admin").css("color", "red").html("Error de conexión con el servidor.").show();
+                $btn.prop("disabled", false).text("Crear administrador");
             }
         });
     });

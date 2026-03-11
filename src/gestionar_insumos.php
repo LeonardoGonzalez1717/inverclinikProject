@@ -9,6 +9,12 @@ if ($resultProveedores) {
         $proveedores[] = $row;
     }
 }
+
+$tasa_actual = null;
+$rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+if ($rt && $row_tasa = $rt->fetch_assoc()) {
+    $tasa_actual = (float) $row_tasa['tasa'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -37,10 +43,11 @@ if ($resultProveedores) {
                             <table class="recipe-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Nombre</th>
                                         <th>Unidad de Medida</th>
                                         <th>Costo Unitario</th>
+                                        <th>Equivalente (Bs.)</th>
                                         <th>Proveedor</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -78,10 +85,15 @@ if ($resultProveedores) {
                                 <input type="number" step="0.01" min="0" name="costo_unitario" id="costo_unitario" 
                                        class="form-control" required placeholder="Ej: 5.00">
                             </div>
+                            <div class="mb-3" id="contenedor-equivalente-bs-insumo" style="display: none;">
+                                <label class="form-label">Equivalente en Bs.</label>
+                                <input type="text" id="equivalente_bs_insumo" class="form-control" readonly style="background-color: #e9ecef;">
+                                <small class="text-muted" id="texto-tasa-informativa-insumo"></small>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Proveedor</label>
-                                <select name="proveedor_id" id="proveedor_id" class="form-control">
-                                    <option value="">-- Seleccione un proveedor (opcional) --</option>
+                                <select name="proveedor_id" required id="proveedor_id" class="form-control">
+                                    <option value="">Seleccione un proveedor</option>
                                     <?php foreach ($proveedores as $prov): ?>
                                         <option value="<?php echo htmlspecialchars($prov['id']); ?>">
                                             <?php echo htmlspecialchars($prov['nombre']); ?>
@@ -101,6 +113,23 @@ if ($resultProveedores) {
     </div>
 
 <script>
+var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+var tasaParaEquivalenteInsumo = tasaCambiariaActual;
+
+function actualizarEquivalenteBsInsumo() {
+    var costo = parseFloat($('#costo_unitario').val()) || 0;
+    var contenedor = $('#contenedor-equivalente-bs-insumo');
+    var tasa = tasaParaEquivalenteInsumo;
+    if (!tasa || tasa <= 0 || costo <= 0) {
+        contenedor.hide();
+        return;
+    }
+    var equivBs = costo * tasa;
+    $('#equivalente_bs_insumo').val('Bs. ' + equivBs.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','));
+    $('#texto-tasa-informativa-insumo').text('Tasa informativa: ' + tasa.toFixed(4) + ' Bs/USD');
+    contenedor.show();
+}
+
 function mostrarVista(vista) {
     document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
         el.classList.add('hidden');
@@ -125,6 +154,8 @@ function limpiarFormulario() {
     $('#costo_unitario').val('');
     $('#proveedor_id').val('');
     $('#editar-insumo-id').val('');
+    $('#contenedor-equivalente-bs-insumo').hide();
+    tasaParaEquivalenteInsumo = tasaCambiariaActual;
 }
 
 function editarInsumo(data) {
@@ -133,8 +164,14 @@ function editarInsumo(data) {
     $('#costo_unitario').val(data.costo_unitario || '');
     $('#proveedor_id').val(data.proveedor_id || '');
     $('#editar-insumo-id').val(data.id);
+    tasaParaEquivalenteInsumo = (data.tasa_insumo != null && parseFloat(data.tasa_insumo) > 0) ? parseFloat(data.tasa_insumo) : tasaCambiariaActual;
+    actualizarEquivalenteBsInsumo();
     mostrarVista('crear');
 }
+
+$('#costo_unitario').on('input change', function() {
+    actualizarEquivalenteBsInsumo();
+});
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
