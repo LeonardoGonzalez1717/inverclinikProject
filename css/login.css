@@ -64,17 +64,16 @@ form input {
   background-color: #337fd6;
 }
 
-/* Enlace de recuperación */
-.forgot-link {
+/* Botón recuperar contraseña */
+.btn-forgot {
   display: block;
   text-align: center;
   margin-top: 15px;
   color: #000000;
-  text-decoration: none;
   font-weight: 500;
 }
 
-.forgot-link:hover {
+.btn-forgot:hover {
   color: #337fd6;
 }
 

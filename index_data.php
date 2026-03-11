@@ -65,9 +65,11 @@ if ($rowCliente = $resultCliente->fetch_assoc()) {
 $stmtCliente->close();
 
 // Si no es cliente, verificar si es usuario (por correo)
-$sql = "SELECT * FROM users WHERE correo = ?";
+$sql = "SELECT u.id, u.username, u.password, u.correo, u.role_id, r.nombre AS rol
+        FROM users u
+        LEFT JOIN roles r ON r.id = u.role_id
+        WHERE u.correo = ?";
 $stmt = $conn->prepare($sql);
-// var_dump($usuario);
 $stmt->bind_param("s", $usuario);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -88,6 +90,7 @@ if ($row = $result->fetch_assoc()) {
     if ($passwordValid) {
         $_SESSION['iduser']   = $row['id'];
         $_SESSION['username'] = $row['username'];
+        $_SESSION['role_id']  = (int) $row['role_id'];
         $_SESSION['rol']      = $row['rol'] ?? '';
         $_SESSION['tipo']    = 'usuario';
 

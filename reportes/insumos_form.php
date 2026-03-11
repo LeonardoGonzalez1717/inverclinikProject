@@ -2,7 +2,7 @@
 <?php
 $iduser = $_SESSION['iduser'];
 
-$sql = "SELECT id, username, correo, rol, createdAt FROM users WHERE id = ?";
+$sql = "SELECT u.id, u.username, u.correo, u.role_id, u.createdAt, r.nombre AS rol FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $iduser);
 $stmt->execute();

@@ -40,6 +40,7 @@
         </ul>
     </nav>
     <div class="perfil">
+        <button onclick="window.location.href='../src/tasas_cambiarias.php'">Tasas cambiarias</button>
         <ul>
             <li class="collapsible">
               <button class="collapsible-toggle">Herramientas</button>

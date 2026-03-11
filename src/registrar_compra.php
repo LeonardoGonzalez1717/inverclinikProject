@@ -19,6 +19,12 @@ if ($resultInsumos) {
         $insumos[] = $row;
     }
 }
+
+$tasa_actual = null;
+$rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
+if ($rt && $row_tasa = $rt->fetch_assoc()) {
+    $tasa_actual = (float) $row_tasa['tasa'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -53,6 +59,7 @@ if ($resultInsumos) {
                                         <th>Número Factura</th>
                                         <th>Cantidad</th>
                                         <th>Total</th>
+                                        <th>Total Bs.</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -146,6 +153,7 @@ if ($resultInsumos) {
                                         <th>Cantidad</th>
                                         <th>Costo Unitario</th>
                                         <th>Subtotal</th>
+                                        <th>Equiv. Bs.</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -155,10 +163,12 @@ if ($resultInsumos) {
                                     <tr style="background-color: #f8f9fa; font-weight: bold;">
                                         <td colspan="3" style="text-align: right;">Total:</td>
                                         <td id="total-compra" style="color: #0056b3; font-size: 1.1em;">$0.00</td>
+                                        <td id="total-compra-bs" style="color: #0056b3; font-size: 1.1em;">—</td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
                             </table>
+                            <small class="text-muted" id="texto-tasa-informativa-compra"></small>
                         </div>
                     </div>
 
@@ -200,6 +210,12 @@ if ($resultInsumos) {
 
 <script>
 var insumosAgregados = [];
+var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+
+function formatearBs(valor) {
+    if (valor == null || isNaN(valor)) return '—';
+    return 'Bs. ' + parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
 
 function mostrarVista(vista) {
     document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
@@ -277,14 +293,19 @@ function actualizarTablaInsumos() {
     
     var totalCompra = 0;
     
+    var totalCompraBs = 0;
     insumosAgregados.forEach(function(insumo, index) {
         totalCompra += insumo.subtotal;
+        var equivBs = (tasaCambiariaActual && tasaCambiariaActual > 0) ? (insumo.subtotal * tasaCambiariaActual) : null;
+        if (equivBs != null) totalCompraBs += equivBs;
+        var equivBsTexto = formatearBs(equivBs);
         var row = `
             <tr>
                 <td>${insumo.insumo_nombre}</td>
                 <td>${insumo.cantidad} ${insumo.unidad_medida}</td>
                 <td>$${insumo.costo_unitario.toFixed(2)}</td>
                 <td>$${insumo.subtotal.toFixed(2)}</td>
+                <td>${equivBsTexto}</td>
                 <td>
                     <button type="button" class="btn btn-sm btn-danger" onclick="eliminarInsumo(${index})">
                         <i class="fa fa-trash"></i> Eliminar
@@ -296,6 +317,12 @@ function actualizarTablaInsumos() {
     });
     
     $('#total-compra').text('$' + totalCompra.toFixed(2));
+    $('#total-compra-bs').text(formatearBs(totalCompraBs > 0 ? totalCompraBs : null));
+    if (tasaCambiariaActual && tasaCambiariaActual > 0) {
+        $('#texto-tasa-informativa-compra').text('Tasa informativa: ' + tasaCambiariaActual.toFixed(4) + ' Bs/USD').show();
+    } else {
+        $('#texto-tasa-informativa-compra').hide();
+    }
     
     if (insumosAgregados.length > 0) {
         $('#tabla-insumos').show();

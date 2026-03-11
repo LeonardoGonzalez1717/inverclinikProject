@@ -1,5 +1,7 @@
 {
     "require": {
-        "phpoffice/phpspreadsheet": "^5.4"
+        "phpoffice/phpspreadsheet": "^5.4",
+        "phpmailer/phpmailer": "^7.0",
+        "tecnickcom/tcpdf": "^6.11"
     }
 }
