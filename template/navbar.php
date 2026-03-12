@@ -7,7 +7,7 @@
     </div>
 
     <nav>
-        <?php if ($_SESSION['tipo'] === 'admin'): ?>
+        <?php if ($_SESSION['tipo'] === 1): ?>
             <ul>
                 <li class="collapsible">
                   <button class="collapsible-toggle">Procesos</button>
@@ -45,7 +45,7 @@
               </li>
             </ul>
 
-        <?php elseif ($_SESSION['tipo'] === 'cliente'): ?>
+        <?php elseif ($_SESSION['tipo'] === 2): ?>
             <ul>
                 <li class="collapsible open"> <button class="collapsible-toggle">Mis Servicios</button>
                   <ul class="collapsible-content">
@@ -63,7 +63,7 @@
             <li class="collapsible">
               <button class="collapsible-toggle">Herramientas</button>
               <ul class="collapsible-content">
-                <?php if ($_SESSION['tipo'] === 'admin'): ?>
+                <?php if ($_SESSION['tipo'] === 1): ?>
                     <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
                     <li><a href="../src">Auditoria</a></li>
                 <?php endif; ?>
@@ -74,23 +74,23 @@
 
         <button onclick="window.location.href='../perfiles/perfil.php'">Mi Perfil</button>
         
-        <?php if ($_SESSION['tipo'] === 'admin'): ?>
+        <?php if ($_SESSION['tipo'] === 1): ?>
             <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <?php endif; ?>
 
         <button onclick="window.location.href='../template/logout.php'" style="background-color: #c0392b;">Cerrar sesión</button>
     </div>
 </aside> -->
-
+<?php echo $_SESSION['role_id']; ?>
 <link rel="stylesheet" href="../css/navbar.css" />
 <aside class="sidebar">
     <div class="logo">
-        <a href="<?php echo ($_SESSION['tipo'] === 'cliente') ? '../cliente/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
+        <a href="<?php echo ($_SESSION['role_id'] === 2) ? '../cliente/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
             INVERCLINIK
         </a>
     </div>
     <nav>
-        <?php if ($_SESSION['tipo'] === 'admin') { ?>
+        <?php if ($_SESSION['role_id'] === 1) { ?>
             <ul>
                 <li class="collapsible">
                 <button class="collapsible-toggle">Procesos</button>
@@ -129,7 +129,7 @@
             </li>
             </ul>
         <?php } ?>
-        <?php if ($_SESSION['tipo'] === 'cliente') { ?>
+        <?php if ($_SESSION['role_id'] === 2) { ?>
             <ul>
                 <li class="collapsible"> <button class="collapsible-toggle">Mis Servicios</button>
                   <ul class="collapsible-content">
@@ -147,7 +147,7 @@
             <li class="collapsible">
               <button class="collapsible-toggle">Herramientas</button>
               <ul class="collapsible-content">
-                <?php if ($_SESSION['tipo'] === 'admin') { ?>
+                <?php if ($_SESSION['role_id'] === 1) { ?>
                     <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
                     <li><a href="../src">Auditoria</a></li>
                 <?php } ?>
@@ -156,7 +156,7 @@
             </li>
         </ul>
         <button onclick="window.location.href='../perfiles/perfil.php'">Perfil</button>
-        <?php if ($_SESSION['tipo'] === 'admin') { ?>
+        <?php if ($_SESSION['role_id'] === 1) { ?>
             <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <?php } ?>
         <button onclick="window.location.href='../template/logout.php'">Cerrar sesión</button>
