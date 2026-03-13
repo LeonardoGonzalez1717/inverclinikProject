@@ -25,19 +25,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->bind_param("isd", $id_cliente, $correlativo, $total);
     
     if ($stmt->execute()) {
-        $id_nuevo_presupuesto = $stmt->insert_id;
+        $id_presupuesto = $stmt->insert_id;
 
         // Preparar el detalle una sola vez
-        $stmt_det = $conn->prepare("INSERT INTO presupuesto_detalles (id_presupuesto, nombre_producto, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?)");
+        $stmt_det = $conn->prepare("INSERT INTO presupuesto_detalles (id_presupuesto, id_producto, cantidad, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?)");
         
         foreach ($carrito as $item) {
-            $nombre = $item['nombre'];
-            $cant = (int)$item['cantidad'];
-            $precio = (double)$item['precioUnit'];
-            $sub = (double)$item['subtotal'];
+            $id_prod = $item['prodId']; 
+            $cant    = $item['cantidad'];
+            $precio  = $item['precioUnit'];
+            $sub     = $item['subtotal'];
 
-            // "isidd" significa: integer, string, integer, double, double
-            $stmt_det->bind_param("isidd", $id_nuevo_presupuesto, $nombre, $cant, $precio, $sub);
+            $stmt_det->bind_param("iiidd", $id_presupuesto, $id_prod, $cant, $precio, $sub);
             $stmt_det->execute();
         }
 

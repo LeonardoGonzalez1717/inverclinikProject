@@ -74,6 +74,7 @@ try {
             $categoria = trim($_POST['categoria'] ?? '');
             $tipo_genero = trim($_POST['tipo_genero'] ?? '');
             $descripcion = trim($_POST['descripcion'] ?? '');
+            $activo = isset($_POST['activo']) ? 1 : 0;
             $imagen = null;
 
             if (empty($nombre)) {
@@ -116,15 +117,15 @@ try {
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO productos (nombre, categoria, tipo_genero, descripcion, imagen)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO productos (nombre, categoria, tipo_genero, descripcion, imagen, activo)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
 
             $categoria = empty($categoria) ? null : $categoria;
             $tipo_genero = empty($tipo_genero) ? null : $tipo_genero;
             $descripcion = empty($descripcion) ? null : $descripcion;
 
-            $stmt->bind_param("sssss", $nombre, $categoria, $tipo_genero, $descripcion, $imagen);
+            $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $activo);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Producto creado exitosamente', 'id' => $conn->insert_id]);
             break;

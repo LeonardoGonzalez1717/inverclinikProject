@@ -58,7 +58,7 @@
 
             <div class="mt-4" style="text-align: right;">
                 <button type="button" class="btn-editar" id="btn-generar-cot">
-                    <i class="fas fa-save"></i> Crear Cotización Formal
+                    <i class="fas fa-save"></i> Crear Cotización
                 </button>
             </div>
           </div>
@@ -115,8 +115,8 @@
                 success: function(resp) {
                     let html = "";
                     resp.forEach(item => {
-                        html += `
-                        <tr>
+                        html += ` 
+                        <tr style="border-bottom: 1px solid #eee;" data-id-producto="${item.id_producto}">
                             <td>${item.nombre_producto}</td>
                             <td>${item.cantidad}</td>
                             <td>
@@ -132,7 +132,7 @@
                                 </select>
                             </td>
                             <td><input type="text" class="form-control nota-input"></td>
-                            <td><input type="number" class="form-control precio-input" value="${item.precio_unitario}"></td>
+                            <td><input type="number" class="form-control precio-input" readonly value="${item.precio_unitario}"></td>
                         </tr>`;
                     });
                     $('#tabla-cotizador-body').html(html);
@@ -140,7 +140,53 @@
                 }
             });
         });
+
+        $('#btn-generar-cot').on('click', function() {
+            let itemsCotizacion = [];
+            let totalGeneral = 0;
+
+            $('#tabla-cotizador-body tr').each(function() {
+                let fila = $(this);
+                let cantidad = parseInt(fila.find('td:eq(1)').text());
+                let precio = parseFloat(fila.find('.precio-input').val());
+                let subtotal = cantidad * precio;
+                totalGeneral += subtotal;
+
+                console.log(fila.data('id-producto'));
+
+                itemsCotizacion.push({
+                    id: fila.data('id-producto'), 
+                    cantidad: cantidad,
+                    talla: fila.find('.talla-sel').val(),
+                    perso: fila.find('.perso-sel').val(),
+                    notas: fila.find('.nota-input').val(),
+                    precio: precio,
+                    subtotal: subtotal
+                });
+            });
+
+            $.ajax({
+                url: 'cotizacion_data.php',
+                type: 'POST',
+                data: {
+                    action: 'guardar_cotizacion',
+                    id_cliente: $('#select-cliente').val(),
+                    codigo_presupuesto: $('#select-presupuesto').val(),
+                    items: itemsCotizacion,
+                    total_cotizacion: totalGeneral
+                },
+                dataType: 'json',
+                success: function(resp) {
+                    if (resp.success) {
+                        alert(resp.mensaje);
+                        location.reload(); 
+                    } else {
+                        alert("Error: " + resp.mensaje);
+                    }
+                }
+            });
+        });
     });
-  </script>
+</script>
 </body>
 </html>

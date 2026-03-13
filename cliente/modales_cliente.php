@@ -97,14 +97,14 @@
     $(document).on("submit", "#form-login-cliente", function(e) {
         e.preventDefault();
         $.ajax({
-            url: "cliente/login_cliente_data.php", // <--- Solo para clientes
+            url: "login_cliente_data.php", // <--- Solo para clientes
             type: "POST",
             data: $(this).serialize(),
             dataType: "json",
             success: function(resp) {
                 $("#msg-cliente").html("<p style='color:green;'>" + resp.message + "</p>");
                 if (resp.success) {
-                    window.location.href = "cliente/dashboard_cliente.php";
+                    window.location.href = "dashboard/dashboard_cliente.php";
                 } else {
                     $('#msg-cliente').html("<p style='color:red;'>" + resp.message + "</p>");
                 }

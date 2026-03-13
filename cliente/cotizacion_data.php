@@ -21,7 +21,7 @@ switch ($action) {
         $output = [];
         while ($row = $result->fetch_assoc()) {
             $output[] = [
-                'id' => $row['codigo_presupuesto'], // Lo que Select2 usará como value
+                'id' => $row['codigo_presupuesto'], 
                 'text' => $row['codigo_presupuesto'] . " - (" . $row['fecha'] . ") - $" . $row['total'] // Lo que el usuario lee
             ];
         }
@@ -31,7 +31,7 @@ switch ($action) {
     case 'obtener_detalle_presupuesto':
         $codigo = $_GET['codigo'] ?? '';
         
-        $sql = "SELECT pd.nombre_producto, pd.cantidad, pd.precio_unitario, pd.subtotal 
+        $sql = "SELECT pd.id_producto, pd.cantidad, pd.precio_unitario, pd.subtotal 
                 FROM presupuesto_detalles pd
                 INNER JOIN presupuestos p ON p.id_presupuesto = pd.id_presupuesto
                 WHERE p.codigo_presupuesto = ?";
@@ -51,4 +51,46 @@ switch ($action) {
     default:
         echo json_encode(['error' => 'Acción no válida']);
         break;
+
+    case 'guardar_cotizacion':
+        $id_cliente = $_POST['id_cliente'];
+        $codigo_presupuesto = $_POST['codigo_presupuesto'];
+        $items = $_POST['items']; 
+        $total = $_POST['total_cotizacion'];
+        
+        $codigo_cotizacion = str_replace("PRE", "COT", $codigo_presupuesto);
+
+        // 1. Insertar Cabecera de Cotización
+        $stmt = $conn->prepare("INSERT INTO cotizaciones (id_cliente, codigo_cotizacion, codigo_presupuesto_origen, total, status) VALUES (?, ?, ?, ?, 1)");
+        $status_inicial = 1;
+        $stmt->bind_param("issd", $id_cliente, $codigo_cotizacion, $codigo_presupuesto, $total);
+        
+        if ($stmt->execute()) {
+            $id_cotizacion = $stmt->insert_id;
+
+            $stmt_det = $conn->prepare("INSERT INTO cotizacion_detalles (id_cotizacion, id_producto, cantidad, talla, personalizacion, notas, precio_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            
+            foreach ($items as $item) {
+                $stmt_det->bind_param("iiisssdd", 
+                    $id_cotizacion, 
+                    $item['id'], 
+                    $item['cantidad'], 
+                    $item['talla'], 
+                    $item['perso'], 
+                    $item['notas'], 
+                    $item['precio'], 
+                    $item['subtotal']
+                );
+                $stmt_det->execute();
+            }
+
+            $stmt_upd = $conn->prepare("UPDATE presupuestos SET status = 1 WHERE codigo_presupuesto = ?");
+            $stmt_upd->bind_param("s", $codigo_presupuesto);
+            $stmt_upd->execute();
+
+            echo json_encode(['success' => true, 'mensaje' => 'Cotización '.$codigo_cotizacion.' guardada con éxito']);
+        } else {
+            echo json_encode(['success' => false, 'mensaje' => $conn->error]);
+        }
+    break;
 }
