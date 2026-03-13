@@ -1,5 +1,9 @@
 /* INICIO SESION */
 
+* {
+    box-sizing: border-box;
+}
+
 /* Fondo general */
 body {
   margin: 0;
@@ -12,7 +16,7 @@ body {
 }
 
 /* Contenedor principal */
-.login-container {
+.login-container, .modal-content {
   background-color: #fff;
   border-radius: 12px;
   padding: 30px;
@@ -20,8 +24,52 @@ body {
   max-width: 400px;
   width: 100%;
   text-align: center;
+  margin: 0 auto
 }
 
+/* 3. Ajuste de Inputs y Selects */
+.login-container input, 
+.login-container select,
+.modal-content input,
+.modal-content select {
+    width: 100%;            /* Ocupa el 100% del contenedor padre */
+    padding: 12px;         /* Espacio interno cómodo */
+    margin-bottom: 15px;    /* Separación entre campos */
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    display: block;         /* Asegura que tome su propia línea */
+    font-size: 16px;
+}
+
+/* 4. El Botón de Inicio */
+.btn-login {
+    width: 100%;
+    padding: 12px;
+    background-color: #005bbe;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 10px; /* Espacio para el link de abajo */
+}
+
+/* 5. Olvidé mi contraseña (Debajo del botón) */
+.forgot-link {
+    display: block;         /* Para que se ponga debajo del botón */
+    text-align: center;     /* Centrado horizontal */
+    margin-top: 15px;       /* Separación respecto al botón de arriba */
+    color: #005bbe;         /* Color azul de tu marca */
+    text-decoration: none;  /* Quita la línea de subrayado inicial */
+    font-size: 14px;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.forgot-link:hover {
+    text-decoration: underline; /* Solo se subraya al pasar el mouse */
+    color: #003a7e;   
+}
 /* Título */
 .login-box h1 {
   text-align: center;

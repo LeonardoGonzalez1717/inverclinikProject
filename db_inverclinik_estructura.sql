@@ -356,6 +356,30 @@ CREATE TABLE `tasas_cambiarias` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Registro de tasas cambiarias por hora';
 
 -- --------------------------------------------------------
+--
+-- Estructura de tabla para la tabla `presupuestos`
+--
+
+
+CREATE TABLE presupuestos (
+    id_presupuesto INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    codigo_presupuesto VARCHAR(20) UNIQUE, -- Ejemplo: PRE-1001
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    total DECIMAL(10,2),
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id)
+);
+
+CREATE TABLE presupuesto_detalles (
+    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_presupuesto INT,
+    nombre_producto VARCHAR(100),
+    cantidad INT,
+    precio_unitario DECIMAL(10,2),
+    subtotal DECIMAL(10,2),
+    FOREIGN KEY (id_presupuesto) REFERENCES presupuestos(id_presupuesto)
+);
+
 
 --
 -- Índices para tablas volcadas
