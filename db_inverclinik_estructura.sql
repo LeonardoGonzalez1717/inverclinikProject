@@ -95,8 +95,7 @@ CREATE TABLE `insumos` (
   `proveedor_id` int(11) DEFAULT NULL,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar/actualizar el costo',
   `activo` tinyint(1) DEFAULT 1,
-  PRIMARY KEY (`id`),
-  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id2`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -182,8 +181,7 @@ CREATE TABLE `ordenes_produccion` (
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `usuario_id` int(11) DEFAULT NULL,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al crear la orden',
-  PRIMARY KEY (`id`),
-  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -249,8 +247,7 @@ CREATE TABLE `recetas` (
   `precio_total` decimal(10,2) DEFAULT 0.00,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar el precio',
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -309,8 +306,7 @@ CREATE TABLE `users` (
   `correo` varchar(255) NOT NULL,
   `role_id` int(11) NOT NULL DEFAULT 1,
   `createdAt` timestamp NOT NULL DEFAULT current_timestamp(),
-  PRIMARY KEY (`id`),
-  KEY `role_id` (`role_id`)
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
