@@ -352,6 +352,64 @@ CREATE TABLE `tasas_cambiarias` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Registro de tasas cambiarias por hora';
 
 -- --------------------------------------------------------
+--
+-- Estructura de tabla para la tabla `presupuestos`
+--
+
+
+CREATE TABLE presupuestos (
+    id_presupuesto INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    codigo_presupuesto VARCHAR(20) UNIQUE,
+    fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
+    total DECIMAL(10,2),
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id)
+);
+
+CREATE TABLE presupuesto_detalles (
+    id_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_presupuesto INT,
+    id_producto INT(11) NOT NULL,
+    cantidad INT,
+    precio_unitario DECIMAL(10,2),
+    subtotal DECIMAL(10,2),
+    FOREIGN KEY (id_presupuesto) REFERENCES presupuestos(id_presupuesto)
+);
+
+ALTER TABLE presupuestos 
+ADD COLUMN status INT DEFAULT 0 AFTER total;
+
+-- Cabecera de Cotizaciones
+CREATE TABLE cotizaciones (
+    id_cotizacion INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    codigo_cotizacion VARCHAR(20) NOT NULL, 
+    codigo_presupuesto_origen VARCHAR(20),  
+    total DECIMAL(10,2) NOT NULL,
+    status INT DEFAULT 1,                   -- 1: Enviada, 2: Aprobada/Venta, 3: Rechazada
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE cotizacion_detalles (
+    id_cot_detalle INT AUTO_INCREMENT PRIMARY KEY,
+    id_cotizacion INT NOT NULL,
+    id_producto INT NOT NULL,
+    cantidad INT NOT NULL,
+    talla VARCHAR(10),
+    personalizacion VARCHAR(50),            
+    notas TEXT,                             
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (id_cotizacion) REFERENCES cotizaciones(id_cotizacion) ON DELETE CASCADE,
+    FOREIGN KEY (id_producto) REFERENCES productos(id)
+) ENGINE=InnoDB;
+
+ALTER TABLE productos 
+ADD COLUMN activo TINYINT(1) DEFAULT 0;
+
+ALTER TABLE presupuestos_detalles 
+ADD COLUMN id_producto INT(11) NOT NULL AFTER id_presupuesto;
 
 --
 -- Índices para tablas volcadas

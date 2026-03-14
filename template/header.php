@@ -40,7 +40,7 @@ require_once ROOT_PATH . '/connection/connection.php';
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/navbar.css">
     <link rel="stylesheet" href="../css/perfil.css">
-    
+    <link rel="stylesheet" href="../assets/css/all.min.css">
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
-
+    <link rel="stylesheet" href="../assets/css/select2.min.css">
 </head>

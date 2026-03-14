@@ -32,7 +32,7 @@ if (file_exists(__DIR__ . '/connection/connection.php')) {
             <input type="password" name="clave" placeholder="Contraseña" required />
             <div id="resultado"></div>
             <button type="submit" id="confirm">Iniciar sesión</button>
-            <button type="button" id="btn-olvidaste" class="btn-forgot">¿Olvidaste tu contraseña?</button>
+            <a href="recuperar.php" class="forgot-link">¿Olvidaste tu contraseña?</a>
         </form>
 
         <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee; display: flex; gap: 10px;">
@@ -43,7 +43,7 @@ if (file_exists(__DIR__ . '/connection/connection.php')) {
             </a>
             
             <button type="button" id="btn-abrir-registro" style="background-color: #005bbe; color: #fff; border: none; padding: 12px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; flex: 1;">
-                Quiero ser Cliente
+                Area Cliente
             </button>
         </div>
     </div>

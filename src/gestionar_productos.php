@@ -69,6 +69,12 @@ require_once "../connection/connection.php";
                                     <option value="Unisex">Unisex</option>
                                 </select>
                             </div>
+                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                <input type="checkbox" id="publicar_ahora" name="activo" value="1" checked style="width: 20px; height: 20px;">
+                                <label for="publicar_ahora" style="cursor: pointer; font-weight: bold;">
+                                    Publicar en el catálogo
+                                </label>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Descripción</label>
                                 <textarea name="descripcion" id="descripcion" class="form-control" rows="4" 
