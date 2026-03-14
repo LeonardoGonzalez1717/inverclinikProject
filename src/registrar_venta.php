@@ -53,7 +53,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <table class="recipe-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Cliente</th>
                                         <th>Fecha</th>
                                         <th>Número Factura</th>
@@ -92,8 +92,8 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Número de Factura</label>
-                            <input type="text" name="numero_factura" id="numero_factura" class="form-control" 
-                                   maxlength="50" placeholder="Ej: FAC-001">
+<input type="text" name="numero_factura" id="numero_factura" class="form-control"
+                                   maxlength="50" placeholder="Ej: FAC-001" readonly>
                         </div>
                     </div>
 
@@ -251,6 +251,12 @@ function limpiarFormulario() {
     productosAgregados = [];
     actualizarTablaProductos();
     limpiarFormularioProducto();
+    // Cargar siguiente número de factura según la última registrada
+    $.post('registrar_venta_data.php', { action: 'obtener_siguiente_numero_factura' }, function(resp) {
+        if (resp && resp.success && resp.siguiente_numero_factura !== undefined) {
+            $('#numero_factura').val(resp.siguiente_numero_factura);
+        }
+    }, 'json');
 }
 
 function calcularSubtotal(cantidad, precioUnitario) {

@@ -1,6 +1,8 @@
 <?php
 require_once "../connection/connection.php";
 
+$tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -177,7 +179,11 @@ try {
                     $cantidadNecesaria = $cantidadPorUnidad * $cantidadProducir;
                     
                     // Obtener stock actual del insumo
-                    $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    if ($tieneInventarioNuevo) {
+                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
+                    } else {
+                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    }
                     $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
                     $stmtStockInsumo->bind_param("i", $insumoId);
                     $stmtStockInsumo->execute();
@@ -256,83 +262,82 @@ try {
                     $cantidadPorUnidad = floatval($rowInsumoDescontar['cantidad_por_unidad']);
                     $cantidadTotal = $cantidadPorUnidad * $cantidadProducir;
                     
-                    // Obtener stock actual del insumo
-                    $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    if ($tieneInventarioNuevo) {
+                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
+                    } else {
+                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                    }
                     $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
                     $stmtStockInsumo->bind_param("i", $insumoId);
                     $stmtStockInsumo->execute();
                     $resultStockInsumo = $stmtStockInsumo->get_result();
-                    
                     $stockActual = 0;
                     if ($rowStockInsumo = $resultStockInsumo->fetch_assoc()) {
                         $stockActual = floatval($rowStockInsumo['stock_actual']);
                     }
                     $stmtStockInsumo->close();
-                    
-                    // Calcular nuevo stock
                     $nuevoStock = $stockActual - $cantidadTotal;
-                    if ($nuevoStock < 0) {
-                        $nuevoStock = 0;
-                    }
-                    
-                    // Registrar movimiento de salida
-                    $stmtMovimientoInsumo = $conn->prepare("
-                        INSERT INTO movimientos_inventario_detalle 
-                        (insumo_id, tipo, cantidad, observaciones, orden_produccion_id)
-                        VALUES (?, 'salida', ?, ?, ?)
-                    ");
+                    if ($nuevoStock < 0) $nuevoStock = 0;
+                    $stmtMovimientoInsumo = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('insumo', ?, 'salida', ?, ?, ?)");
                     $obsMovimientoInsumo = "Descuento por creación de orden de producción #{$ordenId}";
                     $stmtMovimientoInsumo->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimientoInsumo, $ordenId);
                     $stmtMovimientoInsumo->execute();
                     $stmtMovimientoInsumo->close();
-                    
-                    // Actualizar inventario de insumos
-                    $stmtInventarioInsumo = $conn->prepare("
-                        INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                        VALUES (?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE 
-                            stock_actual = VALUES(stock_actual),
-                            ultima_actualizacion = NOW()
-                    ");
-                    $stmtInventarioInsumo->bind_param("id", $insumoId, $nuevoStock);
+                    if ($tieneInventarioNuevo) {
+                        $stmtInventarioInsumo = $conn->prepare("
+                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
+                            VALUES ('insumo', ?, ?, 'orden_produccion', NOW(), ?)
+                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
+                        ");
+                        $stmtInventarioInsumo->bind_param("idi", $insumoId, $nuevoStock, $ordenId);
+                    } else {
+                        $stmtInventarioInsumo = $conn->prepare("INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
+                        $stmtInventarioInsumo->bind_param("id", $insumoId, $nuevoStock);
+                    }
                     $stmtInventarioInsumo->execute();
                     $stmtInventarioInsumo->close();
                 }
                 $stmtInsumosDescontar->close();
 
-                $sqlStock = "SELECT stock_actual FROM inventario_productos 
-                            WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
-                $stmtStock = $conn->prepare($sqlStock);
-                $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                if ($tieneInventarioNuevo) {
+                    $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?");
+                    $stmtStock->bind_param("i", $receta_id);
+                } else {
+                    $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?");
+                    $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                }
                 $stmtStock->execute();
                 $resultStock = $stmtStock->get_result();
                 $stockActual = 0;
-                
                 if ($rowStock = $resultStock->fetch_assoc()) {
                     $stockActual = floatval($rowStock['stock_actual']);
                 }
                 $stmtStock->close();
-
                 $nuevoStock = $stockActual + floatval($cantidad);
 
-                $stmtMovimiento = $conn->prepare("
-                    INSERT INTO movimientos_productos_detalle 
-                    (producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones)
-                    VALUES (?, ?, ?, 'entrada', ?, ?)
-                ");
                 $obsMovimiento = "Entrada por creación de orden de producción #{$ordenId}";
-                $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $obsMovimiento);
+                $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
+                if ($tieneRecetaIdDet) {
+                    $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('producto', ?, 'entrada', ?, ?, ?)");
+                    $stmtMovimiento->bind_param("idsi", $receta_id, $cantidad, $obsMovimiento, $ordenId);
+                } else {
+                    $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'entrada', ?, ?)");
+                    $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $obsMovimiento);
+                }
                 $stmtMovimiento->execute();
                 $stmtMovimiento->close();
 
-                $stmtInventario = $conn->prepare("
-                    INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
-                    VALUES (?, ?, ?, ?, NOW())
-                    ON DUPLICATE KEY UPDATE 
-                        stock_actual = VALUES(stock_actual),
-                        ultima_actualizacion = NOW()
-                ");
-                $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                if ($tieneInventarioNuevo) {
+                    $stmtInventario = $conn->prepare("
+                        INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
+                        VALUES ('producto', ?, ?, 'orden_produccion', NOW(), ?)
+                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
+                    ");
+                    $stmtInventario->bind_param("idi", $receta_id, $nuevoStock, $ordenId);
+                } else {
+                    $stmtInventario = $conn->prepare("INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
+                    $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                }
                 $stmtInventario->execute();
                 $stmtInventario->close();
 
@@ -451,45 +456,38 @@ try {
                             $cantidadPorUnidad = floatval($rowInsumo['cantidad_por_unidad']);
                             $cantidadTotal = $cantidadPorUnidad * floatval($cantidadProducir);
                             
-                            // Obtener stock actual del insumo
-                            $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                            if ($tieneInventarioNuevo) {
+                                $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
+                            } else {
+                                $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                            }
                             $stmtStock = $conn->prepare($sqlStock);
                             $stmtStock->bind_param("i", $insumoId);
                             $stmtStock->execute();
                             $resultStock = $stmtStock->get_result();
-                            
                             $stockActual = 0;
                             if ($rowStock = $resultStock->fetch_assoc()) {
                                 $stockActual = floatval($rowStock['stock_actual']);
                             }
                             $stmtStock->close();
-                            
-                            // Calcular nuevo stock
                             $nuevoStock = $stockActual - $cantidadTotal;
-                            if ($nuevoStock < 0) {
-                                $nuevoStock = 0;
-                            }
-                            
-                            // Registrar movimiento de salida
-                            $stmtMovimiento = $conn->prepare("
-                                INSERT INTO movimientos_inventario_detalle 
-                                (insumo_id, tipo, cantidad, observaciones, orden_produccion_id)
-                                VALUES (?, 'salida', ?, ?, ?)
-                            ");
+                            if ($nuevoStock < 0) $nuevoStock = 0;
                             $obsMovimiento = "Descuento por orden de producción #{$id}";
+                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('insumo', ?, 'salida', ?, ?, ?)");
                             $stmtMovimiento->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimiento, $id);
                             $stmtMovimiento->execute();
                             $stmtMovimiento->close();
-                            
-                            // Actualizar inventario
-                            $stmtInventario = $conn->prepare("
-                                INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                                VALUES (?, ?, NOW())
-                                ON DUPLICATE KEY UPDATE 
-                                    stock_actual = VALUES(stock_actual),
-                                    ultima_actualizacion = NOW()
-                            ");
-                            $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
+                            if ($tieneInventarioNuevo) {
+                                $stmtInventario = $conn->prepare("
+                                    INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
+                                    VALUES ('insumo', ?, ?, 'orden_produccion', NOW(), ?)
+                                    ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
+                                ");
+                                $stmtInventario->bind_param("idi", $insumoId, $nuevoStock, $id);
+                            } else {
+                                $stmtInventario = $conn->prepare("INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
+                                $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
+                            }
                             $stmtInventario->execute();
                             $stmtInventario->close();
                         }
