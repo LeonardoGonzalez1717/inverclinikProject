@@ -66,7 +66,7 @@ if ($resultTipos) {
                             <table class="recipe-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Producto</th>
                                         <th>Insumo</th>
                                         <th>Rango de Tallas</th>

@@ -35,7 +35,7 @@ $result = $conn->query($sql);
         <table class="table">
             <thead>
                 <tr>
-                    <th>ID</th>
+                    <th>#</th>
                     <th>Última Actualización</th>
                     <th>Producto</th>
                     <th>Rango de Tallas</th>
@@ -43,9 +43,9 @@ $result = $conn->query($sql);
                 </tr>
             </thead>
             <tbody>
-                <?php while ($row = $result->fetch_assoc()): ?>
+                <?php $i = 0; while ($row = $result->fetch_assoc()): $i++; ?>
                     <tr>
-                        <td><?= $i++ ?></td>
+                        <td><?= $i ?></td>
                         <td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
                         <td><?= htmlspecialchars($row['producto']) ?></td>
                         <td><?= htmlspecialchars($row['rango_tallas'] ?? '—') ?></td>

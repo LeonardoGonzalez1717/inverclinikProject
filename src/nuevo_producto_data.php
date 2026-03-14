@@ -13,6 +13,34 @@ if ($checkColumnRecetas->num_rows == 0) {
     }
 }
 
+// Crear tabla almacenes y columna almacen_id en recetas si no existen
+$checkTableAlmacenes = $conn->query("SHOW TABLES LIKE 'almacenes'");
+if ($checkTableAlmacenes->num_rows == 0) {
+    $conn->query("CREATE TABLE IF NOT EXISTS almacenes (id int(11) NOT NULL AUTO_INCREMENT, nombre varchar(100) NOT NULL, codigo varchar(20) DEFAULT NULL, activo tinyint(1) NOT NULL DEFAULT 1, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("INSERT IGNORE INTO almacenes (nombre, codigo, activo) VALUES ('Principal', 'ALM01', 1)");
+}
+$checkColumnAlmacen = $conn->query("SHOW COLUMNS FROM recetas LIKE 'almacen_id'");
+if ($checkColumnAlmacen->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE recetas ADD COLUMN almacen_id int(11) DEFAULT NULL AFTER tipo_produccion_id");
+    } catch (Exception $e) {
+        // La columna ya existe o hay un error, continuar
+    }
+}
+$checkStockMinReceta = $conn->query("SHOW COLUMNS FROM recetas LIKE 'stock_minimo'");
+if ($checkStockMinReceta->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE recetas ADD COLUMN stock_minimo decimal(12,2) DEFAULT NULL AFTER almacen_id");
+        $conn->query("ALTER TABLE recetas ADD COLUMN stock_maximo decimal(12,2) DEFAULT NULL AFTER stock_minimo");
+    } catch (Exception $e) {}
+}
+$checkPctGanancia = $conn->query("SHOW COLUMNS FROM recetas LIKE 'porcentaje_ganancia'");
+if ($checkPctGanancia->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE recetas ADD COLUMN porcentaje_ganancia decimal(5,2) DEFAULT NULL COMMENT 'Porcentaje de ganancia sobre costo' AFTER precio_total");
+    } catch (Exception $e) {}
+}
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -45,6 +73,10 @@ try {
             SELECT 
                 r.id,
                 r.tasa_cambiaria_id,
+                r.almacen_id,
+                r.stock_minimo,
+                r.stock_maximo,
+                a.nombre AS almacen_nombre,
                 tc.tasa AS tasa_receta,
                 p.nombre AS producto_nombre,
                 rt.nombre_rango AS rango_tallas_nombre,
@@ -56,17 +88,19 @@ try {
                 r.creado_en,
                 COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_total,
                 COALESCE(r.precio_total, 0) AS precio_total,
+                r.porcentaje_ganancia,
                 COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
             FROM recetas r
             INNER JOIN productos p ON r.producto_id = p.id
             INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
             INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+            LEFT JOIN almacenes a ON r.almacen_id = a.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = r.tasa_cambiaria_id
             LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
                 AND rp.rango_tallas_id = r.rango_tallas_id 
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY r.id, r.tasa_cambiaria_id, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total
+            GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
             ORDER BY r.id DESC
         ";
 
@@ -88,6 +122,7 @@ try {
                 echo '<td>' . htmlspecialchars($r['producto_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['rango_tallas_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['tipo_produccion_nombre']) . '</td>';
+                echo '<td>' . htmlspecialchars($r['almacen_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($r['cantidad_insumos']) . '</td>';
                 echo '<td>$' . number_format($r['costo_total'] ?? 0, 2, '.', ',') . '</td>';
                 echo '<td>$' . number_format($r['precio_total'] ?? 0, 2, '.', ',') . '</td>';
@@ -100,7 +135,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="10" class="text-center">No se encontraron recetas registradas</td></tr>';
+            echo '<tr><td colspan="11" class="text-center">No se encontraron recetas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -113,7 +148,11 @@ try {
             $producto_id = $_POST['producto_id'] ?? null;
             $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
+            $almacen_id = !empty($_POST['almacen_id']) ? (int)$_POST['almacen_id'] : null;
             $precio_total = floatval($_POST['precio_total'] ?? 0);
+            $porcentaje_ganancia = isset($_POST['porcentaje_ganancia']) && $_POST['porcentaje_ganancia'] !== '' ? (float)$_POST['porcentaje_ganancia'] : null;
+            $stock_minimo = isset($_POST['stock_minimo']) && $_POST['stock_minimo'] !== '' ? (float)$_POST['stock_minimo'] : null;
+            $stock_maximo = isset($_POST['stock_maximo']) && $_POST['stock_maximo'] !== '' ? (float)$_POST['stock_maximo'] : null;
             $observaciones = $_POST['observaciones'] ?? '';
             
             $insumos = $_POST['insumos'] ?? [];
@@ -164,13 +203,31 @@ try {
 
             $conn->begin_transaction();
             try {
-                // Primero, insertar o actualizar el registro en la tabla recetas usando ON DUPLICATE KEY UPDATE
-                $stmtReceta = $conn->prepare("
-                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total, tasa_cambiaria_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
-                ");
-                $stmtReceta->bind_param("iiisdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total, $tasa_cambiaria_id);
+                $checkColMin = $conn->query("SHOW COLUMNS FROM recetas LIKE 'stock_minimo'");
+                $checkPct = $conn->query("SHOW COLUMNS FROM recetas LIKE 'porcentaje_ganancia'");
+                $tienePct = ($checkPct && $checkPct->num_rows > 0);
+                if ($checkColMin->num_rows > 0 && $tienePct) {
+                    $stmtReceta = $conn->prepare("
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, porcentaje_ganancia, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), stock_minimo = VALUES(stock_minimo), stock_maximo = VALUES(stock_maximo), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), porcentaje_ganancia = VALUES(porcentaje_ganancia), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
+                    ");
+                    $stmtReceta->bind_param("iiiiddsddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $porcentaje_ganancia, $tasa_cambiaria_id);
+                } elseif ($checkColMin->num_rows > 0) {
+                    $stmtReceta = $conn->prepare("
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), stock_minimo = VALUES(stock_minimo), stock_maximo = VALUES(stock_maximo), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
+                    ");
+                    $stmtReceta->bind_param("iiiiddsdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $tasa_cambiaria_id);
+                } else {
+                    $stmtReceta = $conn->prepare("
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, observaciones, precio_total, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
+                    ");
+                    $stmtReceta->bind_param("iiiisdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $observaciones, $precio_total, $tasa_cambiaria_id);
+                }
                 $stmtReceta->execute();
                 $stmtReceta->close();
                 

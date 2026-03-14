@@ -30,7 +30,7 @@ require_once "../connection/connection.php";
                             <table class="recipe-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Nombre</th>
                                         <th>Categoría</th>
                                         <th>Tipo/Género</th>

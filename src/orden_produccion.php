@@ -257,7 +257,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <table class="orders-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Producto</th>
                                         <th>Categoría</th>
                                         <th>Cantidad</th>
