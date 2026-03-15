@@ -95,6 +95,7 @@ CREATE TABLE `insumos` (
   `proveedor_id` int(11) DEFAULT NULL,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar/actualizar el costo',
   `activo` tinyint(1) DEFAULT 1,
+  `adicional` tinyint(1) DEFAULT 0,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -401,15 +402,51 @@ CREATE TABLE cotizacion_detalles (
     notas TEXT,                             
     precio_unitario DECIMAL(10,2) NOT NULL,
     subtotal DECIMAL(10,2) NOT NULL,
-    FOREIGN KEY (id_cotizacion) REFERENCES cotizaciones(id_cotizacion) ON DELETE CASCADE,
-    FOREIGN KEY (id_producto) REFERENCES productos(id)
+    
 ) ENGINE=InnoDB;
+
+CREATE TABLE `cotizacion_detalles` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `id_cotizacion` INT NOT NULL,
+  `id_receta` INT NOT NULL, 
+  `id_talla` INT NOT NULL,
+  `id_personalizacion` INT DEFAULT NULL, 
+  `cantidad` INT NOT NULL,
+  `precio_unitario` DECIMAL(10,2) NOT NULL, 
+  `subtotal` DECIMAL(10,2) NOT NULL, 
+  `notas` TEXT DEFAULT NULL,
+  `fecha_creacion` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+  FOREIGN KEY (id_cotizacion) REFERENCES cotizaciones(id_cotizacion) ON DELETE CASCADE,
+  FOREIGN KEY (id_receta) REFERENCES recetas(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 ALTER TABLE productos 
 ADD COLUMN activo TINYINT(1) DEFAULT 0;
 
 ALTER TABLE presupuestos_detalles 
 ADD COLUMN id_producto INT(11) NOT NULL AFTER id_presupuesto;
+
+ALTER TABLE recetas CHANGE precio_nuevo precio_mayor DECIMAL(10,2);
+
+ALTER TABLE `ventas` 
+  ADD COLUMN `cotizacion_id` INT(11) DEFAULT NULL AFTER `id`,
+  MODIFY COLUMN `estado` ENUM('pendiente', 'entregado', 'cancelado') DEFAULT 'pendiente',
+  ADD CONSTRAINT `fk_venta_cotizacion` 
+  FOREIGN KEY (`cotizacion_id`) REFERENCES `cotizaciones`(`id_cotizacion`) 
+  ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ALTER TABLE `detalle_venta` DROP FOREIGN KEY `fk_detalle_venta_producto`; -- SOLO SI YA EXISTE ES NECESARIO
+
+ALTER TABLE `detalle_venta` 
+    MODIFY COLUMN `producto_id` INT(11) NOT NULL COMMENT 'ID de la Receta',
+    MODIFY COLUMN `cantidad` DECIMAL(10,2) NOT NULL;
+
+ALTER TABLE `detalle_venta` 
+    ADD CONSTRAINT `fk_detalle_venta_receta` 
+    FOREIGN KEY (`producto_id`) REFERENCES `recetas`(`id`) 
+    ON UPDATE CASCADE;
+
 
 --
 -- Índices para tablas volcadas

@@ -54,6 +54,8 @@ try {
                 r.rango_tallas_id,
                 r.tipo_produccion_id,
                 r.creado_en,
+                r.precio_detal,
+                r.precio_mayor,
                 COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_total,
                 COALESCE(r.precio_total, 0) AS precio_total,
                 COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
@@ -114,8 +116,10 @@ try {
             $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
             $precio_total = floatval($_POST['precio_total'] ?? 0);
+            $detal = floatval($_POST['detal'] ?? 0);
+            $mayor = floatval($_POST['mayor'] ?? 0);
             $observaciones = $_POST['observaciones'] ?? '';
-            
+
             $insumos = $_POST['insumos'] ?? [];
             if (is_string($insumos)) {
                 $insumos = json_decode($insumos, true) ?? [];
@@ -166,11 +170,11 @@ try {
             try {
                 // Primero, insertar o actualizar el registro en la tabla recetas usando ON DUPLICATE KEY UPDATE
                 $stmtReceta = $conn->prepare("
-                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total, tasa_cambiaria_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, observaciones, precio_total, precio_mayor, precio_detal, tasa_cambiaria_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
                 ");
-                $stmtReceta->bind_param("iiisdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total, $tasa_cambiaria_id);
+                $stmtReceta->bind_param("iiisdddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $observaciones, $precio_total, $mayor, $detal, $tasa_cambiaria_id);
                 $stmtReceta->execute();
                 $stmtReceta->close();
                 
