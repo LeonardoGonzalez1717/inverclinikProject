@@ -1,22 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 
-$checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
-if ($checkColumn->num_rows == 0) {
-    try {
-        $conn->query("ALTER TABLE inventario 
-                     ADD COLUMN tipo_movimiento ENUM('compra', 'orden_produccion', 'manual', 'ajuste') 
-                     DEFAULT 'manual' 
-                     AFTER stock_actual");
-        $conn->query("ALTER TABLE inventario 
-                     ADD COLUMN referencia_id INT NULL 
-                     AFTER tipo_movimiento");
-        $conn->query("ALTER TABLE inventario 
-                     ADD INDEX idx_tipo_movimiento (tipo_movimiento)");
-        $conn->query("UPDATE inventario SET tipo_movimiento = 'manual' WHERE tipo_movimiento IS NULL");
-    } catch (Exception $e) {
-    }
-}
+$tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
 $action = $_POST['action'] ?? '';
 
@@ -222,6 +207,24 @@ try {
 
     header('Content-Type: application/json');
 
+    if ($action === 'obtener_siguiente_numero_factura') {
+        $siguiente = '1';
+        $res = $conn->query("SELECT numero_factura FROM compras ORDER BY id DESC LIMIT 1");
+        if ($res && $row = $res->fetch_assoc() && !empty($row['numero_factura'])) {
+            $ultimo = trim($row['numero_factura']);
+            if (ctype_digit($ultimo)) {
+                $siguiente = (string)((int)$ultimo + 1);
+            } elseif (preg_match('/(\d+)\s*$/', $ultimo, $m)) {
+                $siguiente = (string)((int)$m[1] + 1);
+            } elseif (preg_match('/^(\d+)/', $ultimo, $m)) {
+                $siguiente = (string)((int)$m[1] + 1);
+            }
+        }
+        echo json_encode(['success' => true, 'siguiente_numero_factura' => $siguiente]);
+        $conn->close();
+        exit;
+    }
+
     if ($action === 'crear') {
         $input = file_get_contents('php://input');
         $data = json_decode($input, true);
@@ -292,44 +295,49 @@ try {
                 $stmtDetalle->bind_param("iidd", $compra_id, $insumo_id, $cantidad, $costo_unitario);
                 $stmtDetalle->execute();
 
-                $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                if ($tieneInventarioNuevo) {
+                    $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
+                } else {
+                    $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
+                }
                 $stmtStock = $conn->prepare($sqlStock);
                 $stmtStock->bind_param("i", $insumo_id);
                 $stmtStock->execute();
                 $resultStock = $stmtStock->get_result();
                 $stockActual = 0;
-                
                 if ($rowStock = $resultStock->fetch_assoc()) {
                     $stockActual = floatval($rowStock['stock_actual']);
                 }
                 $stmtStock->close();
-
                 $nuevoStock = $stockActual + $cantidad;
 
-                $checkColumn = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_movimiento'");
-                if ($checkColumn->num_rows > 0) {
+                if ($tieneInventarioNuevo) {
                     $stmtInventario = $conn->prepare("
-                        INSERT INTO inventario (insumo_id, stock_actual, tipo_movimiento, referencia_id, ultima_actualizacion)
-                        VALUES (?, ?, 'compra', ?, NOW())
-                        ON DUPLICATE KEY UPDATE 
-                            stock_actual = VALUES(stock_actual),
-                            tipo_movimiento = VALUES(tipo_movimiento),
-                            referencia_id = VALUES(referencia_id),
-                            ultima_actualizacion = NOW()
+                        INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
+                        VALUES ('insumo', ?, ?, 'compra', NOW())
+                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), tipo_movimiento = VALUES(tipo_movimiento), ultima_actualizacion = NOW()
                     ");
-                    $stmtInventario->bind_param("idi", $insumo_id, $nuevoStock, $compra_id);
+                    $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
                 } else {
                     $stmtInventario = $conn->prepare("
                         INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
                         VALUES (?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE 
-                            stock_actual = VALUES(stock_actual),
-                            ultima_actualizacion = NOW()
+                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
                     ");
                     $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
                 }
                 $stmtInventario->execute();
                 $stmtInventario->close();
+
+                // Registrar movimiento en inventario_detalle (entrada por compra)
+                $obsMovimiento = "Entrada por compra #{$compra_id}";
+                $stmtDetalleInv = $conn->prepare("
+                    INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones)
+                    VALUES ('insumo', ?, 'entrada', ?, ?)
+                ");
+                $stmtDetalleInv->bind_param("ids", $insumo_id, $cantidad, $obsMovimiento);
+                $stmtDetalleInv->execute();
+                $stmtDetalleInv->close();
             }
 
             $stmtDetalle->close();

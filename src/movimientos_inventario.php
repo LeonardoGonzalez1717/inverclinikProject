@@ -13,10 +13,9 @@ if ($row['count'] == 0) {
     $conn->query($sqlInsertRecetas);
 }
 
-$sqlInsumos = "SELECT i.id, i.nombre, i.unidad_medida, 
-                      COALESCE(inv.stock_actual, 0) AS stock_actual
+// Insumos: stock se obtiene por AJAX (almacén del insumo)
+$sqlInsumos = "SELECT i.id, i.nombre, i.unidad_medida
                FROM insumos i
-               LEFT JOIN inventario inv ON i.id = inv.insumo_id
                WHERE i.activo = 1
                ORDER BY i.nombre ASC";
 $resultInsumos = $conn->query($sqlInsumos);
@@ -55,66 +54,7 @@ if ($resultRecetas) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movimientos de Inventario</title>
-    <style>
-        .nav-tabs {
-            border-bottom: 2px solid #dee2e6;
-            margin-bottom: 20px;
-        }
-        .nav-tabs .nav-item {
-            margin-bottom: -2px;
-        }
-        .nav-tabs .nav-link {
-            border: 1px solid transparent;
-            border-top-left-radius: 0.25rem;
-            border-top-right-radius: 0.25rem;
-            padding: 0.5rem 1rem;
-            color: #495057;
-            background-color: transparent;
-            cursor: pointer;
-        }
-        .nav-tabs .nav-link:hover {
-            border-color: #e9ecef #e9ecef #dee2e6;
-            isolation: isolate;
-        }
-        .nav-tabs .nav-link.active {
-            color: #495057;
-            background-color: #fff;
-            border-color: #dee2e6 #dee2e6 #fff;
-            font-weight: bold;
-        }
-        .tab-content {
-            margin-top: 0;
-        }
-        .tab-pane {
-            display: none;
-        }
-        .tab-pane.active {
-            display: block;
-        }
-        .stock-info {
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-        .stock-actual {
-            font-size: 18px;
-            font-weight: bold;
-            color: #0056b3;
-        }
-        .badge-entrada {
-            /* background-color: #28a745; */
-            color: #28a745;
-            padding: 5px 10px;
-            border-radius: 3px;
-        }
-        .badge-salida {
-            background-color: #dc3545;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 3px;
-        }
-    </style>
+    <link rel="stylesheet" href="../css/movimientos_inventario.css">
 </head>
 <body>
     <div class="main-content">
@@ -147,17 +87,19 @@ if ($resultRecetas) {
                         <div class="tab-content" id="inventario-tab-content">
                             <div class="tab-pane active" id="materia-prima" role="tabpanel">
                                 <h5 class="subtitle">Inventario de Materia Prima</h5>
-                        
                                 <div class="table-container">
                                     <table class="recipe-table">
                                         <thead>
                                             <tr>
-                                                <th>ID</th>
+                                                <th>#</th>
                                                 <th>Última Actualización</th>
                                                 <th>Insumo</th>
+                                                <th>Almacén</th>
                                                 <th>Último Movimiento</th>
                                                 <th>Origen del Movimiento</th>
                                                 <th>Stock Actual</th>
+                                                <th>Stock Mín.</th>
+                                                <th>Stock Máx.</th>
                                             </tr>
                                         </thead>
                                         <tbody id="tbody-materia-prima">
@@ -172,13 +114,16 @@ if ($resultRecetas) {
                                     <table class="recipe-table">
                                         <thead>
                                             <tr>
-                                                <th>ID</th>
+                                                <th>#</th>
                                                 <th>Última Actualización</th>
                                                 <th>Producto</th>
                                                 <th>Rango Tallas</th>
                                                 <th>Tipo Producción</th>
                                                 <th>Último Movimiento</th>
                                                 <th>Stock Actual</th>
+                                                <th>Stock Mín.</th>
+                                                <th>Stock Máx.</th>
+                                                <th>Almacén</th>
                                             </tr>
                                         </thead>
                                         <tbody id="tbody-productos">
@@ -210,7 +155,6 @@ if ($resultRecetas) {
                                         <option value=""></option>
                                         <?php foreach ($insumos as $insumo): ?>
                                             <option value="<?php echo htmlspecialchars($insumo['id']); ?>" 
-                                                    data-stock="<?php echo htmlspecialchars($insumo['stock_actual']); ?>"
                                                     data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>">
                                                 <?php echo htmlspecialchars($insumo['nombre'] . ' (' . $insumo['unidad_medida'] . ')'); ?>
                                             </option>
@@ -236,12 +180,6 @@ if ($resultRecetas) {
                                 </div>
                             </div>
                             
-                            <div class="stock-info" id="stock-info" style="display: none;">
-                                <strong>Stock Actual:</strong> 
-                                <span class="stock-actual" id="stock-actual">0</span> 
-                                <span id="unidad-medida"></span>
-                            </div>
-
                             <div class="stock-info" id="stock-info" style="display: none;">
                                 <strong>Stock Actual:</strong> 
                                 <span class="stock-actual" id="stock-actual">0</span> 
@@ -301,18 +239,29 @@ function mostrarVista(vista) {
 }
 
 function actualizarStockInfo() {
-    const select = document.getElementById('insumo_id');
-    const option = select.options[select.selectedIndex];
+    const tipoInv = $('#tipo_inventario').val();
     const stockInfo = document.getElementById('stock-info');
     const stockActual = document.getElementById('stock-actual');
     const unidadMedida = document.getElementById('unidad-medida');
     
-    if (option.value) {
-        const stock = option.getAttribute('data-stock') || '0';
-        const unidad = option.getAttribute('data-unidad') || '';
-        stockActual.textContent = parseFloat(stock).toFixed(2);
-        unidadMedida.textContent = unidad;
-        stockInfo.style.display = 'block';
+    if (tipoInv === 'materia_prima') {
+        const insumoId = $('#insumo_id').val();
+        if (insumoId) {
+            $.post('movimientos_inventario_data.php', {
+                action: 'obtener_stock_insumo',
+                insumo_id: insumoId
+            }, function(resp) {
+                if (resp && resp.success) {
+                    stockActual.textContent = parseFloat(resp.stock_actual || 0).toFixed(2);
+                    unidadMedida.textContent = $('#insumo_id option:selected').data('unidad') || '';
+                    stockInfo.style.display = 'block';
+                } else {
+                    stockInfo.style.display = 'none';
+                }
+            }, 'json');
+        } else {
+            stockInfo.style.display = 'none';
+        }
     } else {
         stockInfo.style.display = 'none';
     }
@@ -348,9 +297,9 @@ function cargarListado(tipo = 'materia_prima') {
         }
     }).fail(function(xhr, status, error) {
         if (tipo === 'materia_prima') {
-            $('#tbody-materia-prima').html('<tr><td colspan="5" class="text-center text-danger">Error al cargar inventario</td></tr>');
+            $('#tbody-materia-prima').html('<tr><td colspan="9" class="text-center text-danger">Error al cargar inventario</td></tr>');
         } else {
-            $('#tbody-productos').html('<tr><td colspan="7" class="text-center text-danger">Error al cargar inventario</td></tr>');
+            $('#tbody-productos').html('<tr><td colspan="10" class="text-center text-danger">Error al cargar inventario</td></tr>');
         }
     });
 }
@@ -432,9 +381,11 @@ $("#form-crear").on("submit", function(e) {
         return;
     }
 
-    if (tipoInventario === 'materia_prima' && !insumoId) {
-        alert('Por favor selecciona un insumo');
-        return;
+    if (tipoInventario === 'materia_prima') {
+        if (!insumoId) {
+            alert('Por favor selecciona un insumo');
+            return;
+        }
     }
 
     if (tipoInventario === 'productos' && !recetaId) {
@@ -453,13 +404,7 @@ $("#form-crear").on("submit", function(e) {
     }
 
     if (tipo === 'salida') {
-        let stockActual = 0;
-        if (tipoInventario === 'materia_prima') {
-            stockActual = parseFloat($('#insumo_id option:selected').attr('data-stock')) || 0;
-        } else {
-            stockActual = parseFloat($('#stock-actual').text()) || 0;
-        }
-        
+        const stockActual = parseFloat($('#stock-actual').text()) || 0;
         if (cantidad > stockActual) {
             if (!confirm('La cantidad a salir es mayor al stock actual. ¿Deseas continuar de todas formas?')) {
                 return;

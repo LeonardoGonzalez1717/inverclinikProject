@@ -37,6 +37,26 @@ if ($resultTipos) {
     }
 }
 
+$sqlAlmacenes = "SELECT id, nombre FROM almacenes WHERE activo = 1 ORDER BY nombre";
+$resultAlmacenes = $conn->query($sqlAlmacenes);
+$almacenes = [];
+if ($resultAlmacenes) {
+    while ($row = $resultAlmacenes->fetch_assoc()) {
+        $almacenes[] = $row;
+    }
+}
+// Si no existe la tabla almacenes o está vacía, permitir continuar sin select
+if (empty($almacenes)) {
+    $conn->query("CREATE TABLE IF NOT EXISTS almacenes (id int(11) NOT NULL AUTO_INCREMENT, nombre varchar(100) NOT NULL, codigo varchar(20) DEFAULT NULL, activo tinyint(1) NOT NULL DEFAULT 1, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $conn->query("INSERT IGNORE INTO almacenes (nombre, codigo, activo) VALUES ('Principal', 'ALM01', 1)");
+    $resultAlmacenes = $conn->query($sqlAlmacenes);
+    if ($resultAlmacenes) {
+        while ($row = $resultAlmacenes->fetch_assoc()) {
+            $almacenes[] = $row;
+        }
+    }
+}
+
 $tasa_actual = null;
 $rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
 if ($rt && $row_tasa = $rt->fetch_assoc()) {
@@ -70,10 +90,11 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <table class="recipe-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th>#</th>
                                         <th>Producto</th>
                                         <th>Rango de Tallas</th>
                                         <th>Tipo de Producción</th>
+                                        <th>Almacén</th>
                                         <th>Cantidad de Insumos</th>
                                         <th>Costo Total</th>
                                         <th>Precio Total</th>
@@ -125,6 +146,27 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
+                            <div class="mb-3">
+                                <label class="form-label">Almacén</label>
+                                <select name="almacen_id" id="almacen_id" class="form-control">
+                                    <option value="">-- Seleccione un almacén --</option>
+                                    <?php foreach ($almacenes as $a): ?>
+                                        <option value="<?php echo htmlspecialchars($a['id']); ?>">
+                                            <?php echo htmlspecialchars($a['nombre']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="form-text text-muted">Almacén al que pertenece esta receta en el inventario</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Stock mínimo (producto terminado)</label>
+                                <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="0">
+                                <small class="form-text text-muted">Límite mínimo en inventario</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Stock máximo (producto terminado)</label>
+                                <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="0">
+                                <small class="form-text text-muted">Límite máximo en inventario</small>
                             <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
                                 <input type="checkbox" id="publicar_ahora" name="activo" value="1" checked style="width: 20px; height: 20px;">
                                 <label for="publicar_ahora" style="cursor: pointer; font-weight: bold;">
@@ -363,8 +405,18 @@ function actualizarTablaInsumos() {
     if (insumosAgregados.length > 0) {
         $('#tabla-insumos').show();
         $('#mensaje-sin-insumos').hide();
-        // Validar que también haya precio total del producto
-        $('#btn-guardar-receta').prop('disabled', false);
+        // Si hay % de ganancia, recalcular precio
+        var pct = parseFloat($('#porcentaje_ganancia').val());
+        if (!isNaN(pct) && pct >= 0) {
+            aplicarPorcentajeGanancia();
+        } else {
+            var precioTotal = parseFloat($('#precio_total').val()) || 0;
+            if (precioTotal > 0) {
+                $('#btn-guardar-receta').prop('disabled', false);
+            } else {
+                $('#btn-guardar-receta').prop('disabled', true);
+            }
+        }
     } else {
         $('#tabla-insumos').hide();
         $('#mensaje-sin-insumos').show();
@@ -395,6 +447,25 @@ function cargarListado() {
     limpiarFormulario();
 }
 
+function getCostoTotalReceta() {
+    var total = 0;
+    insumosAgregados.forEach(function(i) { total += i.costo_total; });
+    return total;
+}
+
+function aplicarPorcentajeGanancia() {
+    var pct = parseFloat($('#porcentaje_ganancia').val()) || 0;
+    if (pct < 0) return;
+    var costo = getCostoTotalReceta();
+    if (costo <= 0) return;
+    var precio = costo * (1 + pct / 100);
+    $('#precio_total').val(precio.toFixed(2));
+    var precioTotal = parseFloat($('#precio_total').val()) || 0;
+    if (insumosAgregados.length > 0 && precioTotal > 0) {
+        $('#btn-guardar-receta').prop('disabled', false);
+    }
+}
+
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     insumosAgregados = [];
@@ -402,6 +473,7 @@ function limpiarFormulario() {
     actualizarTablaInsumos();
     limpiarFormularioInsumo();
     $('#editar-receta-id').val('');
+    $('#precio_total').val('');
     $('#porcentaje_ganancia').val('');
     $('#porcentaje_descuento').val('');
     $('#precio_detal').val('');
@@ -412,7 +484,11 @@ function editarReceta(data) {
     $('#producto_id').val(data.producto_id || '');
     $('#rango_tallas_id').val(data.rango_tallas_id || '');
     $('#tipo_produccion_id').val(data.tipo_produccion_id || '');
+    $('#almacen_id').val(data.almacen_id || '');
     $('#precio_total').val(data.precio_total || '');
+    $('#porcentaje_ganancia').val(data.porcentaje_ganancia ?? '');
+    $('#stock_minimo').val(data.stock_minimo ?? '');
+    $('#stock_maximo').val(data.stock_maximo ?? '');
     $('#precio_detal').val(data.precio_detal || '');
     $('#precio_mayor').val(data.precio_mayor || '');
     $('#observaciones').val(data.observaciones || '');
@@ -484,6 +560,11 @@ $(document).ready(function() {
             $('#btn-guardar-receta').prop('disabled', true);
         }
     });
+
+    // Porcentaje de ganancia: al cambiar, calcular precio desde el costo de la receta
+    $('#porcentaje_ganancia').on('input change', function() {
+        aplicarPorcentajeGanancia();
+    });
 });
 
 $("#form-crear").on("submit", function(e) {
@@ -512,12 +593,20 @@ $("#form-crear").on("submit", function(e) {
         return;
     }
     
+    var almacen_id = $("#almacen_id").val() || "";
+    var porcentaje_ganancia = $("#porcentaje_ganancia").val() || "";
+    var stock_minimo = $("#stock_minimo").val() || "";
+    var stock_maximo = $("#stock_maximo").val() || "";
     var datos = {
         action: "crear_receta_completa",
         producto_id: producto_id,
         rango_tallas_id: rango_tallas_id,
         tipo_produccion_id: tipo_produccion_id,
+        almacen_id: almacen_id,
         precio_total: precio_total,
+        porcentaje_ganancia: porcentaje_ganancia,
+        stock_minimo: stock_minimo,
+        stock_maximo: stock_maximo,
         detal: detal,
         mayor: mayor,
         insumos: JSON.stringify(insumosAgregados),

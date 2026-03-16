@@ -92,6 +92,9 @@ CREATE TABLE `insumos` (
   `nombre` varchar(255) NOT NULL,
   `unidad_medida` varchar(20) NOT NULL,
   `costo_unitario` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `stock_minimo` decimal(12,2) DEFAULT NULL COMMENT 'Stock mínimo deseado',
+  `stock_maximo` decimal(12,2) DEFAULT NULL COMMENT 'Stock máximo deseado',
+  `almacen_id` int(11) DEFAULT 1 COMMENT 'Almacén asociado al insumo',
   `proveedor_id` int(11) DEFAULT NULL,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar/actualizar el costo',
   `activo` tinyint(1) DEFAULT 1,
@@ -103,65 +106,43 @@ CREATE TABLE `insumos` (
 
 --
 -- Estructura de tabla para la tabla `inventario`
+-- tipo_item_id = id del insumo (si tipo_item=insumo) o id de la receta (si tipo_item=producto).
+-- Enlace con ordenes_produccion cuando el stock proviene o se consume en una orden.
 --
 
 CREATE TABLE `inventario` (
-  `insumo_id` int(11) NOT NULL,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `tipo_item` enum('insumo','producto') NOT NULL COMMENT 'insumo=id de insumos, producto=id de recetas',
+  `tipo_item_id` int(11) NOT NULL COMMENT 'ID del insumo o de la receta según tipo_item',
   `stock_actual` decimal(12,2) NOT NULL DEFAULT 0.00,
   `tipo_movimiento` enum('compra','orden_produccion','manual','ajuste') DEFAULT 'manual',
-  `referencia_id` int(11) DEFAULT NULL,
-  `ultima_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+  `ultima_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `orden_produccion_id` int(11) DEFAULT NULL COMMENT 'Enlace con orden de producción si aplica',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_tipo_item` (`tipo_item`,`tipo_item_id`),
+  KEY `idx_tipo_item` (`tipo_item`),
+  KEY `idx_tipo_item_id` (`tipo_item_id`),
+  KEY `idx_orden_produccion` (`orden_produccion_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Estructura de tabla para la tabla `inventario_productos`
+-- Estructura de tabla para la tabla `inventario_detalle`
+-- Registra movimientos tanto de insumos (materia prima) como de productos terminados.
 --
-
-CREATE TABLE `inventario_productos` (
-  `producto_id` int(11) NOT NULL,
-  `rango_tallas_id` int(11) NOT NULL,
-  `tipo_produccion_id` int(11) NOT NULL,
-  `stock_actual` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `ultima_actualizacion` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `movimientos_inventario_detalle`
---
-
-CREATE TABLE `movimientos_inventario_detalle` (
+CREATE TABLE `inventario_detalle` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `insumo_id` int(11) NOT NULL,
+  `tipo_item` enum('insumo','producto') NOT NULL COMMENT 'insumo=materia prima, producto=producto terminado',
+  `insumo_id` int(11) DEFAULT NULL COMMENT 'Obligatorio cuando tipo_item=insumo',
+  `almacen_id` int(11) DEFAULT NULL COMMENT 'Almacén cuando tipo_item=insumo (materia prima)',
+  `receta_id` int(11) DEFAULT NULL COMMENT 'Obligatorio cuando tipo_item=producto; la receta define producto/talla/tipo',
   `tipo` enum('entrada','salida') NOT NULL,
   `cantidad` decimal(12,2) NOT NULL,
-  `stock_anterior` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `stock_posterior` decimal(12,2) NOT NULL DEFAULT 0.00,
   `origen` varchar(50) DEFAULT 'manual',
   `observaciones` text DEFAULT NULL,
   `fecha_movimiento` timestamp NOT NULL DEFAULT current_timestamp(),
   `orden_produccion_id` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
--- --------------------------------------------------------
-
---
--- Estructura de tabla para la tabla `movimientos_productos_detalle`
---
-
-CREATE TABLE `movimientos_productos_detalle` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `producto_id` int(11) NOT NULL,
-  `rango_tallas_id` int(11) NOT NULL,
-  `tipo_produccion_id` int(11) NOT NULL,
-  `tipo` enum('entrada','salida') NOT NULL,
-  `cantidad` decimal(12,2) NOT NULL,
-  `observaciones` text DEFAULT NULL,
-  `fecha_movimiento` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -244,8 +225,12 @@ CREATE TABLE `recetas` (
   `producto_id` int(11) NOT NULL,
   `rango_tallas_id` int(11) NOT NULL,
   `tipo_produccion_id` int(11) NOT NULL,
+  `almacen_id` int(11) DEFAULT NULL COMMENT 'Almacén al que pertenece la receta/inventario',
+  `stock_minimo` decimal(12,2) DEFAULT NULL COMMENT 'Stock mínimo del producto terminado',
+  `stock_maximo` decimal(12,2) DEFAULT NULL COMMENT 'Stock máximo del producto terminado',
   `observaciones` text DEFAULT NULL,
   `precio_total` decimal(10,2) DEFAULT 0.00,
+  `porcentaje_ganancia` decimal(5,2) DEFAULT NULL COMMENT 'Porcentaje de ganancia aplicado sobre el costo de la receta',
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al registrar el precio',
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`)
@@ -280,6 +265,19 @@ CREATE TABLE `tipos_produccion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(50) NOT NULL,
   `descripcion` text DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `almacenes`
+--
+CREATE TABLE `almacenes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `codigo` varchar(20) DEFAULT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -481,34 +479,20 @@ ALTER TABLE `insumos`
   ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
 
 --
--- Indices de la tabla `inventario`
+-- Indices de la tabla `inventario` (definidos en CREATE TABLE)
 --
-ALTER TABLE `inventario`
-  ADD PRIMARY KEY (`insumo_id`),
-  ADD KEY `idx_tipo_movimiento` (`tipo_movimiento`);
 
 --
--- Indices de la tabla `inventario_productos`
+-- Indices de la tabla `inventario_detalle`
 --
-ALTER TABLE `inventario_productos`
-  ADD PRIMARY KEY (`producto_id`,`rango_tallas_id`,`tipo_produccion_id`);
-
---
--- Indices de la tabla `movimientos_inventario_detalle`
---
-ALTER TABLE `movimientos_inventario_detalle`
+ALTER TABLE `inventario_detalle`
+  ADD KEY `idx_tipo_item` (`tipo_item`),
   ADD KEY `idx_insumo_id` (`insumo_id`),
+  ADD KEY `idx_almacen_id` (`almacen_id`),
+  ADD KEY `idx_receta_id` (`receta_id`),
   ADD KEY `idx_fecha` (`fecha_movimiento`),
   ADD KEY `idx_tipo` (`tipo`),
   ADD KEY `idx_orden_produccion` (`orden_produccion_id`);
-
---
--- Indices de la tabla `movimientos_productos_detalle`
---
-ALTER TABLE `movimientos_productos_detalle`
-  ADD KEY `idx_producto` (`producto_id`,`rango_tallas_id`,`tipo_produccion_id`),
-  ADD KEY `idx_fecha` (`fecha_movimiento`),
-  ADD KEY `idx_tipo` (`tipo`);
 
 --
 -- Indices de la tabla `ordenes_produccion`
@@ -533,6 +517,7 @@ ALTER TABLE `recetas`
   ADD UNIQUE KEY `unique_receta` (`producto_id`,`rango_tallas_id`,`tipo_produccion_id`),
   ADD KEY `rango_tallas_id` (`rango_tallas_id`),
   ADD KEY `tipo_produccion_id` (`tipo_produccion_id`),
+  ADD KEY `almacen_id` (`almacen_id`),
   ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
 
 --
@@ -596,13 +581,16 @@ ALTER TABLE `insumos`
 -- Filtros para la tabla `inventario`
 --
 ALTER TABLE `inventario`
-  ADD CONSTRAINT `fk_inventario_insumo` FOREIGN KEY (`insumo_id`) REFERENCES `insumos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_inventario_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
--- Filtros para la tabla `movimientos_inventario_detalle`
+-- Filtros para la tabla `inventario_detalle`
 --
-ALTER TABLE `movimientos_inventario_detalle`
-  ADD CONSTRAINT `fk_movimientos_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL;
+ALTER TABLE `inventario_detalle`
+  ADD CONSTRAINT `fk_inventario_detalle_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_inventario_detalle_insumo` FOREIGN KEY (`insumo_id`) REFERENCES `insumos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_inventario_detalle_almacen` FOREIGN KEY (`almacen_id`) REFERENCES `almacenes` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_inventario_detalle_receta` FOREIGN KEY (`receta_id`) REFERENCES `recetas` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `ordenes_produccion`
@@ -619,6 +607,7 @@ ALTER TABLE `recetas`
   ADD CONSTRAINT `recetas_ibfk_1` FOREIGN KEY (`producto_id`) REFERENCES `productos` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `recetas_ibfk_2` FOREIGN KEY (`rango_tallas_id`) REFERENCES `rangos_tallas` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `recetas_ibfk_3` FOREIGN KEY (`tipo_produccion_id`) REFERENCES `tipos_produccion` (`id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_recetas_almacen` FOREIGN KEY (`almacen_id`) REFERENCES `almacenes` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_recetas_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
@@ -665,9 +654,8 @@ INSERT INTO `rangos_tallas` (`nombre_rango`, `tallas_desde`, `tallas_hasta`, `de
 --
 
 INSERT INTO `tipos_produccion` (`nombre`, `descripcion`) VALUES
-('Serie', 'Producción en serie o volumen'),
-('Unidad', 'Producción unitaria o pedido único'),
-('Muestra', 'Muestra o prototipo');
+('Detal', 'Producción minorista'),
+('Mayor', 'Producción mayorista'),
 
 COMMIT;
 
