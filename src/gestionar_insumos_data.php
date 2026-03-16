@@ -60,6 +60,7 @@ try {
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
+            $adicional = isset($_POST['adicional']);
             $unidad_medida = trim($_POST['unidad_medida'] ?? '');
             $costo_unitario = $_POST['costo_unitario'] ?? 0;
             $proveedor_id = $_POST['proveedor_id'] ?? null;
@@ -93,12 +94,12 @@ try {
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, proveedor_id, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, proveedor_id, tasa_cambiaria_id, adicional)
+                VALUES (?, ?, ?, ?, ?, ?)
             ");
 
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
-            $stmt->bind_param("ssdii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id);
+            $stmt->bind_param("ssdiii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id, $adicional);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo creado exitosamente', 'id' => $conn->insert_id]);
             break;
@@ -147,11 +148,12 @@ try {
                     costo_unitario = ?, 
                     proveedor_id = ?,
                     tasa_cambiaria_id = ?
+                    adicional = ?
                 WHERE id = ?
             ");
 
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
-            $stmt->bind_param("ssdiii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id, $id);
+            $stmt->bind_param("ssdiiii", $nombre, $unidad_medida, $costo_unitario, $proveedor_id, $tasa_cambiaria_id, $id, $adicional);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo actualizado exitosamente']);
             break;
