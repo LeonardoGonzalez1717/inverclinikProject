@@ -25,7 +25,6 @@ try {
                 v.fecha,
                 v.numero_factura,
                 v.total,
-                v.estado,
                 v.tasa_cambiaria_id,
                 tc.tasa AS tasa_venta,
                 c.nombre AS cliente_nombre
@@ -76,22 +75,6 @@ try {
         
         $venta['fecha_formateada'] = date('d/m/Y', strtotime($venta['fecha']));
         
-        $estadoBadge = '';
-        switch($venta['estado']) {
-            case 'pendiente':
-                $estadoBadge = '<span style="color: orange; font-weight: bold;">Pendiente</span>';
-                break;
-            case 'entregado':
-                $estadoBadge = '<span style="color: green; font-weight: bold;">Entregado</span>';
-                break;
-            case 'cancelado':
-                $estadoBadge = '<span style="color: red; font-weight: bold;">Cancelado</span>';
-                break;
-            default:
-                $estadoBadge = htmlspecialchars($venta['estado']);
-        }
-        $venta['estado_badge'] = $estadoBadge;
-        
         header('Content-Type: application/json');
         echo json_encode([
             'success' => true,
@@ -109,7 +92,6 @@ try {
                 v.fecha,
                 v.numero_factura,
                 v.total,
-                v.estado,
                 v.tasa_cambiaria_id,
                 tc.tasa AS tasa_venta,
                 COALESCE(SUM(dv.cantidad), 0) AS cantidad_total,
@@ -119,7 +101,7 @@ try {
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.estado, v.tasa_cambiaria_id, tc.tasa, c.nombre
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, tc.tasa, c.nombre
             ORDER BY v.creado_en DESC, v.fecha DESC
         ";
 
@@ -147,28 +129,13 @@ try {
                 echo '<td>' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
                 echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
-                $estadoBadge = '';
-                switch($v['estado']) {
-                    case 'pendiente':
-                        $estadoBadge = '<span style="color: orange; font-weight: bold;">Pendiente</span>';
-                        break;
-                    case 'entregado':
-                        $estadoBadge = '<span style="color: green; font-weight: bold;">Entregado</span>';
-                        break;
-                    case 'cancelado':
-                        $estadoBadge = '<span style="color: red; font-weight: bold;">Cancelado</span>';
-                        break;
-                    default:
-                        $estadoBadge = htmlspecialchars($v['estado']);
-                }
-                echo '<td>' . $estadoBadge . '</td>';
                 echo '<td style="white-space: nowrap;">';
                 echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="9" class="text-center">No se encontraron ventas registradas</td></tr>';
+            echo '<tr><td colspan="8" class="text-center">No se encontraron ventas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -256,46 +223,12 @@ try {
         exit;
     }
 
-    if ($action === 'actualizar_estatus') {
-        $venta_id = $_POST['venta_id'] ?? null;
-        $nuevo_estado = $_POST['estado'] ?? null;
-
-        if (!$venta_id || !$nuevo_estado) {
-            echo json_encode(['success' => false, 'mensaje' => 'Datos insuficientes']);
-            exit;
-        }
-
-        $conn->begin_transaction();
-
-        try {
-            // 1. Actualizar el estatus de la venta
-            $stmt = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
-            $stmt->bind_param("si", $nuevo_estado, $venta_id);
-            
-            if (!$stmt->execute()) {
-                throw new Exception("No se pudo actualizar el estado.");
-            }
-
-            // OPCIONAL: Aquí podrías disparar el descuento de stock si el estado es 'entregado'
-            // o generar la orden de producción si fuera necesario.
-
-            $conn->commit();
-            echo json_encode(['success' => true]);
-
-        } catch (Exception $e) {
-            $conn->rollback();
-            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
-        }
-        exit;
-    }
-
     if ($action === 'crear') {
         $input = file_get_contents('php://input');
         $data = json_decode($input, true);
         $cliente_id = $data['cliente_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
-        $estado = $data['estado'] ?? 'pendiente';
         $productos = $data['productos'] ?? [];
 
         if (!$cliente_id) {
@@ -327,12 +260,12 @@ try {
 
         try {
             $stmt = $conn->prepare("
-                INSERT INTO ventas (cliente_id, fecha, numero_factura, total, estado, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
-            $stmt->bind_param("issdsi", $cliente_id, $fecha, $numero_factura, $total, $estado, $tasa_cambiaria_id);
+            $stmt->bind_param("issdi", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id);
             $stmt->execute();
             
             $venta_id = $conn->insert_id;
@@ -453,7 +386,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="8" class="text-center text-danger">Error al cargar ventas</td></tr>';
+        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar ventas</td></tr>';
     }
 }
 

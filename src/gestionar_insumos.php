@@ -218,7 +218,7 @@ function editarInsumo(data) {
     $('#almacen_id').val(data.almacen_id || '');
     $('#proveedor_id').val(data.proveedor_id || '');
     $('#editar-insumo-id').val(data.id);
-    $('#proveedor_id').val(data.adicional || '');
+    $('#adicional').prop('checked', data.adicional == 1 || data.adicional == '1');
     tasaParaEquivalenteInsumo = (data.tasa_insumo != null && parseFloat(data.tasa_insumo) > 0) ? parseFloat(data.tasa_insumo) : tasaCambiariaActual;
     actualizarEquivalenteBsInsumo();
     mostrarVista('crear');
@@ -247,7 +247,7 @@ $("#form-crear").on("submit", function(e) {
         stock_minimo: $("#stock_minimo").val() || null,
         stock_maximo: $("#stock_maximo").val() || null,
         almacen_id: $("#almacen_id").val() || null,
-        proveedor_id: $("#proveedor_id").val() || null
+        proveedor_id: $("#proveedor_id").val() || null,
         adicional: $("#adicional").val(),
     };
 
