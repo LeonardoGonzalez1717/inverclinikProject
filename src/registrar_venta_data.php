@@ -53,13 +53,16 @@ try {
                 dv.cantidad,
                 dv.precio_unitario,
                 dv.subtotal,
-                p.nombre AS producto_nombre
+                p.nombre AS producto_nombre,
+                rt.nombre_rango AS talla_nombre
             FROM detalle_venta dv
-            INNER JOIN productos p ON dv.producto_id = p.id
+            INNER JOIN recetas r ON dv.producto_id = r.id
+            INNER JOIN productos p ON r.producto_id = p.id
+            INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
             WHERE dv.venta_id = ?
             ORDER BY p.nombre ASC
         ";
-        
+
         $stmt = $conn->prepare($sqlDetalles);
         $stmt->bind_param("i", $venta_id);
         $stmt->execute();
@@ -250,6 +253,39 @@ try {
         
         $stmt->close();
         $conn->close();
+        exit;
+    }
+
+    if ($action === 'actualizar_estatus') {
+        $venta_id = $_POST['venta_id'] ?? null;
+        $nuevo_estado = $_POST['estado'] ?? null;
+
+        if (!$venta_id || !$nuevo_estado) {
+            echo json_encode(['success' => false, 'mensaje' => 'Datos insuficientes']);
+            exit;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            // 1. Actualizar el estatus de la venta
+            $stmt = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
+            $stmt->bind_param("si", $nuevo_estado, $venta_id);
+            
+            if (!$stmt->execute()) {
+                throw new Exception("No se pudo actualizar el estado.");
+            }
+
+            // OPCIONAL: Aquí podrías disparar el descuento de stock si el estado es 'entregado'
+            // o generar la orden de producción si fuera necesario.
+
+            $conn->commit();
+            echo json_encode(['success' => true]);
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+        }
         exit;
     }
 

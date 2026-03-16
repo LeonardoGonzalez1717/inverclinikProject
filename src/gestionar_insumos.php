@@ -102,6 +102,12 @@ if (empty($almacenes)) {
                                     <option value="pieza">Pieza</option>
                                 </select>
                             </div>
+                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                <input type="checkbox" id="adicional" name="adicional" value="1" style="width: 20px; height: 20px;">
+                                <label for="adicional" style="cursor: pointer; font-weight: bold;">
+                                    Insumo Adicional
+                                </label>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Costo Unitario ($) <span style="color: red;">*</span></label>
                                 <input type="number" step="0.01" min="0" name="costo_unitario" id="costo_unitario" 
@@ -212,6 +218,7 @@ function editarInsumo(data) {
     $('#almacen_id').val(data.almacen_id || '');
     $('#proveedor_id').val(data.proveedor_id || '');
     $('#editar-insumo-id').val(data.id);
+    $('#proveedor_id').val(data.adicional || '');
     tasaParaEquivalenteInsumo = (data.tasa_insumo != null && parseFloat(data.tasa_insumo) > 0) ? parseFloat(data.tasa_insumo) : tasaCambiariaActual;
     actualizarEquivalenteBsInsumo();
     mostrarVista('crear');
@@ -241,6 +248,7 @@ $("#form-crear").on("submit", function(e) {
         stock_maximo: $("#stock_maximo").val() || null,
         almacen_id: $("#almacen_id").val() || null,
         proveedor_id: $("#proveedor_id").val() || null
+        adicional: $("#adicional").val(),
     };
 
     if (!datos.nombre || datos.nombre.trim() === '') {

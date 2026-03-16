@@ -16,137 +16,21 @@ if ($tipoUsuario === 'cliente' || $role_id === 3) {
     $urlInicio = '../../dashboard/dashboard.php';
 } else {
     $nombreUsuario = "Invitado";
-    $urlInicio = '../../index.php'; // Si es invitado, va al login principal
+    $urlInicio = '../../index.php';
 }
 include '../modales_cliente.php';
 ?>
-<style>
-    /* Contenedor principal del Modal */
-.modal {
-    display: none; 
-    position: fixed; 
-    z-index: 2000; /* Por encima de todo */
-    left: 0; top: 0;
-    width: 100%; height: 100%;
-    background: rgba(0, 0, 0, 0.6); /* Fondo oscurecido más elegante */
-    backdrop-filter: blur(4px); /* Efecto de desenfoque al fondo */
-    align-items: center; 
-    justify-content: center;
-    animation: fadeIn 0.3s ease;
-}
-
-/* La tarjeta blanca interna */
-.container-inner {
-    background: #ffffff;
-    width: 100%;
-    max-width: 450px;
-    padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-    position: relative;
-    border-top: 5px solid #005bbe; /* Línea de color corporativo */
-}
-
-.main-title {
-    color: #333;
-    font-size: 1.5rem;
-    margin-bottom: 20px;
-    text-align: center;
-    font-weight: 700;
-}
-
-/* Estilos para las etiquetas e inputs */
-.mb-3 { margin-bottom: 1.5rem; }
-
-.mb-3 label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: #555;
-    font-size: 0.9rem;
-}
-
-.form-control {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    font-size: 1rem;
-    transition: border-color 0.3s;
-}
-
-/* Estilo especial para campos de solo lectura */
-.form-control[readonly] {
-    background-color: #f8f9fa !important;
-    color: #777;
-    border: 1px dashed #ccc;
-}
-
-/* Botones */
-.btn-group {
-    display: flex;
-    gap: 12px;
-    margin-top: 25px;
-}
-
-.btn-publish {
-    flex: 2;
-    background-color: #005bbe;
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.btn-publish:hover { background-color: #004494; }
-
-.btn-close-modal {
-    flex: 1;
-    background-color: #6c757d;
-    color: white;
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    cursor: pointer;
-}
-
-/* Animación de entrada */
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-</style>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <title>INVERCLINIK - Catálogo</title>
+    <title>INVERCLINIK - Catálogo por Tallas</title>
     <script src="../../assets/js/jquery-3.7.1.min.js"></script>
     <link rel="stylesheet" href="../../assets/css/select2.min.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="../../css/catalogo_cliente.css">
     <link rel="stylesheet" href="../../assets/css/all.min.css">
-    <script>
-        function abrirModalAdmin() {
-            console.log("Intentando abrir modal...");
-            var modal = document.getElementById('modal-admin-producto');
-            if(modal) {
-                modal.style.display = 'flex';
-                // Si jQuery y Select2 están listos, inicializar
-                if (window.jQuery && jQuery.fn.select2) {
-                    $('#select-producto-base').select2({
-                        dropdownParent: $('#modal-admin-producto')
-                    });
-                }
-            } else {
-                alert("Error: El modal no existe en el HTML. Revisa si eres Admin.");
-            }
-        }
-    </script>
-</head>
+    </head>
 <body>
 
 <div class="container">
@@ -162,7 +46,7 @@ include '../modales_cliente.php';
         </div>
     </header>
 
-    <h2 class="catalog-title">Catálogo</h2>
+    <h2 class="catalog-title">Catálogo de Productos</h2>
 
     <div class="main-layout">
         <div class="products-grid">
@@ -170,41 +54,60 @@ include '../modales_cliente.php';
             <div class="product-card add-new-card" onclick="abrirModalAdmin()" style="border: 2px dashed #005bbe; display: flex; align-items: center; justify-content: center; cursor: pointer;">
                 <div style="text-align: center; color: #005bbe;">
                     <i class="fas fa-plus-circle" style="font-size: 3rem;"></i>
-                    <p>Agregar Producto al Catálogo</p>
+                    <p>Activar Nueva Receta/Talla</p>
                 </div>
             </div>
             <?php endif; ?>
 
             <?php
-            $result = mysqli_query($conn, "SELECT * FROM productos where activo = 1");
+            $sql = "SELECT 
+                        r.id AS id_receta, 
+                        p.nombre, 
+                        p.imagen, 
+                        p.descripcion, 
+                        t.nombre_rango AS nombre_talla, 
+                        r.precio_detal, 
+                        r.precio_mayor  
+                    FROM recetas r
+                    INNER JOIN productos p ON r.producto_id = p.id
+                    INNER JOIN rangos_tallas t ON r.rango_tallas_id = t.id
+                    WHERE p.activo = 1";
+            
+            $result = mysqli_query($conn, $sql);
             while($p = mysqli_fetch_assoc($result)):
+                // Creamos un nombre descriptivo
+                $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
             ?>
-            <div class="product-card" id="card-<?php echo $p['id']; ?>">
+            <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>">
                 <?php if($isAdmin): ?>
                 <div class="admin-actions" style="position: absolute; top: 10px; right: 10px; z-index: 5;">
-                    <button class="btn-delete" onclick="eliminarTarjeta(<?php echo $p['id']; ?>)" style="background:#dc3545; border:none; padding:5px 10px; border-radius:4px; color:white; cursor:pointer;"><i class="fas fa-trash"></i></button>
+                    <button class="btn-delete" onclick="eliminarReceta(<?php echo $p['id_receta']; ?>)" title="Quitar del catálogo" style="background:#dc3545; border:none; padding:5px 10px; border-radius:4px; color:white; cursor:pointer;"><i class="fas fa-trash"></i></button>
                 </div>
                 <?php endif; ?>
 
                 <div class="product-image">
                     <img src="<?php echo $p['imagen']; ?>" alt="<?php echo $p['nombre']; ?>">
-                    <button class="btn-preview">Vista Previa</button>
                 </div>
+                
                 <h3><?php echo $p['nombre']; ?></h3>
-                <div class="product-info"><strong>$<?php echo number_format($p['precio_unitario'], 2); ?></strong></div>
+                <p style="color: #005bbe; font-weight: bold; margin: 5px 0;">Talla: <?php echo $p['nombre_talla']; ?></p>
+                
+                <div class="product-info"><strong>$<?php echo number_format($p['precio_detal'], 2); ?></strong></div>
                 <p class="product-description"><?php echo $p['descripcion']; ?></p>
                 
                 <div class="product-controls">
                     <label>Cant:</label>
-                    <input type="number" id="cant-<?php echo $p['id']; ?>" class="quantity-input" value="1" min="1">
+                    <input type="number" id="cant-<?php echo $p['id_receta']; ?>" class="quantity-input" value="1" min="1">
                 </div>
                 
-                <button class="btn-add-cart" onclick="agregarAlPedido('<?php echo $p['nombre']; ?>', <?php echo $p['precio_unitario']; ?>, 'cant-<?php echo $p['id']; ?>', <?php echo $p['id']; ?>)">
-                    <i class="fas fa-cart-plus"></i> Añadir al carrito
+                <button class="btn-add-cart" 
+                    onclick="agregarAlPedido('<?php echo $nombreCompleto; ?>', <?php echo $p['precio_detal']; ?>, <?php echo $p['precio_mayor']; ?>, 'cant-<?php echo $p['id_receta']; ?>', <?php echo $p['id_receta']; ?>)">
+                    <i class="fas fa-cart-plus"></i> Añadir
                 </button>
             </div>
             <?php endwhile; ?>
         </div>
+
         <?php if(!$isAdmin): ?>
             <aside class="sidebar-pedido">
                 <h3>Mi Pedido</h3>
@@ -233,126 +136,47 @@ include '../modales_cliente.php';
 
 <div id="notificacion" class="notification">¡Producto añadido!</div>
 
-<?php if($isAdmin): ?>
-<div id="modal-admin-producto" class="modal">
-    <div class="container-inner">
-        <h2 class="main-title"><i class="fas fa-box-open"></i> Activar Producto</h2>
-        
-        <form id="form-admin-catalogo">
-            <input type="hidden" name="action" value="guardar_tarjeta">
-            
-            <div class="mb-3">
-                <label><i class="fas fa-search"></i> Buscar en Inventario:</label>
-                <select id="select-producto-base" name="id_producto_base" class="form-control" required>
-                    <option value="">Seleccione un producto...</option>
-                    <?php
-                    $resBase = mysqli_query($conn, "SELECT id, nombre, precio_unitario FROM productos WHERE activo = 0 ORDER BY nombre ASC");
-                    while($b = mysqli_fetch_assoc($resBase)){
-                        echo "<option value='".$b['id']."' data-nombre='".$b['nombre']."' data-precio='".$b['precio_unitario']."'>".$b['nombre']."</option>";
-                    }
-                    ?>
-                </select>
-            </div>
-
-            <div class="mb-3">
-                <label>Nombre (Informativo):</label>
-                <input type="text" id="admin-nombre" class="form-control" readonly placeholder="Esperando selección...">
-            </div>
-
-            <div class="mb-3">
-                <label>Precio Unitario:</label>
-                <input type="text" id="admin-precio" class="form-control" readonly placeholder="$ 0.00">
-            </div>
-
-            <div class="btn-group">
-                <button type="submit" class="btn-publish">
-                    <i class="fas fa-check-circle"></i> Publicar en Catálogo
-                </button>
-                <button type="button" class="btn-close-modal" onclick="document.getElementById('modal-admin-producto').style.display='none'">
-                    Cancelar
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-<?php endif; ?>
-
 <script>
-    function abrirModalAcceso() {
-        $("#modal-cliente").css("display", "flex");
-    }
-
-    $(document).ready(function() {
-        // 1. AUTOCOMPLETAR CAMPOS AL ELEGIR PRODUCTO
-        $('#select-producto-base').on('change', function() {
-            const seleccionado = $(this).find(':selected');
-            const nombre = seleccionado.data('nombre');
-            const precio = seleccionado.data('precio'); 
-
-            $('#admin-nombre').val(nombre);
-            $('#admin-precio').val(precio);
-        });
-
-        // 2. GUARDAR / ACTIVAR PRODUCTO (ESTATUS 1)
-        $('#form-admin-catalogo').on('submit', function(e) {
-            e.preventDefault(); 
-            const datos = $(this).serialize(); 
-
-            $.ajax({
-                url: 'catalogo_data.php',
-                method: 'POST',
-                data: datos,
-                dataType: 'json',
-                success: function(res) {
-                    if(res.success) {
-                        alert("¡Producto publicado con éxito!");
-                        location.reload();
-                    } else {
-                        alert("Error: " + res.message);
-                    }
-                },
-                error: function() {
-                    alert("Error de comunicación con el servidor.");
-                }
-            });
-        });
-    });
-
-    function eliminarTarjeta(id) {
-        if(confirm('¿Deseas quitar este producto del catálogo?')) {
-            $.post('catalogo_data.php', { action: 'eliminar', id: id }, function(res) {
-                if(res.success) {
-                    $(`#card-${id}`).fadeOut(500, function() { $(this).remove(); });
-                } else {
-                    alert("Error al ocultar: " + res.message);
-                }
-            }, 'json');
-        }
-    }
-
     let pedido = [];
-    function agregarAlPedido(nombre, precio, inputId, prodId) {
+
+    function agregarAlPedido(nombre, pDetal, pMayor, inputId, recetaId) {
         const input = document.getElementById(inputId);
         const cantidad = parseInt(input.value);
         if(cantidad < 1 || isNaN(cantidad)) return;
 
-        const productoExistente = pedido.find(item => item.prodId === prodId);
+        const productoExistente = pedido.find(item => item.recetaId === recetaId);
+        
         if (productoExistente) {
             productoExistente.cantidad += cantidad;
-            productoExistente.subtotal = productoExistente.cantidad * productoExistente.precioUnit;
         } else {
             pedido.push({
-                id: Date.now(),
-                prodId: prodId,
+                recetaId: recetaId,
                 nombre: nombre,
                 cantidad: cantidad,
-                precioUnit: precio,
-                subtotal: precio * cantidad
+                pDetal: pDetal,
+                pMayor: pMayor,
+                precioUnit: pDetal,
+                subtotal: 0
             });
         }
+        
         input.value = 1; 
-        mostrarNotificacion(`Agregado: ${cantidad}x ${nombre}`);
+        aplicarReglaDePrecios(); 
         actualizarVista();
+    }
+
+    function aplicarReglaDePrecios() {
+        const totalProductos = pedido.reduce((acc, item) => acc + item.cantidad, 0);
+        
+        const esPrecioMayor = totalProductos >= 12;
+
+        pedido.forEach(item => {
+            item.precioUnit = esPrecioMayor ? item.pMayor : item.pDetal;
+            item.subtotal = item.cantidad * item.precioUnit;
+        });
+        // if(esPrecioMayor) {
+        //     mostrarNotificacion("¡Felicidades! Se ha aplicado precio al mayor (12+ unidades)");
+        // }
     }
 
     function actualizarVista() {
@@ -372,7 +196,7 @@ include '../modales_cliente.php';
             listaContainer.innerHTML += `
                 <div class="cart-item" style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
                     <div>
-                        <h4 style="margin:0; font-size:0.9rem;">${item.nombre}</h4>
+                        <h4 style="margin:0; font-size:0.85rem;">${item.nombre}</h4>
                         <small>${item.cantidad} x $${item.precioUnit.toFixed(2)}</small>
                     </div>
                     <strong>$${item.subtotal.toFixed(2)}</strong>
@@ -388,14 +212,19 @@ include '../modales_cliente.php';
         $.ajax({
             url: '../guardar_presupuesto.php',
             method: 'POST',
-            data: { carrito: pedido, total: totalCalculado },
+            data: { 
+                carrito: pedido, 
+                total: totalCalculado 
+            },
             dataType: 'json',
             success: function(res) {
                 if(res.status === 'success') {
-                    alert("Presupuesto " + res.correlativo + " guardado.");
+                    alert("Presupuesto " + res.correlativo + " generado con éxito.");
                     enviarWhatsApp(res.correlativo);
                     pedido = [];
                     actualizarVista();
+                } else {
+                    alert("Error: " + res.message);
                 }
             }
         });
@@ -421,7 +250,7 @@ include '../modales_cliente.php';
         const totalText = document.getElementById('total-pedido').innerText;
         mensaje += "-----------------------------\n";
         mensaje += "💰 *TOTAL ESTIMADO: " + totalText + "*\n\n";
-        mensaje += "Deseo coordinar tallas y personalización. Referencia: " + correlativo;
+        mensaje += "Referencia: " + correlativo;
 
         const urlWhatsapp = "https://api.whatsapp.com/send?phone=" + telefonoAdmin + "&text=" + encodeURIComponent(mensaje);
         window.open(urlWhatsapp, '_blank');

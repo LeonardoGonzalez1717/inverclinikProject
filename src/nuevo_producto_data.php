@@ -86,6 +86,8 @@ try {
                 r.rango_tallas_id,
                 r.tipo_produccion_id,
                 r.creado_en,
+                r.precio_detal,
+                r.precio_mayor,
                 COALESCE(SUM(rp.cantidad_por_unidad * i.costo_unitario), 0) AS costo_total,
                 COALESCE(r.precio_total, 0) AS precio_total,
                 r.porcentaje_ganancia,
@@ -153,8 +155,10 @@ try {
             $porcentaje_ganancia = isset($_POST['porcentaje_ganancia']) && $_POST['porcentaje_ganancia'] !== '' ? (float)$_POST['porcentaje_ganancia'] : null;
             $stock_minimo = isset($_POST['stock_minimo']) && $_POST['stock_minimo'] !== '' ? (float)$_POST['stock_minimo'] : null;
             $stock_maximo = isset($_POST['stock_maximo']) && $_POST['stock_maximo'] !== '' ? (float)$_POST['stock_maximo'] : null;
+            $detal = floatval($_POST['detal'] ?? 0);
+            $mayor = floatval($_POST['mayor'] ?? 0);
             $observaciones = $_POST['observaciones'] ?? '';
-            
+
             $insumos = $_POST['insumos'] ?? [];
             if (is_string($insumos)) {
                 $insumos = json_decode($insumos, true) ?? [];

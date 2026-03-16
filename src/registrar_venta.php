@@ -388,7 +388,7 @@ function verDetalle(ventaId) {
             html += '</div>';
             
             html += '<div class="row mb-3">';
-            html += '<div class="col-md-6"><strong>Número de Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
+            html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
             html += '<div class="col-md-6"><strong>Estado:</strong> ' + resp.venta.estado_badge + '</div>';
             html += '</div>';
             
@@ -396,7 +396,8 @@ function verDetalle(ventaId) {
             html += '<h6><strong>Detalle de Productos:</strong></h6>';
             html += '<div class="table-responsive">';
             html += '<table class="table table-bordered table-sm">';
-            html += '<thead><tr><th>Producto</th><th>Cantidad</th><th>Precio Unitario</th><th>Subtotal</th></tr></thead>';
+            // Agregamos el header de Talla
+            html += '<thead class="thead-light"><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio U.</th><th>Subtotal</th></tr></thead>';
             html += '<tbody>';
             
             var total = 0;
@@ -404,25 +405,53 @@ function verDetalle(ventaId) {
                 total += parseFloat(detalle.subtotal);
                 html += '<tr>';
                 html += '<td>' + detalle.producto_nombre + '</td>';
-                html += '<td>' + parseFloat(detalle.cantidad).toFixed(2) + '</td>';
+                html += '<td>' + (detalle.talla_nombre || '-') + '</td>';
+                html += '<td>' + parseFloat(detalle.cantidad).toFixed(0) + '</td>'; // Unidades enteras
                 html += '<td>$' + parseFloat(detalle.precio_unitario).toFixed(2) + '</td>';
                 html += '<td>$' + parseFloat(detalle.subtotal).toFixed(2) + '</td>';
                 html += '</tr>';
             });
             
             html += '</tbody>';
-            html += '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td colspan="3" style="text-align: right;">Total:</td><td>$' + total.toFixed(2) + '</td></tr></tfoot>';
+            html += '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td colspan="4" style="text-align: right;">Total:</td><td>$' + total.toFixed(2) + '</td></tr></tfoot>';
             html += '</table>';
             html += '</div>';
+
+            if (resp.venta.estado === 'pendiente') {
+                html += '<hr>';
+                html += '<div class="d-flex justify-content-end">';
+                html += '   <button type="button" class="btn btn-success" onclick="cambiarEstatusVenta(' + resp.venta.id + ', \'entregado\')">';
+                html += '       <i class="fas fa-check-circle"></i> Aprobar y Marcar como Entregado';
+                html += '   </button>';
+                html += '</div>';
+            }
             
             $('#modalDetalleVentaBody').html(html);
         } else {
-            $('#modalDetalleVentaBody').html('<div class="alert alert-danger">Error al cargar los detalles de la venta</div>');
+            $('#modalDetalleVentaBody').html('<div class="alert alert-danger">' + (resp.message || 'Error al cargar detalles') + '</div>');
         }
-    }, 'json').fail(function() {
-        $('#modalDetalleVentaBody').html('<div class="alert alert-danger">Error de conexión al cargar los detalles</div>');
-    });
+    }, 'json');
 }
+
+window.cambiarEstatusVenta = function(idVenta, nuevoEstado) {
+    if (!confirm('¿Estás seguro de marcar esta venta como ' + nuevoEstado + '? Esta acción no se puede deshacer.')) {
+        return;
+    }
+
+    $.post('registrar_venta_data.php', {
+        action: 'actualizar_estatus',
+        venta_id: idVenta,
+        estado: nuevoEstado
+    }, function(resp) {
+        if (resp.success) {
+            alert('¡Éxito! El estatus ha sido actualizado.');
+            $('#modalDetalleVenta').modal('hide');
+            location.reload();
+        } else {
+            alert('Error: ' + resp.mensaje);
+        }
+    }, 'json');
+};
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
