@@ -27,6 +27,7 @@
                     <li><a href="../src/gestionar_productos.php">Gestionar Productos</a></li>
                     <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                     <li><a href="../src/nuevo_producto.php">Recetas</a></li>
+                    <li><a href="../src/registrar_categoria.php">Registrar Categoria</a></li>
                     <li><a href="../src/gestionar_proveedores.php">Proveedores</a></li>
                     <li><a href="../src/gestionar_clientes.php">Clientes</a></li>
                 </ul>
