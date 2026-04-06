@@ -50,14 +50,14 @@ include '../modales_cliente.php';
 
     <div class="main-layout">
         <div class="products-grid">
-            <?php if($isAdmin): ?>
+            <!-- <?php if($isAdmin): ?>
             <div class="product-card add-new-card" onclick="abrirModalAdmin()" style="border: 2px dashed #005bbe; display: flex; align-items: center; justify-content: center; cursor: pointer;">
                 <div style="text-align: center; color: #005bbe;">
                     <i class="fas fa-plus-circle" style="font-size: 3rem;"></i>
                     <p>Activar Nueva Receta/Talla</p>
                 </div>
             </div>
-            <?php endif; ?>
+            <?php endif; ?> -->
 
             <?php
             $sql = "SELECT 
@@ -78,7 +78,7 @@ include '../modales_cliente.php';
                 // Creamos un nombre descriptivo
                 $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
             ?>
-            <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>">
+            <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>" style="position: relative;">
                 <?php if($isAdmin): ?>
                 <div class="admin-actions" style="position: absolute; top: 10px; right: 10px; z-index: 5;">
                     <button class="btn-delete" onclick="eliminarReceta(<?php echo $p['id_receta']; ?>)" title="Quitar del catálogo" style="background:#dc3545; border:none; padding:5px 10px; border-radius:4px; color:white; cursor:pointer;"><i class="fas fa-trash"></i></button>

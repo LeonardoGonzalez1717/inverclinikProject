@@ -212,25 +212,25 @@ try {
                 $tienePct = ($checkPct && $checkPct->num_rows > 0);
                 if ($checkColMin->num_rows > 0 && $tienePct) {
                     $stmtReceta = $conn->prepare("
-                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, porcentaje_ganancia, tasa_cambiaria_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, precio_detal, precio_mayor, porcentaje_ganancia, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), stock_minimo = VALUES(stock_minimo), stock_maximo = VALUES(stock_maximo), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), porcentaje_ganancia = VALUES(porcentaje_ganancia), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
                     ");
-                    $stmtReceta->bind_param("iiiiddsddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $porcentaje_ganancia, $tasa_cambiaria_id);
+                    $stmtReceta->bind_param("iiiiddsddddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $detal, $mayor, $porcentaje_ganancia, $tasa_cambiaria_id);
                 } elseif ($checkColMin->num_rows > 0) {
                     $stmtReceta = $conn->prepare("
-                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, tasa_cambiaria_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, stock_minimo, stock_maximo, observaciones, precio_total, precio_detal, precio_mayor, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), stock_minimo = VALUES(stock_minimo), stock_maximo = VALUES(stock_maximo), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
                     ");
-                    $stmtReceta->bind_param("iiiiddsdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $tasa_cambiaria_id);
+                    $stmtReceta->bind_param("iiiiddsdddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $stock_minimo, $stock_maximo, $observaciones, $precio_total, $detal, $mayor, $tasa_cambiaria_id);
                 } else {
                     $stmtReceta = $conn->prepare("
-                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, observaciones, precio_total, tasa_cambiaria_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id, almacen_id, observaciones, precio_total, precio_detal, precio_mayor, tasa_cambiaria_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON DUPLICATE KEY UPDATE almacen_id = VALUES(almacen_id), observaciones = VALUES(observaciones), precio_total = VALUES(precio_total), tasa_cambiaria_id = VALUES(tasa_cambiaria_id)
                     ");
-                    $stmtReceta->bind_param("iiiisdi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $observaciones, $precio_total, $tasa_cambiaria_id);
+                    $stmtReceta->bind_param("iiiisdddi", $producto_id, $rango_tallas_id, $tipo_produccion_id, $almacen_id, $observaciones, $precio_total, $detal, $mayor, $tasa_cambiaria_id);
                 }
                 $stmtReceta->execute();
                 $stmtReceta->close();

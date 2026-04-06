@@ -167,12 +167,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <label class="form-label">Stock máximo (producto terminado)</label>
                                 <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="0">
                                 <small class="form-text text-muted">Límite máximo en inventario</small>
-                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                                <input type="checkbox" id="publicar_ahora" name="activo" value="1" checked style="width: 20px; height: 20px;">
-                                <label for="publicar_ahora" style="cursor: pointer; font-weight: bold;">
-                                    Publicar en el catálogo
-                                </label>
-                            </div>
 
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
 

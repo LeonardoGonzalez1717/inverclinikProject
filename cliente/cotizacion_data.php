@@ -57,7 +57,7 @@ switch ($action) {
         
         $sql = "SELECT codigo_presupuesto, DATE_FORMAT(fecha_creacion, '%d/%m/%Y') as fecha, total 
                 FROM presupuestos 
-                WHERE id_cliente = ?  and status = 1
+                WHERE id_cliente = ?  and status = 0
                 ORDER BY id_presupuesto DESC";
         
         $stmt = $conn->prepare($sql);
