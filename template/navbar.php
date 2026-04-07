@@ -29,6 +29,7 @@
                     <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                     <li><a href="../src/nuevo_producto.php">Recetas</a></li>
                     <li><a href="../src/registrar_categoria.php">Registrar Categoria</a></li>
+                    <li><a href="../src/registrar_almacen.php">Registrar Almacén</a></li>
                     <li><a href="../src/gestionar_proveedores.php">Proveedores</a></li>
                     <li><a href="../src/gestionar_clientes.php">Clientes</a></li>
                 </ul>
@@ -55,7 +56,8 @@
                 <li class="collapsible"> <button class="collapsible-toggle">Mis Servicios</button>
                   <ul class="collapsible-content">
                     <li><a href="../cliente/catalogo/catalogo.php">Ver Catálogo</a></li>
-                    <li><a href="../cliente/mis_pedidos.php">Estado de mis Pedidos</a></li>
+                    <li><a href="../cliente/mis_presupuestos.php">Mis presupuestos</a></li>
+                    <li><a href="../cliente/mis_cotizaciones.php">Mis cotizaciones</a></li>
                   </ul>
                 </li>
             </ul>
@@ -69,7 +71,7 @@
               <ul class="collapsible-content">
                 <?php if ($_SESSION['role_id'] === 1) { ?>
                     <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
-                    <li><a href="../src">Auditoria</a></li>
+                    <li><a href="../src/auditoria.php">Auditoría</a></li>
                     <li><a href="../cliente/catalogo/catalogo.php">Catálogo</a></li>
                     <li><a href="../src/tasas_cambiarias.php">Tasas cambiarias</a></li>
                 <?php } ?>

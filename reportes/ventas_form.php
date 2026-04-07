@@ -12,6 +12,14 @@ $stmt->bind_param("i", $iduser);
 $stmt->execute();
 $result = $stmt->get_result();
 $row = $result->fetch_assoc();
+
+$clientes = [];
+$r = $conn->query('SELECT id, nombre FROM clientes ORDER BY nombre ASC');
+if ($r) {
+    while ($c = $r->fetch_assoc()) {
+        $clientes[] = $c;
+    }
+}
 ?>
 
 <div class="main-content">
@@ -23,7 +31,12 @@ $row = $result->fetch_assoc();
 
         <div class="mb-3">
           <label class="form-label">Cliente</label>
-          <input type="text" name="cliente" class="form-control">
+          <select name="cliente_id" class="form-control">
+            <option value="">Todos los clientes</option>
+            <?php foreach ($clientes as $cl): ?>
+              <option value="<?php echo (int) $cl['id']; ?>"><?php echo htmlspecialchars($cl['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+            <?php endforeach; ?>
+          </select>
         </div>
 
         <div class="mb-3">

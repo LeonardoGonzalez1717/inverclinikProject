@@ -12,6 +12,14 @@ $stmt->bind_param("i", $iduser);
 $stmt->execute();
 $result = $stmt->get_result();
 $row = $result->fetch_assoc();
+
+$proveedores = [];
+$resProv = $conn->query('SELECT id, nombre FROM proveedores ORDER BY nombre ASC');
+if ($resProv) {
+    while ($p = $resProv->fetch_assoc()) {
+        $proveedores[] = $p;
+    }
+}
 ?>
 
 <div class="main-content">
@@ -23,7 +31,14 @@ $row = $result->fetch_assoc();
 
         <div class="mb-3">
           <label class="form-label">Proveedor</label>
-          <input type="text" name="proveedor" class="form-control">
+          <select name="proveedor_id" class="form-control">
+            <option value="">Todos los proveedores</option>
+            <?php foreach ($proveedores as $prov): ?>
+              <option value="<?php echo (int) $prov['id']; ?>">
+                <?php echo htmlspecialchars($prov['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
 
         <div class="mb-3">

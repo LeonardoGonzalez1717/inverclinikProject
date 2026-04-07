@@ -17,14 +17,13 @@ $row = $result->fetch_assoc();
 // Filtros
 $where = [];
 
-$cliente = $_GET['cliente'] ?? '';
+$cliente_id = isset($_GET['cliente_id']) ? (int) $_GET['cliente_id'] : 0;
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
 $estado = $_GET['estado'] ?? '';
 
-if(!empty($cliente)){
-    $cliente = $conn->real_escape_string($cliente);
-    $where[] = "cl.nombre LIKE '%$cliente%'";
+if ($cliente_id > 0) {
+    $where[] = 'v.cliente_id = ' . $cliente_id;
 }
 
 if(!empty($fecha_inicio)){

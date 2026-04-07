@@ -17,14 +17,13 @@ $row = $result->fetch_assoc();
 // Filtros
 $where = [];
 
-$proveedor = $_GET['proveedor'] ?? '';
+$proveedor_id = isset($_GET['proveedor_id']) ? (int) $_GET['proveedor_id'] : 0;
 $fecha_inicio = $_GET['fecha_inicio'] ?? '';
 $fecha_fin = $_GET['fecha_fin'] ?? '';
 $estado = $_GET['estado'] ?? '';
 
-if(!empty($proveedor)){
-    $proveedor = $conn->real_escape_string($proveedor);
-    $where[] = "p.nombre LIKE '%$proveedor%'";
+if ($proveedor_id > 0) {
+    $where[] = 'c.proveedor_id = ' . $proveedor_id;
 }
 
 if(!empty($fecha_inicio)){

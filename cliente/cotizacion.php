@@ -33,6 +33,7 @@
                                         <th>Cliente</th>
                                         <th>Origen</th>
                                         <th>Total</th>
+                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>

@@ -1,7 +1,10 @@
 <?php
 session_start();
 include 'connection/connection.php';
+require_once __DIR__ . '/lib/Auditoria.php';
 header('Content-Type: application/json; charset=utf-8');
+
+$audFalloLogin = ['nombre_actor' => '(Intento fallido)', 'id_usuario' => null, 'id_cliente' => null];
 
 // Limpiamos entradas
 $usuario = trim($_POST['usuario'] ?? '');
@@ -44,15 +47,33 @@ if ($row = $result->fetch_assoc()) {
         $_SESSION['rol']      = $row['rol'] ?? 'Sin Rol';
         $_SESSION['tipo']     = 'usuario'; // Identificador para el sistema
 
+        Auditoria::registrar(
+            $conn,
+            'Inicio de sesión exitoso (usuario interno). Correo: ' . $usuario . '. Rol: ' . ($row['rol'] ?? ''),
+            'Sesión'
+        );
+
         echo json_encode([
             'success' => true, 
             'message' => 'Acceso administrativo concedido',
             'tipo'    => 'usuario'
         ]);
     } else {
+        Auditoria::registrar(
+            $conn,
+            'Intento fallido: contraseña incorrecta. Correo: ' . $usuario,
+            'Sesión',
+            $audFalloLogin
+        );
         echo json_encode(['success' => false, 'message' => 'Contraseña incorrecta.']);
     }
 } else {
+    Auditoria::registrar(
+        $conn,
+        'Intento fallido: correo no registrado como usuario interno. Correo: ' . $usuario,
+        'Sesión',
+        $audFalloLogin
+    );
     echo json_encode(['success' => false, 'message' => 'El usuario administrativo no existe.']);
 }
 
