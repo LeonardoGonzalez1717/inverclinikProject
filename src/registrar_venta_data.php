@@ -25,7 +25,6 @@ try {
                 v.fecha,
                 v.numero_factura,
                 v.total,
-                v.estado,
                 v.tasa_cambiaria_id,
                 tc.tasa AS tasa_venta,
                 c.nombre AS cliente_nombre
@@ -76,22 +75,6 @@ try {
         
         $venta['fecha_formateada'] = date('d/m/Y', strtotime($venta['fecha']));
         
-        $estadoBadge = '';
-        switch($venta['estado']) {
-            case 'pendiente':
-                $estadoBadge = '<span style="color: orange; font-weight: bold;">Pendiente</span>';
-                break;
-            case 'entregado':
-                $estadoBadge = '<span style="color: green; font-weight: bold;">Entregado</span>';
-                break;
-            case 'cancelado':
-                $estadoBadge = '<span style="color: red; font-weight: bold;">Cancelado</span>';
-                break;
-            default:
-                $estadoBadge = htmlspecialchars($venta['estado']);
-        }
-        $venta['estado_badge'] = $estadoBadge;
-        
         header('Content-Type: application/json');
         echo json_encode([
             'success' => true,
@@ -109,7 +92,6 @@ try {
                 v.fecha,
                 v.numero_factura,
                 v.total,
-                v.estado,
                 v.tasa_cambiaria_id,
                 tc.tasa AS tasa_venta,
                 COALESCE(SUM(dv.cantidad), 0) AS cantidad_total,
@@ -119,7 +101,7 @@ try {
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.estado, v.tasa_cambiaria_id, tc.tasa, c.nombre
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, tc.tasa, c.nombre
             ORDER BY v.creado_en DESC, v.fecha DESC
         ";
 
@@ -147,21 +129,6 @@ try {
                 echo '<td>' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
                 echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
-                $estadoBadge = '';
-                switch($v['estado']) {
-                    case 'pendiente':
-                        $estadoBadge = '<span style="color: orange; font-weight: bold;">Pendiente</span>';
-                        break;
-                    case 'entregado':
-                        $estadoBadge = '<span style="color: green; font-weight: bold;">Entregado</span>';
-                        break;
-                    case 'cancelado':
-                        $estadoBadge = '<span style="color: red; font-weight: bold;">Cancelado</span>';
-                        break;
-                    default:
-                        $estadoBadge = htmlspecialchars($v['estado']);
-                }
-                echo '<td>' . $estadoBadge . '</td>';
                 echo '<td style="white-space: nowrap;">';
                 echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
                 echo '<button style = "margin-left: 5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
@@ -169,7 +136,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="9" class="text-center">No se encontraron ventas registradas</td></tr>';
+            echo '<tr><td colspan="8" class="text-center">No se encontraron ventas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -257,97 +224,12 @@ try {
         exit;
     }
 
-    if ($action === 'actualizar_estatus') {
-        $venta_id = $_POST['venta_id'] ?? null;
-        $nuevo_estado = $_POST['estado'] ?? null;
-
-        if (!$venta_id || !$nuevo_estado) {
-            echo json_encode(['success' => false, 'mensaje' => 'Datos insuficientes']);
-            exit;
-        }
-
-        $conn->begin_transaction();
-
-        try {
-            $stmt_ref = $conn->prepare("SELECT cotizacion_id FROM ventas WHERE id = ?");
-            $stmt_ref->bind_param("i", $venta_id);
-            $stmt_ref->execute();
-            $res = $stmt_ref->get_result();
-            $fila = $res->fetch_assoc();
-            
-            $id_cotizacion = $fila['cotizacion_id'] ?? null;
-
-            $stmt_vta = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
-            $stmt_vta->bind_param("si", $nuevo_estado, $venta_id);
-            
-            if (!$stmt_vta->execute()) {
-                throw new Exception("Error al actualizar la venta.");
-            }
-
-            if ($id_cotizacion) {
-                $stmt_cot = $conn->prepare("UPDATE cotizaciones SET status = 2 WHERE id_cotizacion = ?");
-                $stmt_cot->bind_param("i", $id_cotizacion);
-                
-                if (!$stmt_cot->execute()) {
-                    throw new Exception("Error al actualizar la cotización vinculada.");
-                }
-            }
-
-            $query_det = "SELECT producto_id, cantidad FROM detalle_venta WHERE venta_id = ?";
-            $stmt_det = $conn->prepare($query_det);
-            $stmt_det->bind_param("i", $venta_id);
-            $stmt_det->execute();
-            $res_det = $stmt_det->get_result();
-
-            while ($item = $res_det->fetch_assoc()) {
-                $prod_id = $item['producto_id'];
-                $cant_vta = $item['cantidad'];
-
-                $sql_rec = "SELECT id FROM recetas WHERE producto_id = ? ORDER BY creado_en DESC LIMIT 1";
-                $stmt_rec = $conn->prepare($sql_rec);
-                $stmt_rec->bind_param("i", $prod_id);
-                $stmt_rec->execute();
-                $res_rec = $stmt_rec->get_result();
-                
-                if ($row_rec = $res_rec->fetch_assoc()) {
-                    $receta_id = $row_rec['id'];
-
-                    $upd_inv = $conn->prepare("
-                        UPDATE inventario 
-                        SET stock_actual = GREATEST(stock_actual - ?, 0), 
-                            ultima_actualizacion = NOW() 
-                        WHERE tipo_item = 'producto' AND tipo_item_id = ?
-                    ");
-                    $upd_inv->bind_param("di", $cant_vta, $receta_id);
-                    $upd_inv->execute();
-
-                    $obs = "Salida por Venta Aprobada #{$venta_id}";
-                    $ins_mov = $conn->prepare("
-                        INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) 
-                        VALUES ('producto', ?, 'salida', ?, ?)
-                    ");
-                    $ins_mov->bind_param("ids", $receta_id, $cant_vta, $obs);
-                    $ins_mov->execute();
-                }
-            }
-
-            $conn->commit();
-            echo json_encode(['success' => true]);
-
-        } catch (Exception $e) {
-            $conn->rollback();
-            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
-        }
-        exit;
-    }
-
     if ($action === 'crear') {
         $input = file_get_contents('php://input');
         $data = json_decode($input, true);
         $cliente_id = $data['cliente_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
-        $estado = $data['estado'] ?? 'pendiente';
         $productos = $data['productos'] ?? [];
 
         if (!$cliente_id) {
@@ -379,12 +261,12 @@ try {
 
         try {
             $stmt = $conn->prepare("
-                INSERT INTO ventas (cliente_id, fecha, numero_factura, total, estado, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
-            $stmt->bind_param("issdsi", $cliente_id, $fecha, $numero_factura, $total, $estado, $tasa_cambiaria_id);
+            $stmt->bind_param("issdi", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id);
             $stmt->execute();
             
             $venta_id = $conn->insert_id;
@@ -505,7 +387,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="8" class="text-center text-danger">Error al cargar ventas</td></tr>';
+        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar ventas</td></tr>';
     }
 }
 

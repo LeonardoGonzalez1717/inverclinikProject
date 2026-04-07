@@ -60,7 +60,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Cantidad</th>
                                         <th>Total</th>
                                         <th>Total Bs.</th>
-                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -94,17 +93,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <label class="form-label">Número de Factura</label>
 <input type="text" name="numero_factura" id="numero_factura" class="form-control"
                                    maxlength="50" placeholder="Ej: FAC-001" readonly>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Estado</label>
-                            <select name="estado" id="estado" class="form-control">
-                                <option value="pendiente">Pendiente</option>
-                                <option value="entregado">Entregado</option>
-                                <option value="cancelado">Cancelado</option>
-                            </select>
                         </div>
                     </div>
 
@@ -246,7 +234,6 @@ function cargarListado() {
 function limpiarFormulario() {
     $('#form-venta')[0].reset();
     $('#fecha').val('<?php echo date('Y-m-d'); ?>');
-    $('#estado').val('pendiente');
     $('#cliente_id').val('');
     productosAgregados = [];
     actualizarTablaProductos();
@@ -389,7 +376,6 @@ function verDetalle(ventaId) {
             
             html += '<div class="row mb-3">';
             html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
-            html += '<div class="col-md-6"><strong>Estado:</strong> ' + resp.venta.estado_badge + '</div>';
             html += '</div>';
             
             html += '<hr>';
@@ -416,15 +402,6 @@ function verDetalle(ventaId) {
             html += '<tfoot><tr style="background-color: #f8f9fa; font-weight: bold;"><td colspan="4" style="text-align: right;">Total:</td><td>$' + total.toFixed(2) + '</td></tr></tfoot>';
             html += '</table>';
             html += '</div>';
-
-            if (resp.venta.estado === 'pendiente') {
-                html += '<hr>';
-                html += '<div class="d-flex justify-content-end">';
-                html += '   <button type="button" class="btn btn-success" onclick="cambiarEstatusVenta(' + resp.venta.id + ', \'entregado\')">';
-                html += '       <i class="fas fa-check-circle"></i> Aprobar y Marcar como Entregado';
-                html += '   </button>';
-                html += '</div>';
-            }
             
             $('#modalDetalleVentaBody').html(html);
         } else {
@@ -432,26 +409,6 @@ function verDetalle(ventaId) {
         }
     }, 'json');
 }
-
-window.cambiarEstatusVenta = function(idVenta, nuevoEstado) {
-    if (!confirm('¿Estás seguro de marcar esta venta como ' + nuevoEstado + '? Esta acción no se puede deshacer.')) {
-        return;
-    }
-
-    $.post('registrar_venta_data.php', {
-        action: 'actualizar_estatus',
-        venta_id: idVenta,
-        estado: nuevoEstado
-    }, function(resp) {
-        if (resp.success) {
-            alert('¡Éxito! El estatus ha sido actualizado.');
-            $('#modalDetalleVenta').modal('hide');
-            location.reload();
-        } else {
-            alert('Error: ' + resp.mensaje);
-        }
-    }, 'json');
-};
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
@@ -546,7 +503,6 @@ $("#form-venta").on("submit", function(e) {
         cliente_id: $("#cliente_id").val(),
         fecha: $("#fecha").val(),
         numero_factura: $("#numero_factura").val() || "",
-        estado: $("#estado").val(),
         productos: productosAgregados
     };
 
