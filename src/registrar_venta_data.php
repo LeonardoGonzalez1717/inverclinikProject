@@ -163,7 +163,8 @@ try {
                 }
                 echo '<td>' . $estadoBadge . '</td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
+                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
+                echo '<button style = "margin-left: 5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -268,16 +269,67 @@ try {
         $conn->begin_transaction();
 
         try {
-            // 1. Actualizar el estatus de la venta
-            $stmt = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
-            $stmt->bind_param("si", $nuevo_estado, $venta_id);
+            $stmt_ref = $conn->prepare("SELECT cotizacion_id FROM ventas WHERE id = ?");
+            $stmt_ref->bind_param("i", $venta_id);
+            $stmt_ref->execute();
+            $res = $stmt_ref->get_result();
+            $fila = $res->fetch_assoc();
             
-            if (!$stmt->execute()) {
-                throw new Exception("No se pudo actualizar el estado.");
+            $id_cotizacion = $fila['cotizacion_id'] ?? null;
+
+            $stmt_vta = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
+            $stmt_vta->bind_param("si", $nuevo_estado, $venta_id);
+            
+            if (!$stmt_vta->execute()) {
+                throw new Exception("Error al actualizar la venta.");
             }
 
-            // OPCIONAL: Aquí podrías disparar el descuento de stock si el estado es 'entregado'
-            // o generar la orden de producción si fuera necesario.
+            if ($id_cotizacion) {
+                $stmt_cot = $conn->prepare("UPDATE cotizaciones SET status = 2 WHERE id_cotizacion = ?");
+                $stmt_cot->bind_param("i", $id_cotizacion);
+                
+                if (!$stmt_cot->execute()) {
+                    throw new Exception("Error al actualizar la cotización vinculada.");
+                }
+            }
+
+            $query_det = "SELECT producto_id, cantidad FROM detalle_venta WHERE venta_id = ?";
+            $stmt_det = $conn->prepare($query_det);
+            $stmt_det->bind_param("i", $venta_id);
+            $stmt_det->execute();
+            $res_det = $stmt_det->get_result();
+
+            while ($item = $res_det->fetch_assoc()) {
+                $prod_id = $item['producto_id'];
+                $cant_vta = $item['cantidad'];
+
+                $sql_rec = "SELECT id FROM recetas WHERE producto_id = ? ORDER BY creado_en DESC LIMIT 1";
+                $stmt_rec = $conn->prepare($sql_rec);
+                $stmt_rec->bind_param("i", $prod_id);
+                $stmt_rec->execute();
+                $res_rec = $stmt_rec->get_result();
+                
+                if ($row_rec = $res_rec->fetch_assoc()) {
+                    $receta_id = $row_rec['id'];
+
+                    $upd_inv = $conn->prepare("
+                        UPDATE inventario 
+                        SET stock_actual = GREATEST(stock_actual - ?, 0), 
+                            ultima_actualizacion = NOW() 
+                        WHERE tipo_item = 'producto' AND tipo_item_id = ?
+                    ");
+                    $upd_inv->bind_param("di", $cant_vta, $receta_id);
+                    $upd_inv->execute();
+
+                    $obs = "Salida por Venta Aprobada #{$venta_id}";
+                    $ins_mov = $conn->prepare("
+                        INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) 
+                        VALUES ('producto', ?, 'salida', ?, ?)
+                    ");
+                    $ins_mov->bind_param("ids", $receta_id, $cant_vta, $obs);
+                    $ins_mov->execute();
+                }
+            }
 
             $conn->commit();
             echo json_encode(['success' => true]);

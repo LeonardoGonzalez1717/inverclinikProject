@@ -247,7 +247,7 @@ $("#form-crear").on("submit", function(e) {
         stock_minimo: $("#stock_minimo").val() || null,
         stock_maximo: $("#stock_maximo").val() || null,
         almacen_id: $("#almacen_id").val() || null,
-        proveedor_id: $("#proveedor_id").val() || null
+        proveedor_id: $("#proveedor_id").val() || null,
         adicional: $("#adicional").val(),
     };
 

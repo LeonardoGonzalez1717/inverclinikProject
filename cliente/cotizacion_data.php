@@ -38,7 +38,10 @@ switch ($action) {
                         </td>";
                 $html .= "<td>" . $row['email'] . "</td>";
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
-                $html .= "<td>
+                $html .= "<td nowrap>
+                            <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info'>
+                                <i class='fas fa-print'></i> Imprimir Cotización
+                            </a>
                             <button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Ver Detalles' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
                                 Editar
                             </button>
@@ -57,7 +60,7 @@ switch ($action) {
         
         $sql = "SELECT codigo_presupuesto, DATE_FORMAT(fecha_creacion, '%d/%m/%Y') as fecha, total 
                 FROM presupuestos 
-                WHERE id_cliente = ?  and status = 1
+                WHERE id_cliente = ?  and status = 0
                 ORDER BY id_presupuesto DESC";
         
         $stmt = $conn->prepare($sql);

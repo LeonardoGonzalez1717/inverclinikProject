@@ -86,7 +86,7 @@ try {
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
-            $adicional = isset($_POST['adicional']);
+            $adicional = trim($_POST['adicional'] ?? '');
             $unidad_medida = trim($_POST['unidad_medida'] ?? '');
             $costo_unitario = $_POST['costo_unitario'] ?? 0;
             $stock_minimo = isset($_POST['stock_minimo']) && $_POST['stock_minimo'] !== '' ? (float)$_POST['stock_minimo'] : null;
@@ -123,13 +123,13 @@ try {
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, stock_minimo, stock_maximo, almacen_id, proveedor_id, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, stock_minimo, stock_maximo, adicional, almacen_id, proveedor_id, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
             $almacen_id_val = $almacen_id !== null ? $almacen_id : 1;
-            $stmt->bind_param("ssddiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $almacen_id_val, $proveedor_id, $tasa_cambiaria_id);
+            $stmt->bind_param("ssddiiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $adicional, $almacen_id_val, $proveedor_id, $tasa_cambiaria_id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo creado exitosamente', 'id' => $conn->insert_id]);
             break;

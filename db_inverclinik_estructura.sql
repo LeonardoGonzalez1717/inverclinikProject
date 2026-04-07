@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS `presupuesto_detalles` (
   KEY `id_presupuesto` (`id_presupuesto`),
   KEY `id_producto` (`id_producto`),
   CONSTRAINT `fk_presupuesto_detalles_presupuesto` FOREIGN KEY (`id_presupuesto`) REFERENCES `presupuestos` (`id_presupuesto`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_presupuesto_detalles_producto` FOREIGN KEY (`id_producto`) REFERENCES `productos` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `fk_presupuesto_detalles_producto` FOREIGN KEY (`id_producto`) REFERENCES `recetas` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --

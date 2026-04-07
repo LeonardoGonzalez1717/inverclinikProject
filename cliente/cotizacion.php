@@ -335,7 +335,7 @@
                         <select class="form-control perso-sel">
                             <option value="" data-precio="0">Ninguna</option>
                             <?php
-                                $resExtras = mysqli_query($conn, "SELECT id, nombre, costo_unitario FROM insumos WHERE adicional = 1 ORDER BY nombre ASC");
+                                $resExtras = mysqli_query($conn, "SELECT id, nombre, costo_unitario FROM insumos ORDER BY nombre ASC");
                                 while($e = mysqli_fetch_assoc($resExtras)){
                                     echo "<option value='".$e['id']."' data-precio='".$e['costo_unitario']."'>".$e['nombre']." (+$".$e['costo_unitario'].")</option>";
                                 }
@@ -343,7 +343,7 @@
                         </select>
                     </td>
                     <td><input type="text" class="form-control nota-input" placeholder="Bordado, color, etc..."></td>
-                    <td class="row-subtotal" style="font-weight: bold; font-size: 1.1rem;">$${subtotal}</td>
+                    <td class="row-subtotal" style="font-weight: bold;">$${subtotal}</td>
                     <td><button type="button" class="btn-eliminar-fila" style="color:#dc3545; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
                 </tr>`;
         }
