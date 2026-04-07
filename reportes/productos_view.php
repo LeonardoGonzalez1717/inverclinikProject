@@ -19,18 +19,17 @@ $row = $result->fetch_assoc();
 
 $where = [];
 
-$nombre = isset($_GET['nombre']) ? trim($_GET['nombre']) : '';
+$producto_id = isset($_GET['producto_id']) ? (int) $_GET['producto_id'] : 0;
 $categoria = isset($_GET['categoria']) ? trim($_GET['categoria']) : '';
 $genero = isset($_GET['genero']) ? trim($_GET['genero']) : '';
 
-if (!empty($nombre)) {
-    $nombre = $conn->real_escape_string($nombre);
-    $where[] = "p.nombre LIKE '%$nombre%'";
+if ($producto_id > 0) {
+    $where[] = 'p.id = ' . $producto_id;
 }
 
-if (!empty($categoria)) {
+if ($categoria !== '') {
     $categoria = $conn->real_escape_string($categoria);
-    $where[] = "p.categoria LIKE '%$categoria%'";
+    $where[] = "p.categoria = '$categoria'";
 }
 
 if (!empty($genero)) {

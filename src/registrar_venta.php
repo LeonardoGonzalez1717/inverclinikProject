@@ -57,6 +57,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Cliente</th>
                                         <th>Fecha</th>
                                         <th>Número Factura</th>
+                                        <th>Cotización</th>
                                         <th>Cantidad</th>
                                         <th>Total</th>
                                         <th>Total Bs.</th>
@@ -84,14 +85,22 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Cotización</label>
+                            <select id="cotizacion_id" name="cotizacion_id" class="form-control" disabled>
+                                <option value="">— Primero elija un cliente —</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
                             <label class="form-label">Fecha <span style="color: red;">*</span></label>
-                            <input type="date" name="fecha" id="fecha" class="form-control" required 
+                            <input type="date" name="fecha" id="fecha" class="form-control" required
                                    value="<?php echo date('Y-m-d'); ?>">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <label class="form-label">Número de Factura</label>
-<input type="text" name="numero_factura" id="numero_factura" class="form-control"
+                            <input type="text" name="numero_factura" id="numero_factura" class="form-control"
                                    maxlength="50" placeholder="Ej: FAC-001" readonly>
                         </div>
                     </div>
@@ -231,13 +240,42 @@ function cargarListado() {
     limpiarFormulario();
 }
 
+function rellenarSelectCotizaciones(idCliente) {
+    var $s = $('#cotizacion_id');
+    var guardar = $s.val();
+    $s.find('option:not(:first)').remove();
+    if (!idCliente) {
+        $s.prop('disabled', true);
+        $s.find('option:first').text('— Primero elija un cliente —');
+        if (guardar) {
+            $s.val('');
+        }
+        return;
+    }
+    $s.prop('disabled', false);
+    $s.find('option:first').text('— Venta sin cotización —');
+    $.getJSON('registrar_venta_data.php', { action: 'listar_cotizaciones_venta', id_cliente: idCliente }, function(resp) {
+        if (resp && resp.success && resp.cotizaciones && resp.cotizaciones.length) {
+            resp.cotizaciones.forEach(function(c) {
+                var label = c.codigo_cotizacion + ' ($' + parseFloat(c.total || 0).toFixed(2) + ') — ' + (c.fecha || '');
+                $s.append($('<option/>').attr('value', c.id_cotizacion).text(label));
+            });
+        }
+        if (guardar) {
+            $s.val(guardar);
+        }
+    });
+}
+
 function limpiarFormulario() {
     $('#form-venta')[0].reset();
     $('#fecha').val('<?php echo date('Y-m-d'); ?>');
     $('#cliente_id').val('');
+    $('#cotizacion_id').val('');
     productosAgregados = [];
     actualizarTablaProductos();
     limpiarFormularioProducto();
+    rellenarSelectCotizaciones('');
     // Cargar siguiente número de factura según la última registrada
     $.post('registrar_venta_data.php', { action: 'obtener_siguiente_numero_factura' }, function(resp) {
         if (resp && resp.success && resp.siguiente_numero_factura !== undefined) {
@@ -248,6 +286,18 @@ function limpiarFormulario() {
 
 function calcularSubtotal(cantidad, precioUnitario) {
     return cantidad * precioUnitario;
+}
+
+function hayProductosDuplicadosPorId(lista) {
+    var vistos = {};
+    for (var i = 0; i < lista.length; i++) {
+        var id = String(lista[i].producto_id);
+        if (vistos[id]) {
+            return true;
+        }
+        vistos[id] = true;
+    }
+    return false;
 }
 
 function agregarProducto() {
@@ -262,6 +312,11 @@ function agregarProducto() {
     
     if (precioUnitario <= 0) {
         alert('Por favor ingresa un precio unitario válido');
+        return;
+    }
+
+    if (productosAgregados.some(function(p) { return String(p.producto_id) === String(productoId); })) {
+        alert('Este artículo ya está en la venta. Elimine la línea existente o modifique la cantidad en esa línea.');
         return;
     }
     
@@ -376,6 +431,7 @@ function verDetalle(ventaId) {
             
             html += '<div class="row mb-3">';
             html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
+            html += '<div class="col-md-6"><strong>Cotización:</strong> ' + (resp.venta.codigo_cotizacion ? $('<div>').text(resp.venta.codigo_cotizacion).html() : '—') + '</div>';
             html += '</div>';
             
             html += '<hr>';
@@ -413,6 +469,63 @@ function verDetalle(ventaId) {
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado();
+
+    $('#cliente_id').on('change', function() {
+        var idc = $(this).val();
+        $('#cotizacion_id').val('');
+        productosAgregados = [];
+        actualizarTablaProductos();
+        rellenarSelectCotizaciones(idc);
+    });
+
+    $('#cotizacion_id').on('change', function() {
+        var cid = $(this).val();
+        var idCliente = $('#cliente_id').val();
+        if (!cid) {
+            return;
+        }
+        if (!idCliente) {
+            alert('Seleccione primero un cliente.');
+            $(this).val('');
+            return;
+        }
+        $.getJSON('registrar_venta_data.php', {
+            action: 'obtener_items_cotizacion',
+            cotizacion_id: cid,
+            id_cliente: idCliente
+        })
+            .done(function(resp) {
+                if (!resp || !resp.success) {
+                    alert((resp && resp.message) ? resp.message : 'No se pudieron cargar los productos de la cotización');
+                    return;
+                }
+                productosAgregados = (resp.productos || []).map(function(p) {
+                    return {
+                        producto_id: String(p.producto_id),
+                        producto_nombre: p.producto_nombre,
+                        cantidad: parseFloat(p.cantidad) || 0,
+                        precio_unitario: parseFloat(p.precio_unitario) || 0,
+                        subtotal: parseFloat(p.subtotal) || 0
+                    };
+                });
+                if (hayProductosDuplicadosPorId(productosAgregados)) {
+                    alert('La cotización incluye el mismo artículo más de una vez. Unifique las cantidades en la cotización o elimine líneas duplicadas antes de facturar.');
+                    productosAgregados = [];
+                    $('#cotizacion_id').val('');
+                    actualizarTablaProductos();
+                    return;
+                }
+                actualizarTablaProductos();
+            })
+            .fail(function(xhr) {
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    alert(r.message || 'Error al cargar la cotización');
+                } catch (e) {
+                    alert('Error de conexión.');
+                }
+            });
+    });
     
     $('#nuevo-producto-id').on('change', function() {
         var productoId = $(this).val();
@@ -498,12 +611,19 @@ $("#form-venta").on("submit", function(e) {
         return;
     }
 
+    if (hayProductosDuplicadosPorId(productosAgregados)) {
+        alert('No se puede guardar la venta: hay el mismo artículo más de una vez. Deje una sola línea por producto.');
+        return;
+    }
+
+    var cotSel = $("#cotizacion_id").val();
     var datos = {
         action: 'crear',
         cliente_id: $("#cliente_id").val(),
         fecha: $("#fecha").val(),
         numero_factura: $("#numero_factura").val() || "",
-        productos: productosAgregados
+        productos: productosAgregados,
+        cotizacion_id: cotSel ? parseInt(cotSel, 10) : null
     };
 
     if (!datos.cliente_id || !datos.fecha) {

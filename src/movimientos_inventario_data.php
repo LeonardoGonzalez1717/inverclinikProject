@@ -1,5 +1,6 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 // Inventario usa tipo_item + tipo_item_id (id de insumo o de receta). Ver sql/migracion_inventario_radical.sql
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
@@ -49,6 +50,64 @@ if ($row['count'] == 0) {
     $conn->query($sqlInsertRecetas);
 }
 
+/**
+ * Stock actual en listados: fondo rojo (inline) si está a ≤5 u. del mín./máx. o fuera de límites.
+ */
+function mov_inv_html_stock_actual_celda($stock_actual_raw, $stock_minimo_raw, $stock_maximo_raw)
+{
+    $stock_actual = round((float) ($stock_actual_raw ?? 0), 2);
+    $stock_minimo = isset($stock_minimo_raw) && $stock_minimo_raw !== null && $stock_minimo_raw !== '' ? round((float) $stock_minimo_raw, 2) : null;
+    $stock_maximo = isset($stock_maximo_raw) && $stock_maximo_raw !== null && $stock_maximo_raw !== '' ? round((float) $stock_maximo_raw, 2) : null;
+    if ($stock_maximo !== null && $stock_maximo <= 0) {
+        $stock_maximo = null;
+    }
+
+    $margen = 5.0;
+
+    $cercaMin = false;
+    if ($stock_minimo !== null) {
+        if ($stock_actual < $stock_minimo) {
+            $cercaMin = true;
+        } else {
+            $cercaMin = ($stock_actual - $stock_minimo) <= $margen;
+        }
+    }
+
+    $cercaMax = false;
+    if ($stock_maximo !== null) {
+        if ($stock_actual > $stock_maximo) {
+            $cercaMax = true;
+        } else {
+            $distAlMax = $stock_maximo - $stock_actual;
+            $cercaMax = $distAlMax <= $margen && $distAlMax >= 0;
+        }
+    }
+
+    $num = number_format($stock_actual, 2, '.', ',');
+
+    if (!$cercaMin && !$cercaMax) {
+        return '<strong>' . $num . '</strong>';
+    }
+
+    $partes = [];
+    if ($cercaMin) {
+        $partes[] = 'Stock a punto de alcanzar el mínimo.';
+    }
+    if ($cercaMax) {
+        if ($stock_maximo !== null && $stock_actual > $stock_maximo) {
+            $partes[] = 'Stock por encima del máximo configurado.';
+        } else {
+            $partes[] = 'Stock a punto de alcanzar el máximo.';
+        }
+    }
+    $title = implode(' ', $partes);
+
+    $estilo = 'display:block;width:100%;box-sizing:border-box;margin:-12px;padding:12px;'
+        . 'background-color:#f8d7da;color:#721c24;border-left:3px solid #dc3545;cursor:help;';
+
+    return '<span title="' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '" style="' . $estilo . '"><strong style="color:#721c24;">' . $num . '</strong></span>';
+}
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -67,23 +126,10 @@ try {
                         inv.stock_actual,
                         i.stock_minimo,
                         i.stock_maximo,
-                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion,
-                        COALESCE(inv.tipo_movimiento, 'manual') AS tipo_movimiento,
-                        m.tipo AS ultimo_tipo_movimiento
+                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion
                     FROM inventario inv
                     INNER JOIN insumos i ON i.id = inv.tipo_item_id AND inv.tipo_item = 'insumo'
                     LEFT JOIN almacenes a ON i.almacen_id = a.id
-                    LEFT JOIN (
-                        SELECT m1.insumo_id, m1.tipo
-                        FROM inventario_detalle m1
-                        INNER JOIN (
-                            SELECT insumo_id, MAX(fecha_movimiento) AS max_fecha
-                            FROM inventario_detalle
-                            WHERE tipo_item = 'insumo'
-                            GROUP BY insumo_id
-                        ) m2 ON m1.insumo_id = m2.insumo_id AND m1.fecha_movimiento = m2.max_fecha
-                        WHERE m1.tipo_item = 'insumo'
-                    ) m ON inv.tipo_item_id = m.insumo_id
                     WHERE i.activo = 1
                     ORDER BY i.nombre ASC
                 ";
@@ -97,22 +143,9 @@ try {
                         inv.stock_actual,
                         i.stock_minimo,
                         i.stock_maximo,
-                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion,
-                        'manual' AS tipo_movimiento,
-                        m.tipo AS ultimo_tipo_movimiento
+                        DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion
                     FROM inventario inv
                     INNER JOIN insumos i ON inv.insumo_id = i.id
-                    LEFT JOIN (
-                        SELECT m1.insumo_id, m1.tipo
-                        FROM inventario_detalle m1
-                        INNER JOIN (
-                            SELECT insumo_id, MAX(fecha_movimiento) AS max_fecha
-                            FROM inventario_detalle
-                            WHERE tipo_item = 'insumo'
-                            GROUP BY insumo_id
-                        ) m2 ON m1.insumo_id = m2.insumo_id AND m1.fecha_movimiento = m2.max_fecha
-                        WHERE m1.tipo_item = 'insumo'
-                    ) m ON inv.insumo_id = m.insumo_id
                     WHERE i.activo = 1
                     ORDER BY i.nombre ASC
                 ";
@@ -130,51 +163,12 @@ try {
                 $i = 0;
                 foreach ($inventario as $inv) {
                     $i++;
-                    
-                    $badgeClass = '';
-                    $tipoTexto = '-';
-                    
-                    if (!empty($inv['ultimo_tipo_movimiento'])) {
-                        $badgeClass = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'badge-entrada' : 'badge-salida';
-                        $tipoTexto = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'Entrada' : 'Salida';
-                    }
-                    
-                    // Mostrar el origen del movimiento (compra, orden_produccion, manual, ajuste)
-                    $tipoMovimiento = $inv['tipo_movimiento'] ?? 'manual';
-                    $tipoMovimientoTexto = '';
-                    switch($tipoMovimiento) {
-                        case 'compra':
-                            $tipoMovimientoTexto = '<span style="color: #0056b3; font-weight: bold;">Compra</span>';
-                            break;
-                        case 'orden_produccion':
-                            $tipoMovimientoTexto = '<span style="color: #6c757d; font-weight: bold;">Orden Producción</span>';
-                            break;
-                        case 'ajuste':
-                            $tipoMovimientoTexto = '<span style="color: #ffc107; font-weight: bold;">Ajuste</span>';
-                            break;
-                        default:
-                            $tipoMovimientoTexto = '<span style="color: #28a745; font-weight: bold;">Manual</span>';
-                    }
-                    
-                    $stock_actual = (float)($inv['stock_actual'] ?? 0);
-                    $stock_minimo = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null && $inv['stock_minimo'] !== '' ? (float)$inv['stock_minimo'] : null;
-                    $stock_maximo = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null && $inv['stock_maximo'] !== '' ? (float)$inv['stock_maximo'] : null;
-                    $cercaMin = $stock_minimo !== null && $stock_actual <= $stock_minimo + 5;
-                    $alLimiteMax = $stock_maximo !== null && $stock_actual >= $stock_maximo;
-                    $iconoMin = $cercaMin ? ' <span class="stock-alert-min" title="Menos de 5 unidades para el stock mínimo" style="cursor: help;">●</span>' : '';
-                    $iconoMax = $alLimiteMax ? ' <span class="stock-alert-max" title="Stock al límite del máximo" style="cursor: help;">●</span>' : '';
                     echo '<tr>';
                     echo '<td>' . htmlspecialchars($i) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['insumo_nombre'] . ' (' . $inv['unidad_medida'] . ')') . '</td>';
                     echo '<td>' . htmlspecialchars($inv['almacen_nombre'] ?? '—') . '</td>';
-                    if ($badgeClass) {
-                        echo '<td><span class="' . $badgeClass . '">' . htmlspecialchars($tipoTexto) . '</span></td>';
-                    } else {
-                        echo '<td>' . htmlspecialchars($tipoTexto) . '</td>';
-                    }
-                    echo '<td>' . $tipoMovimientoTexto . '</td>';
-                    echo '<td><strong>' . number_format($inv['stock_actual'], 2, '.', ',') . '</strong>' . $iconoMin . $iconoMax . '</td>';
+                    echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
                     $min = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null ? number_format((float)$inv['stock_minimo'], 2, '.', ',') : '—';
                     $max = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null ? number_format((float)$inv['stock_maximo'], 2, '.', ',') : '—';
                     echo '<td>' . $min . '</td>';
@@ -182,7 +176,7 @@ try {
                     echo '</tr>';
                 }
             } else {
-                echo '<tr><td colspan="9" class="text-center">No hay registros en el inventario de materia prima</td></tr>';
+                echo '<tr><td colspan="7" class="text-center">No hay registros en el inventario de materia prima</td></tr>';
             }
         } else {
             if ($tieneInventarioNuevo) {
@@ -204,25 +198,13 @@ try {
                             WHEN inv.ultima_actualizacion IS NOT NULL 
                             THEN DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i')
                             ELSE '-'
-                        END AS fecha_actualizacion,
-                        m.tipo AS ultimo_tipo_movimiento
+                        END AS fecha_actualizacion
                     FROM recetas r
                     INNER JOIN productos p ON r.producto_id = p.id
                     INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
                     INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
                     LEFT JOIN almacenes a ON r.almacen_id = a.id
                     LEFT JOIN inventario inv ON inv.tipo_item = 'producto' AND inv.tipo_item_id = r.id
-                    LEFT JOIN (
-                        SELECT m1.receta_id, m1.tipo
-                        FROM inventario_detalle m1
-                        INNER JOIN (
-                            SELECT receta_id, MAX(fecha_movimiento) AS max_fecha
-                            FROM inventario_detalle
-                            WHERE tipo_item = 'producto' AND receta_id IS NOT NULL
-                            GROUP BY receta_id
-                        ) m2 ON m1.receta_id = m2.receta_id AND m1.fecha_movimiento = m2.max_fecha
-                        WHERE m1.tipo_item = 'producto'
-                    ) m ON r.id = m.receta_id
                     ORDER BY p.nombre, rt.nombre_rango
                 ";
             } else {
@@ -240,21 +222,13 @@ try {
                         r.stock_maximo,
                         r.almacen_id,
                         a.nombre AS almacen_nombre,
-                        CASE WHEN inv.ultima_actualizacion IS NOT NULL THEN DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') ELSE '-' END AS fecha_actualizacion,
-                        m.tipo AS ultimo_tipo_movimiento
+                        CASE WHEN inv.ultima_actualizacion IS NOT NULL THEN DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') ELSE '-' END AS fecha_actualizacion
                     FROM recetas r
                     INNER JOIN productos p ON r.producto_id = p.id
                     INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
                     INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
                     LEFT JOIN almacenes a ON r.almacen_id = a.id
                     LEFT JOIN inventario_productos inv ON r.producto_id = inv.producto_id AND r.rango_tallas_id = inv.rango_tallas_id AND r.tipo_produccion_id = inv.tipo_produccion_id
-                    LEFT JOIN (
-                        SELECT m1.producto_id, m1.rango_tallas_id, m1.tipo_produccion_id, m1.tipo
-                        FROM inventario_detalle m1
-                        INNER JOIN (SELECT producto_id, rango_tallas_id, tipo_produccion_id, MAX(fecha_movimiento) AS max_fecha FROM inventario_detalle WHERE tipo_item = 'producto' GROUP BY producto_id, rango_tallas_id, tipo_produccion_id) m2
-                        ON m1.producto_id = m2.producto_id AND m1.rango_tallas_id = m2.rango_tallas_id AND m1.tipo_produccion_id = m2.tipo_produccion_id AND m1.fecha_movimiento = m2.max_fecha
-                        WHERE m1.tipo_item = 'producto'
-                    ) m ON r.producto_id = m.producto_id AND r.rango_tallas_id = m.rango_tallas_id AND r.tipo_produccion_id = m.tipo_produccion_id
                     ORDER BY p.nombre, rt.nombre_rango
                 ";
             }
@@ -271,26 +245,13 @@ try {
                 $i = 0;
                 foreach ($inventario as $inv) {
                     $i++;
-                    $badgeClass = '';
-                    $tipoTexto = '-';
-                    
-                    if (!empty($inv['ultimo_tipo_movimiento'])) {
-                        $badgeClass = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'badge-entrada' : 'badge-salida';
-                        $tipoTexto = $inv['ultimo_tipo_movimiento'] === 'entrada' ? 'Entrada' : 'Salida';
-                    }
-                    
                     echo '<tr>';
                     echo '<td>' . htmlspecialchars($i) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['producto_nombre']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['rango_tallas_nombre']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['tipo_produccion_nombre']) . '</td>';
-                    if ($badgeClass) {
-                        echo '<td><span class="' . $badgeClass . '">' . htmlspecialchars($tipoTexto) . '</span></td>';
-                    } else {
-                        echo '<td>' . htmlspecialchars($tipoTexto) . '</td>';
-                    }
-                    echo '<td><strong>' . number_format($inv['stock_actual'], 2, '.', ',') . '</strong></td>';
+                    echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
                     $minReceta = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null && $inv['stock_minimo'] !== '' ? number_format((float)$inv['stock_minimo'], 2, '.', ',') : '—';
                     $maxReceta = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null && $inv['stock_maximo'] !== '' ? number_format((float)$inv['stock_maximo'], 2, '.', ',') : '—';
                     echo '<td>' . htmlspecialchars($minReceta) . '</td>';
@@ -299,7 +260,7 @@ try {
                     echo '</tr>';
                 }
             } else {
-                echo '<tr><td colspan="10" class="text-center">No hay registros en el inventario de productos</td></tr>';
+                echo '<tr><td colspan="9" class="text-center">No hay registros en el inventario de productos</td></tr>';
             }
         }
         $conn->close();
@@ -368,6 +329,78 @@ try {
         exit;
     }
 
+    if ($action === 'prevalidar_stock_max_movimiento') {
+        header('Content-Type: application/json');
+        $tipo_inventario = $_POST['tipo_inventario'] ?? '';
+        $insumo_id = isset($_POST['insumo_id']) ? (int) $_POST['insumo_id'] : 0;
+        $receta_id = isset($_POST['receta_id']) ? (int) $_POST['receta_id'] : 0;
+        $tipo = $_POST['tipo'] ?? '';
+        $cantidad = floatval($_POST['cantidad'] ?? 0);
+
+        $supera_maximo = false;
+        if ($tipo === 'entrada' && $cantidad > 0) {
+            if ($tipo_inventario === 'materia_prima' && $insumo_id > 0) {
+                $stmt = $conn->prepare('SELECT stock_maximo FROM insumos WHERE id = ? AND activo = 1 LIMIT 1');
+                $stmt->bind_param('i', $insumo_id);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($row && array_key_exists('stock_maximo', $row) && $row['stock_maximo'] !== null && $row['stock_maximo'] !== '') {
+                    $stockMax = (float) $row['stock_maximo'];
+                    $stockActual = 0;
+                    if ($tieneInventarioNuevo) {
+                        $stmtS = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?");
+                    } else {
+                        $stmtS = $conn->prepare('SELECT stock_actual FROM inventario WHERE insumo_id = ?');
+                    }
+                    $stmtS->bind_param('i', $insumo_id);
+                    $stmtS->execute();
+                    $rs = $stmtS->get_result();
+                    if ($rS = $rs->fetch_assoc()) {
+                        $stockActual = (float) $rS['stock_actual'];
+                    }
+                    $stmtS->close();
+                    if (($stockActual + $cantidad) > $stockMax) {
+                        $supera_maximo = true;
+                    }
+                }
+            } elseif ($tipo_inventario === 'productos' && $receta_id > 0) {
+                $stmt = $conn->prepare('SELECT stock_maximo, producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ? LIMIT 1');
+                $stmt->bind_param('i', $receta_id);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                if ($row && array_key_exists('stock_maximo', $row) && $row['stock_maximo'] !== null && $row['stock_maximo'] !== '') {
+                    $stockMax = (float) $row['stock_maximo'];
+                    $stockActual = 0;
+                    if ($tieneInventarioNuevo) {
+                        $stmtS = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?");
+                        $stmtS->bind_param('i', $receta_id);
+                    } else {
+                        $pid = (int) $row['producto_id'];
+                        $rtid = (int) $row['rango_tallas_id'];
+                        $tpid = (int) $row['tipo_produccion_id'];
+                        $stmtS = $conn->prepare('SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?');
+                        $stmtS->bind_param('iii', $pid, $rtid, $tpid);
+                    }
+                    $stmtS->execute();
+                    $rs = $stmtS->get_result();
+                    if ($rS = $rs->fetch_assoc()) {
+                        $stockActual = (float) $rS['stock_actual'];
+                    }
+                    $stmtS->close();
+                    if (($stockActual + $cantidad) > $stockMax) {
+                        $supera_maximo = true;
+                    }
+                }
+            }
+        }
+
+        echo json_encode(['success' => true, 'supera_maximo' => $supera_maximo]);
+        $conn->close();
+        exit;
+    }
+
     header('Content-Type: application/json');
 
     switch ($action) {
@@ -380,7 +413,6 @@ try {
             $cantidad = $_POST['cantidad'] ?? 0;
             $observaciones = $_POST['observaciones'] ?? '';
             
-            // Validar tipo_movimiento
             $tipos_validos = ['compra', 'orden_produccion', 'manual', 'ajuste'];
             if (!in_array($tipo_movimiento, $tipos_validos)) {
                 $tipo_movimiento = 'manual';
@@ -443,8 +475,8 @@ try {
                         if ($nuevoStock < 0) $nuevoStock = 0;
                     }
 
-                    $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones) VALUES ('insumo', ?, ?, ?, ?)");
-                    $stmtMovimiento->bind_param("isds", $insumo_id, $tipo, $cantidad, $observaciones);
+                    $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, origen, observaciones) VALUES ('insumo', ?, ?, ?, ?, ?)");
+                    $stmtMovimiento->bind_param("isdss", $insumo_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
                     $stmtMovimiento->execute();
                     $stmtMovimiento->close();
 
@@ -504,11 +536,11 @@ try {
 
                     $checkRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'");
                     if ($checkRecetaIdDet->num_rows > 0) {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, ?)");
-                        $stmtMovimiento->bind_param("isds", $receta_id, $tipo, $cantidad, $observaciones);
+                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, origen, observaciones) VALUES ('producto', ?, ?, ?, ?, ?)");
+                        $stmtMovimiento->bind_param("isdss", $receta_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
                     } else {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, ?, ?, ?)");
-                        $stmtMovimiento->bind_param("iiisds", $producto_id, $rango_tallas_id, $tipo_produccion_id, $tipo, $cantidad, $observaciones);
+                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, origen, observaciones) VALUES ('producto', ?, ?, ?, ?, ?, ?, ?)");
+                        $stmtMovimiento->bind_param("iiisdss", $producto_id, $rango_tallas_id, $tipo_produccion_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
                     }
                     $stmtMovimiento->execute();
                     $stmtMovimiento->close();
@@ -533,6 +565,15 @@ try {
                 }
 
                 $conn->commit();
+
+                $detalleItem = $tipo_inventario === 'materia_prima'
+                    ? ('insumo #' . (int) $insumo_id)
+                    : ('receta #' . (int) $receta_id);
+                Auditoria::registrar(
+                    $conn,
+                    "Movimiento inventario: {$tipo_inventario} {$tipo} {$detalleItem}. Cantidad: {$cantidad}. Origen: {$tipo_movimiento}. " . trim((string) $observaciones),
+                    'Movimientos inventario'
+                );
 
                 $tipoTexto = $tipo === 'entrada' ? 'entrada' : 'salida';
                 $inventarioTexto = $tipo_inventario === 'materia_prima' ? 'materia prima' : 'productos';

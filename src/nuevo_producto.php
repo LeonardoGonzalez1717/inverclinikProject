@@ -239,7 +239,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label" style="font-weight: bold;">Porcentaje de Ganancia</label>
                                     <div class="input-group">
-                                        <input type="number" id="porcentaje_ganancia" class="form-control" placeholder="Ej: 30">
+                                        <input type="number" id="porcentaje_ganancia" class="form-control" value="30" placeholder="Por defecto 30" step="0.01" min="0">
                                     </div>
                                 </div>
 
@@ -283,6 +283,14 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 var insumosAgregados = [];
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteReceta = tasaCambiariaActual;
+var PORCENTAJE_GANANCIA_DEFECTO = 30;
+
+function getPorcentajeGananciaFormulario() {
+    var raw = $('#porcentaje_ganancia').val();
+    if (raw === '' || raw == null) return PORCENTAJE_GANANCIA_DEFECTO;
+    var p = parseFloat(raw);
+    return isNaN(p) ? PORCENTAJE_GANANCIA_DEFECTO : p;
+}
 
 function formatearBs(valor) {
     if (valor == null || isNaN(valor)) return '—';
@@ -297,7 +305,7 @@ function calcularCostoInsumo(insumoId, cantidad) {
 let costoTotalInsumos = 0;
 
 function calcularPreciosFinales() {
-    const margenGanancia = parseFloat($('#porcentaje_ganancia').val()) || 0;
+    const margenGanancia = getPorcentajeGananciaFormulario();
     const descuentoMayor = parseFloat($('#porcentaje_descuento').val()) || 0;
 
     if (costoTotalInsumos > 0) {
@@ -400,8 +408,8 @@ function actualizarTablaInsumos() {
         $('#tabla-insumos').show();
         $('#mensaje-sin-insumos').hide();
         // Si hay % de ganancia, recalcular precio
-        var pct = parseFloat($('#porcentaje_ganancia').val());
-        if (!isNaN(pct) && pct >= 0) {
+        var pct = getPorcentajeGananciaFormulario();
+        if (pct >= 0) {
             aplicarPorcentajeGanancia();
         } else {
             var precioTotal = parseFloat($('#precio_total').val()) || 0;
@@ -448,7 +456,7 @@ function getCostoTotalReceta() {
 }
 
 function aplicarPorcentajeGanancia() {
-    var pct = parseFloat($('#porcentaje_ganancia').val()) || 0;
+    var pct = getPorcentajeGananciaFormulario();
     if (pct < 0) return;
     var costo = getCostoTotalReceta();
     if (costo <= 0) return;
@@ -468,7 +476,7 @@ function limpiarFormulario() {
     limpiarFormularioInsumo();
     $('#editar-receta-id').val('');
     $('#precio_total').val('');
-    $('#porcentaje_ganancia').val('');
+    $('#porcentaje_ganancia').val(String(PORCENTAJE_GANANCIA_DEFECTO));
     $('#porcentaje_descuento').val('');
     $('#precio_detal').val('');
     $('#precio_mayor').val('');
@@ -480,7 +488,6 @@ function editarReceta(data) {
     $('#tipo_produccion_id').val(data.tipo_produccion_id || '');
     $('#almacen_id').val(data.almacen_id || '');
     $('#precio_total').val(data.precio_total || '');
-    $('#porcentaje_ganancia').val(data.porcentaje_ganancia ?? '');
     $('#stock_minimo').val(data.stock_minimo ?? '');
     $('#stock_maximo').val(data.stock_maximo ?? '');
     $('#precio_detal').val(data.precio_detal || '');
@@ -501,7 +508,8 @@ function editarReceta(data) {
             $('#porcentaje_descuento').val(Math.round(descuentoCalculado));
         }
     } else {
-        $('#porcentaje_ganancia').val('');
+        var pgRec = data.porcentaje_ganancia;
+        $('#porcentaje_ganancia').val((pgRec !== null && pgRec !== undefined && pgRec !== '') ? pgRec : String(PORCENTAJE_GANANCIA_DEFECTO));
         $('#porcentaje_descuento').val('');
     }
 
@@ -588,7 +596,7 @@ $("#form-crear").on("submit", function(e) {
     }
     
     var almacen_id = $("#almacen_id").val() || "";
-    var porcentaje_ganancia = $("#porcentaje_ganancia").val() || "";
+    var porcentaje_ganancia = String(getPorcentajeGananciaFormulario());
     var stock_minimo = $("#stock_minimo").val() || "";
     var stock_maximo = $("#stock_maximo").val() || "";
     var datos = {

@@ -1,6 +1,7 @@
 <?php
 session_start();
 include '../connection/connection.php';
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
@@ -11,6 +12,7 @@ switch ($action) {
                     c.id_cotizacion, 
                     c.codigo_cotizacion, 
                     c.codigo_presupuesto_origen, 
+                    c.status,
                     cl.nombre AS cliente_nombre, 
                     cl.telefono, 
                     cl.email, 
@@ -27,6 +29,24 @@ switch ($action) {
         if ($res && mysqli_num_rows($res) > 0) {
             while ($row = mysqli_fetch_assoc($res)) {
                 $totalFormateado = number_format($row['total'], 2);
+                $st = (int) ($row['status'] ?? 0);
+                switch ($st) {
+                    case 1:
+                        $estTxt = 'Enviada';
+                        $estCls = 'badge-warning';
+                        break;
+                    case 2:
+                        $estTxt = 'Aprobada';
+                        $estCls = 'badge-success';
+                        break;
+                    case 3:
+                        $estTxt = 'Rechazada';
+                        $estCls = 'badge-danger';
+                        break;
+                    default:
+                        $estTxt = 'Estado ' . $st;
+                        $estCls = 'badge-secondary';
+                }
 
                 $datosJson = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8');
                 
@@ -34,10 +54,11 @@ switch ($action) {
                 $html .= "<td>" . $row['id_cotizacion'] . "</td>";
                 $html .= "<td>
                             <strong>" . htmlspecialchars($row['cliente_nombre']) . "</strong><br>
-                            <small class='text-muted'>" . $row['codigo_cotizacion'] . "</small>
+                            <small class='text-muted'>" . htmlspecialchars($row['codigo_cotizacion']) . "</small>
                         </td>";
-                $html .= "<td>" . $row['email'] . "</td>";
+                $html .= "<td>" . htmlspecialchars($row['email'] ?? '') . "</td>";
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
+                $html .= '<td><span class="badge ' . $estCls . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 $html .= "<td nowrap>
                             <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info'>
                                 <i class='fas fa-print'></i> Imprimir Cotización
@@ -148,9 +169,7 @@ switch ($action) {
             $codigo_cotizacion = "COT-MAN-" . date('His');
         }
 
-        $codigo_venta = "FAC-" . date('ymd') . "-" . rand(100, 999);
-
-        $conn->begin_transaction(); 
+        $conn->begin_transaction();
 
         try {
             $stmt = $conn->prepare("INSERT INTO cotizaciones (id_cliente, codigo_cotizacion, codigo_presupuesto_origen, total, status) VALUES (?, ?, ?, ?, 1)");
@@ -158,48 +177,53 @@ switch ($action) {
             $stmt->bind_param("issd", $id_cliente, $codigo_cotizacion, $orig, $total);
             $stmt->execute();
             $id_cotizacion = $stmt->insert_id;
+            $stmt->close();
 
-            $stmt_vta = $conn->prepare("INSERT INTO ventas (cotizacion_id, cliente_id, fecha, numero_factura, total, estado) VALUES (?, ?, CURDATE(), ?, ?, 'pendiente')");
-            $stmt_vta->bind_param("iisd", $id_cotizacion, $id_cliente, $codigo_venta, $total);
-            $stmt_vta->execute();
-            $id_venta = $stmt_vta->insert_id;
-
-            // 3. Insertar Detalles
             $stmt_det_cot = $conn->prepare("INSERT INTO cotizacion_detalles 
                 (id_cotizacion, id_receta, id_talla, id_personalizacion, cantidad, notas, precio_unitario, subtotal) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
 
-            // En detalle_venta NO incluyas el subtotal porque es GENERATED
-            $stmt_det_vta = $conn->prepare("INSERT INTO detalle_venta (venta_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)");
-            
             foreach ($items as $item) {
-                $id_receta = $item['id_receta']; 
+                $id_receta = $item['id_receta'];
                 $id_talla  = $item['id_talla'];
                 $cantidad  = $item['cantidad'];
-                $perso     = !empty($item['id_personalizacion']) ? $item['id_personalizacion'] : NULL; 
-                $notas     = $item['notas'];
-                $precio    = $item['precio_unitario']; 
+                $perso     = !empty($item['id_personalizacion']) ? $item['id_personalizacion'] : null;
+                $notas     = $item['notas'] ?? '';
+                $precio    = $item['precio_unitario'];
                 $subtotal  = $item['subtotal'];
 
-                $stmt_det_cot->bind_param("iiiidsdd", 
-                    $id_cotizacion, $id_receta, $id_talla, $perso, $cantidad, $notas, $precio, $subtotal
+                $stmt_det_cot->bind_param(
+                    "iiiidsdd",
+                    $id_cotizacion,
+                    $id_receta,
+                    $id_talla,
+                    $perso,
+                    $cantidad,
+                    $notas,
+                    $precio,
+                    $subtotal
                 );
                 $stmt_det_cot->execute();
-
-                $stmt_det_vta->bind_param("iidd", 
-                    $id_venta, $id_receta, $cantidad, $precio
-                );
-                $stmt_det_vta->execute();
             }
+            $stmt_det_cot->close();
 
             if (!empty($codigo_presupuesto)) {
                 $stmt_upd = $conn->prepare("UPDATE presupuestos SET status = 2 WHERE codigo_presupuesto = ?");
                 $stmt_upd->bind_param("s", $codigo_presupuesto);
                 $stmt_upd->execute();
+                $stmt_upd->close();
             }
 
             $conn->commit();
-            echo json_encode(['success' => true, 'mensaje' => 'Venta registrada como pendiente correctamente.']);
+            Auditoria::registrar(
+                $conn,
+                'Cotización creada: ' . $codigo_cotizacion . ' (id ' . (int) $id_cotizacion . '). Total: ' . $total . '.',
+                'Cotización (cliente)'
+            );
+            echo json_encode([
+                'success' => true,
+                'mensaje' => 'Cotización guardada correctamente.',
+            ]);
 
         } catch (Exception $e) {
             $conn->rollback();

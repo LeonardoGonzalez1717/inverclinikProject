@@ -6,14 +6,13 @@ $where = [];
 
 /* FILTROS */
 
-$producto = isset($_GET['producto']) ? trim($_GET['producto']) : '';
+$producto_id = isset($_GET['producto_id']) ? (int) $_GET['producto_id'] : 0;
 $estado = isset($_GET['estado']) ? trim($_GET['estado']) : '';
 $fecha_inicio = isset($_GET['fecha_inicio']) ? trim($_GET['fecha_inicio']) : '';
 $fecha_fin = isset($_GET['fecha_fin']) ? trim($_GET['fecha_fin']) : '';
 
-if (!empty($producto)) {
-    $producto = $conn->real_escape_string($producto);
-    $where[] = "p.nombre LIKE '%$producto%'";
+if ($producto_id > 0) {
+    $where[] = 'p.id = ' . $producto_id;
 }
 
 if (!empty($estado)) {

@@ -1,17 +1,124 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
-$action = $_POST['action'] ?? '';
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
 
+$data = [];
 if (empty($action)) {
     $input = file_get_contents('php://input');
-    $data = json_decode($input, true);
+    $data = json_decode($input, true) ?: [];
     $action = $data['action'] ?? '';
 }
 
 try {
+    if ($action === 'listar_cotizaciones_venta') {
+        header('Content-Type: application/json; charset=utf-8');
+        $id_cliente_f = (int) ($_GET['id_cliente'] ?? $_POST['id_cliente'] ?? 0);
+        if ($id_cliente_f <= 0) {
+            echo json_encode(['success' => true, 'cotizaciones' => []]);
+            $conn->close();
+            exit;
+        }
+        $sql = "SELECT c.id_cotizacion, c.codigo_cotizacion, c.id_cliente, cl.nombre AS cliente_nombre, c.total,
+                DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha
+                FROM cotizaciones c
+                INNER JOIN clientes cl ON cl.id = c.id_cliente
+                WHERE c.id_cliente = ?
+                AND c.status != 3
+                AND NOT EXISTS (
+                    SELECT 1 FROM ventas v
+                    WHERE v.cotizacion_id = c.id_cotizacion
+                    AND v.tasa_cambiaria_id IS NOT NULL
+                )
+                ORDER BY c.id_cotizacion DESC";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('i', $id_cliente_f);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = [];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+        }
+        $stmt->close();
+        echo json_encode(['success' => true, 'cotizaciones' => $rows]);
+        $conn->close();
+        exit;
+    }
+
+    if ($action === 'obtener_items_cotizacion') {
+        header('Content-Type: application/json; charset=utf-8');
+        $cotizacion_id = (int) ($_GET['cotizacion_id'] ?? 0);
+        if ($cotizacion_id <= 0) {
+            throw new Exception('Cotización no válida');
+        }
+
+        $chk = $conn->prepare(
+            'SELECT id_cliente FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
+        );
+        $chk->bind_param('i', $cotizacion_id);
+        $chk->execute();
+        $cr = $chk->get_result();
+        if (!$cr || $cr->num_rows === 0) {
+            $chk->close();
+            throw new Exception('Cotización no encontrada');
+        }
+        $cinfo = $cr->fetch_assoc();
+        $chk->close();
+
+        $id_cliente_req = (int) ($_GET['id_cliente'] ?? 0);
+        if ($id_cliente_req > 0 && (int) $cinfo['id_cliente'] !== $id_cliente_req) {
+            throw new Exception('La cotización no corresponde al cliente seleccionado');
+        }
+
+        $dup = $conn->prepare(
+            'SELECT 1 FROM ventas WHERE cotizacion_id = ? AND tasa_cambiaria_id IS NOT NULL LIMIT 1'
+        );
+        $dup->bind_param('i', $cotizacion_id);
+        $dup->execute();
+        if ($dup->get_result()->num_rows > 0) {
+            $dup->close();
+            throw new Exception('Esta cotización ya tiene una venta facturada');
+        }
+        $dup->close();
+
+        $sql = "SELECT cd.id_receta, cd.cantidad, cd.precio_unitario, cd.subtotal,
+                r.producto_id AS catalogo_producto_id,
+                p.nombre AS producto_nombre
+                FROM cotizacion_detalles cd
+                INNER JOIN recetas r ON r.id = cd.id_receta
+                INNER JOIN productos p ON p.id = r.producto_id
+                WHERE cd.id_cotizacion = ?
+                ORDER BY cd.id ASC";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('i', $cotizacion_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $productos = [];
+        while ($row = $result->fetch_assoc()) {
+            $productos[] = [
+                'producto_id' => (int) $row['catalogo_producto_id'],
+                'producto_nombre' => $row['producto_nombre'],
+                'cantidad' => (float) $row['cantidad'],
+                'precio_unitario' => (float) $row['precio_unitario'],
+                'subtotal' => (float) $row['subtotal'],
+            ];
+        }
+        $stmt->close();
+
+        echo json_encode([
+            'success' => true,
+            'id_cliente' => (int) $cinfo['id_cliente'],
+            'productos' => $productos,
+        ]);
+        $conn->close();
+        exit;
+    }
+
     if ($action === 'obtener_detalle') {
         $venta_id = $_POST['venta_id'] ?? null;
         
@@ -27,10 +134,12 @@ try {
                 v.total,
                 v.tasa_cambiaria_id,
                 tc.tasa AS tasa_venta,
-                c.nombre AS cliente_nombre
+                c.nombre AS cliente_nombre,
+                cot.codigo_cotizacion
             FROM ventas v
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
+            LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             WHERE v.id = ?
         ";
         
@@ -93,15 +202,23 @@ try {
                 v.numero_factura,
                 v.total,
                 v.tasa_cambiaria_id,
+                v.cotizacion_id,
                 tc.tasa AS tasa_venta,
                 COALESCE(SUM(dv.cantidad), 0) AS cantidad_total,
                 COUNT(dv.id) AS cantidad_items,
-                c.nombre AS cliente_nombre
+                c.nombre AS cliente_nombre,
+                cot.codigo_cotizacion
             FROM ventas v
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
+            LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, tc.tasa, c.nombre
+            WHERE NOT (
+                v.cotizacion_id IS NOT NULL
+                AND COALESCE(v.estado, 'pendiente') = 'pendiente'
+                AND v.tasa_cambiaria_id IS NULL
+            )
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, tc.tasa, c.nombre, cot.codigo_cotizacion
             ORDER BY v.creado_en DESC, v.fecha DESC
         ";
 
@@ -126,6 +243,8 @@ try {
                 echo '<td>' . htmlspecialchars($v['cliente_nombre']) . '</td>';
                 echo '<td>' . date('d/m/Y', strtotime($v['fecha'])) . '</td>';
                 echo '<td>' . htmlspecialchars($v['numero_factura'] ?? '-') . '</td>';
+                $codCot = $v['codigo_cotizacion'] ?? '';
+                echo '<td>' . ($codCot !== '' && $codCot !== null ? htmlspecialchars($codCot) : '<span class="text-muted">—</span>') . '</td>';
                 echo '<td>' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
                 echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
@@ -136,7 +255,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="8" class="text-center">No se encontraron ventas registradas</td></tr>';
+            echo '<tr><td colspan="9" class="text-center">No se encontraron ventas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -147,7 +266,7 @@ try {
     if ($action === 'obtener_siguiente_numero_factura') {
         $siguiente = '1';
         $res = $conn->query("SELECT numero_factura FROM ventas ORDER BY id DESC LIMIT 1");
-        if ($res && $row = $res->fetch_assoc() && !empty($row['numero_factura'])) {
+        if ($res && ($row = $res->fetch_assoc()) && !empty($row['numero_factura'])) {
             $ultimo = trim($row['numero_factura']);
             if (ctype_digit($ultimo)) {
                 $siguiente = (string)((int)$ultimo + 1);
@@ -225,12 +344,15 @@ try {
     }
 
     if ($action === 'crear') {
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
+        if (empty($data) || !isset($data['cliente_id'])) {
+            $raw = file_get_contents('php://input');
+            $data = json_decode($raw, true) ?: [];
+        }
         $cliente_id = $data['cliente_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
         $productos = $data['productos'] ?? [];
+        $cotizacion_id = !empty($data['cotizacion_id']) ? (int) $data['cotizacion_id'] : null;
 
         if (!$cliente_id) {
             throw new Exception("El cliente es obligatorio");
@@ -242,6 +364,44 @@ try {
 
         if (empty($productos) || !is_array($productos)) {
             throw new Exception("Debe agregar al menos un producto a la venta");
+        }
+
+        $idsLinea = [];
+        foreach ($productos as $producto) {
+            $pid = (int) ($producto['producto_id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            if (isset($idsLinea[$pid])) {
+                throw new Exception('No puede repetir el mismo artículo en la venta. Use una sola línea y ajuste la cantidad.');
+            }
+            $idsLinea[$pid] = true;
+        }
+
+        if ($cotizacion_id) {
+            $stc = $conn->prepare('SELECT id_cliente FROM cotizaciones WHERE id_cotizacion = ? AND status != 3');
+            $stc->bind_param('i', $cotizacion_id);
+            $stc->execute();
+            $rc = $stc->get_result();
+            if (!$rc || $rc->num_rows === 0) {
+                $stc->close();
+                throw new Exception('La cotización no existe o no está disponible');
+            }
+            $crow = $rc->fetch_assoc();
+            $stc->close();
+            if ((int) $cliente_id !== (int) $crow['id_cliente']) {
+                throw new Exception('El cliente debe ser el mismo que el de la cotización seleccionada');
+            }
+            $std = $conn->prepare(
+                'SELECT 1 FROM ventas WHERE cotizacion_id = ? AND tasa_cambiaria_id IS NOT NULL LIMIT 1'
+            );
+            $std->bind_param('i', $cotizacion_id);
+            $std->execute();
+            if ($std->get_result()->num_rows > 0) {
+                $std->close();
+                throw new Exception('Esta cotización ya tiene una venta facturada');
+            }
+            $std->close();
         }
 
         $total = 0;
@@ -260,15 +420,36 @@ try {
         $conn->begin_transaction();
 
         try {
-            $stmt = $conn->prepare("
-                INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
-            $stmt->bind_param("issdi", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id);
+
+            if ($cotizacion_id) {
+                $colTasa = $conn->query("SHOW COLUMNS FROM ventas LIKE 'tasa_cambiaria_id'");
+                if ($colTasa && $colTasa->num_rows > 0) {
+                    $delPh = $conn->prepare(
+                        'DELETE FROM ventas WHERE cotizacion_id = ? AND tasa_cambiaria_id IS NULL'
+                    );
+                    $delPh->bind_param('i', $cotizacion_id);
+                    $delPh->execute();
+                    $delPh->close();
+                }
+            }
+
+            if ($cotizacion_id) {
+                $stmt = $conn->prepare("
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, cotizacion_id, estado)
+                    VALUES (?, ?, ?, ?, ?, ?, 'entregado')
+                ");
+                $stmt->bind_param("issdii", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $cotizacion_id);
+            } else {
+                $stmt = $conn->prepare("
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, estado)
+                    VALUES (?, ?, ?, ?, ?, 'entregado')
+                ");
+                $stmt->bind_param("issdi", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id);
+            }
+
             $stmt->execute();
-            
+
             $venta_id = $conn->insert_id;
             $stmt->close();
 
@@ -365,7 +546,26 @@ try {
 
             $stmtDetalle->close();
 
+            if ($cotizacion_id) {
+                $statusAprobada = 2;
+                $stUpCot = $conn->prepare('UPDATE cotizaciones SET status = ? WHERE id_cotizacion = ?');
+                $stUpCot->bind_param('ii', $statusAprobada, $cotizacion_id);
+                if (!$stUpCot->execute()) {
+                    $stUpCot->close();
+                    throw new Exception('No se pudo marcar la cotización como aprobada');
+                }
+                $stUpCot->close();
+            }
+
             $conn->commit();
+
+            $facturaTxt = $numero_factura !== null && $numero_factura !== '' ? $numero_factura : 'sin número';
+            $cotTxt = $cotizacion_id ? " Cotización #{$cotizacion_id}." : '';
+            Auditoria::registrar(
+                $conn,
+                "Venta #{$venta_id} registrada. Cliente #{$cliente_id}. Factura: {$facturaTxt}. Total: {$total}.{$cotTxt}",
+                'Ventas'
+            );
 
             echo json_encode([
                 'success' => true, 
@@ -387,7 +587,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar ventas</td></tr>';
+        echo '<tr><td colspan="9" class="text-center text-danger">Error al cargar ventas</td></tr>';
     }
 }
 

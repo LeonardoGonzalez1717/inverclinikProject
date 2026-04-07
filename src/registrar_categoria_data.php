@@ -1,16 +1,22 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 // Evitar que warnings rompan el JSON
 error_reporting(E_ERROR | E_PARSE);
 
-$action = $_POST['action'] ?? '';
-
-if (empty($action)) {
-    $input = file_get_contents('php://input');
-    $data = json_decode($input, true);
-    $action = $data['action'] ?? '';
+$rawIn = file_get_contents('php://input');
+$data = $_POST;
+if ($rawIn !== '') {
+    $parsed = json_decode($rawIn, true);
+    if (is_array($parsed)) {
+        $data = array_merge($data, $parsed);
+    }
 }
+$action = $data['action'] ?? '';
 
 try {
     // Listado de categorías en HTML
@@ -51,7 +57,14 @@ try {
         $stmt = $conn->prepare("INSERT INTO categorias (nombre, descripcion) VALUES (?, ?)");
         $stmt->bind_param("ss", $nombre, $descripcion);
         $stmt->execute();
+        $newId = $conn->insert_id;
         $stmt->close();
+
+        Auditoria::registrar(
+            $conn,
+            'Categoría creada: id ' . (int) $newId . ' — ' . $nombre,
+            'Categorías'
+        );
 
         echo json_encode(['success' => true, 'message' => 'Categoría registrada exitosamente']);
         $conn->close();
@@ -73,6 +86,12 @@ try {
         $stmt->execute();
         $stmt->close();
 
+        Auditoria::registrar(
+            $conn,
+            'Categoría actualizada: id ' . $id . ' — ' . $nombre,
+            'Categorías'
+        );
+
         echo json_encode(['success' => true, 'message' => 'Categoría actualizada exitosamente']);
         $conn->close();
         exit;
@@ -87,6 +106,8 @@ try {
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $stmt->close();
+
+        Auditoria::registrar($conn, 'Categoría eliminada: id ' . $id, 'Categorías');
 
         echo json_encode(['success' => true, 'message' => 'Categoría eliminada']);
         $conn->close();

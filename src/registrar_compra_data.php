@@ -1,14 +1,25 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
+$chkMax = $conn->query("SHOW COLUMNS FROM insumos LIKE 'stock_maximo'");
+if ($chkMax && $chkMax->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE insumos ADD COLUMN stock_minimo decimal(12,2) DEFAULT NULL AFTER costo_unitario");
+        $conn->query("ALTER TABLE insumos ADD COLUMN stock_maximo decimal(12,2) DEFAULT NULL AFTER stock_minimo");
+    } catch (Exception $e) {
+    }
+}
+
 $action = $_POST['action'] ?? '';
+$requestJson = null;
 
 if (empty($action)) {
-    $input = file_get_contents('php://input');
-    $data = json_decode($input, true);
-    $action = $data['action'] ?? '';
+    $raw = file_get_contents('php://input');
+    $requestJson = json_decode($raw, true);
+    $action = is_array($requestJson) ? ($requestJson['action'] ?? '') : '';
 }
 
 try {
@@ -210,7 +221,7 @@ try {
     if ($action === 'obtener_siguiente_numero_factura') {
         $siguiente = '1';
         $res = $conn->query("SELECT numero_factura FROM compras ORDER BY id DESC LIMIT 1");
-        if ($res && $row = $res->fetch_assoc() && !empty($row['numero_factura'])) {
+        if ($res && ($row = $res->fetch_assoc()) && !empty($row['numero_factura'])) {
             $ultimo = trim($row['numero_factura']);
             if (ctype_digit($ultimo)) {
                 $siguiente = (string)((int)$ultimo + 1);
@@ -225,9 +236,85 @@ try {
         exit;
     }
 
+    if ($action === 'prevalidar_stock_max') {
+        if (!is_array($requestJson)) {
+            throw new Exception('Solicitud inválida');
+        }
+        $insumos = $requestJson['insumos'] ?? [];
+        if (!is_array($insumos)) {
+            throw new Exception('Datos inválidos');
+        }
+        $porInsumo = [];
+        foreach ($insumos as $row) {
+            $id = (int) ($row['insumo_id'] ?? 0);
+            $q = (float) ($row['cantidad'] ?? 0);
+            if ($id <= 0 || $q <= 0) {
+                continue;
+            }
+            if (!isset($porInsumo[$id])) {
+                $porInsumo[$id] = 0;
+            }
+            $porInsumo[$id] += $q;
+        }
+        $alertas = [];
+        foreach ($porInsumo as $insumo_id => $cant_total) {
+            $stmtNom = $conn->prepare('SELECT nombre, stock_maximo FROM insumos WHERE id = ?');
+            $stmtNom->bind_param('i', $insumo_id);
+            $stmtNom->execute();
+            $resNom = $stmtNom->get_result();
+            $rowNom = $resNom->fetch_assoc();
+            $stmtNom->close();
+            if (!$rowNom) {
+                continue;
+            }
+            $stockMaxRaw = $rowNom['stock_maximo'];
+            if ($stockMaxRaw === null || $stockMaxRaw === '') {
+                continue;
+            }
+            $stock_max = (float) $stockMaxRaw;
+            $stockActual = 0;
+            if ($tieneInventarioNuevo) {
+                $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?");
+            } else {
+                $stmtStock = $conn->prepare('SELECT stock_actual FROM inventario WHERE insumo_id = ?');
+            }
+            $stmtStock->bind_param('i', $insumo_id);
+            $stmtStock->execute();
+            $rsStock = $stmtStock->get_result();
+            if ($rowS = $rsStock->fetch_assoc()) {
+                $stockActual = (float) $rowS['stock_actual'];
+            }
+            $stmtStock->close();
+            $resultante = $stockActual + $cant_total;
+            if ($resultante > $stock_max) {
+                $alertas[] = [
+                    'insumo_nombre' => $rowNom['nombre'],
+                    'stock_actual' => $stockActual,
+                    'cantidad_compra' => $cant_total,
+                    'stock_maximo' => $stock_max,
+                    'resultante' => $resultante,
+                ];
+            }
+        }
+        $requiere = count($alertas) > 0;
+        $mensaje = $requiere
+            ? 'El stock máximo ha sido superado, ¿estás seguro que deseas continuar?'
+            : '';
+        echo json_encode([
+            'success' => true,
+            'requiere_confirmacion' => $requiere,
+            'mensaje' => $mensaje,
+            'alertas' => $alertas,
+        ]);
+        $conn->close();
+        exit;
+    }
+
     if ($action === 'crear') {
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
+        if (!is_array($requestJson)) {
+            throw new Exception('Solicitud inválida');
+        }
+        $data = $requestJson;
         $proveedor_id = $data['proveedor_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
@@ -343,6 +430,15 @@ try {
             $stmtDetalle->close();
 
             $conn->commit();
+
+            $facturaCmp = $data['numero_factura'] ?? '';
+            $facturaCmp = is_string($facturaCmp) ? trim($facturaCmp) : '';
+            $facturaTxt = $facturaCmp !== '' ? $facturaCmp : 'sin número';
+            Auditoria::registrar(
+                $conn,
+                "Compra #{$compra_id} registrada. Proveedor #{$proveedor_id}. Factura: {$facturaTxt}. Total: {$total}. Estado: {$estado}.",
+                'Compras'
+            );
 
             echo json_encode([
                 'success' => true, 
