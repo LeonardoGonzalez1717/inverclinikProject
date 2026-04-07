@@ -130,7 +130,8 @@ try {
                 echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
+                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
+                echo '<button style = "margin-left: 5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
                 echo '</td>';
                 echo '</tr>';
             }

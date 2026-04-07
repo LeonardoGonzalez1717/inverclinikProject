@@ -392,7 +392,7 @@ function verDetalle(ventaId) {
                 html += '<tr>';
                 html += '<td>' + detalle.producto_nombre + '</td>';
                 html += '<td>' + (detalle.talla_nombre || '-') + '</td>';
-                html += '<td>' + parseFloat(detalle.cantidad).toFixed(0) + '</td>'; // Unidades enteras
+                html += '<td>' + parseFloat(detalle.cantidad).toFixed(0) + '</td>'; 
                 html += '<td>$' + parseFloat(detalle.precio_unitario).toFixed(2) + '</td>';
                 html += '<td>$' + parseFloat(detalle.subtotal).toFixed(2) + '</td>';
                 html += '</tr>';

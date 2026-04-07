@@ -70,8 +70,8 @@ require_once "../connection/connection.php";
                                 </select>
                             </div>
                             <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                                <input type="checkbox" id="publicar_ahora" name="activo" value="1" checked style="width: 20px; height: 20px;">
-                                <label for="publicar_ahora" style="cursor: pointer; font-weight: bold;">
+                                <input type="checkbox" id="activo" name="activo" value="1" checked style="width: 20px; height: 20px;">
+                                <label for="activo" style="cursor: pointer; font-weight: bold;">
                                     Publicar en el catálogo
                                 </label>
                             </div>
@@ -124,6 +124,7 @@ function limpiarFormulario() {
     $('#descripcion').val('');
     $('#editar-producto-id').val('');
     $('#imagen-actual').val('');
+    $('#activo').val('');
     $('#imagen-preview').html('');
 }
 
@@ -132,6 +133,7 @@ function editarProducto(data) {
     $('#categoria').val(data.categoria || '');
     $('#tipo_genero').val(data.tipo_genero || '');
     $('#descripcion').val(data.descripcion || '');
+    $('#activo').val(data.activo || '');
     $('#editar-producto-id').val(data.id);
     $('#imagen-actual').val(data.imagen || '');
     
@@ -174,6 +176,7 @@ $("#form-crear").on("submit", function(e) {
     formData.append('categoria', $("#categoria").val() || "");
     formData.append('tipo_genero', $("#tipo_genero").val() || "");
     formData.append('descripcion', $("#descripcion").val() || "");
+    formData.append('activo', $("#activo").val() || "");
     formData.append('imagen_actual', $("#imagen-actual").val() || "");
     
     var imagenFile = $("#imagen")[0].files[0];
