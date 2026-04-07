@@ -1,0 +1,80 @@
+/* Estilos para la página Movimientos de Inventario */
+
+.nav-tabs {
+    border-bottom: 2px solid #dee2e6;
+    margin-bottom: 20px;
+}
+
+.nav-tabs .nav-item {
+    margin-bottom: -2px;
+}
+
+.nav-tabs .nav-link {
+    border: 1px solid transparent;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+    padding: 0.5rem 1rem;
+    color: #495057;
+    background-color: transparent;
+    cursor: pointer;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    isolation: isolate;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+    font-weight: bold;
+}
+
+.tab-content {
+    margin-top: 0;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+}
+
+.stock-info {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.stock-actual {
+    font-size: 18px;
+    font-weight: bold;
+    color: #0056b3;
+}
+
+.stock-alert-min {
+    color: #dc3545;
+    font-size: 1.1em;
+}
+
+.stock-alert-max {
+    color: #fd7e14;
+    font-size: 1.1em;
+}
+
+.badge-entrada {
+    color: #28a745;
+    padding: 5px 10px;
+    border-radius: 3px;
+}
+
+.badge-salida {
+    background-color: #dc3545;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 3px;
+}

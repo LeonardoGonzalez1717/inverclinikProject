@@ -15,6 +15,25 @@ $rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC L
 if ($rt && $row_tasa = $rt->fetch_assoc()) {
     $tasa_actual = (float) $row_tasa['tasa'];
 }
+
+$sqlAlmacenes = "SELECT id, nombre FROM almacenes WHERE activo = 1 ORDER BY nombre";
+$resultAlmacenes = $conn->query($sqlAlmacenes);
+$almacenes = [];
+if ($resultAlmacenes) {
+    while ($row = $resultAlmacenes->fetch_assoc()) {
+        $almacenes[] = $row;
+    }
+}
+if (empty($almacenes)) {
+    @$conn->query("CREATE TABLE IF NOT EXISTS almacenes (id int(11) NOT NULL AUTO_INCREMENT, nombre varchar(100) NOT NULL, codigo varchar(20) DEFAULT NULL, activo tinyint(1) NOT NULL DEFAULT 1, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    @$conn->query("INSERT IGNORE INTO almacenes (nombre, codigo, activo) VALUES ('Principal', 'ALM01', 1)");
+    $resultAlmacenes = $conn->query($sqlAlmacenes);
+    if ($resultAlmacenes) {
+        while ($row = $resultAlmacenes->fetch_assoc()) {
+            $almacenes[] = $row;
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -48,6 +67,9 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Unidad de Medida</th>
                                         <th>Costo Unitario</th>
                                         <th>Equivalente (Bs.)</th>
+                                        <th>Stock Mín.</th>
+                                        <th>Stock Máx.</th>
+                                        <th>Almacén</th>
                                         <th>Proveedor</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -80,6 +102,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <option value="pieza">Pieza</option>
                                 </select>
                             </div>
+                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                <input type="checkbox" id="adicional" name="adicional" value="1" style="width: 20px; height: 20px;">
+                                <label for="adicional" style="cursor: pointer; font-weight: bold;">
+                                    Insumo Adicional
+                                </label>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Costo Unitario ($) <span style="color: red;">*</span></label>
                                 <input type="number" step="0.01" min="0" name="costo_unitario" id="costo_unitario" 
@@ -89,6 +117,26 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <label class="form-label">Equivalente en Bs.</label>
                                 <input type="text" id="equivalente_bs_insumo" class="form-control" readonly style="background-color: #e9ecef;">
                                 <small class="text-muted" id="texto-tasa-informativa-insumo"></small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Stock mínimo</label>
+                                <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="Ej: 10">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Stock máximo</label>
+                                <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="Ej: 100">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Almacén</label>
+                                <select name="almacen_id" id="almacen_id" class="form-control">
+                                    <option value="">-- Seleccione un almacén --</option>
+                                    <?php foreach ($almacenes as $a): ?>
+                                        <option value="<?php echo htmlspecialchars($a['id']); ?>">
+                                            <?php echo htmlspecialchars($a['nombre']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="form-text text-muted">Almacén donde se registra el inventario de este insumo</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Proveedor</label>
@@ -152,6 +200,9 @@ function limpiarFormulario() {
     $('#nombre').val('');
     $('#unidad_medida').val('');
     $('#costo_unitario').val('');
+    $('#stock_minimo').val('');
+    $('#stock_maximo').val('');
+    $('#almacen_id').val('');
     $('#proveedor_id').val('');
     $('#editar-insumo-id').val('');
     $('#contenedor-equivalente-bs-insumo').hide();
@@ -162,8 +213,12 @@ function editarInsumo(data) {
     $('#nombre').val(data.nombre || '');
     $('#unidad_medida').val(data.unidad_medida || '');
     $('#costo_unitario').val(data.costo_unitario || '');
+    $('#stock_minimo').val(data.stock_minimo !== undefined && data.stock_minimo !== '' ? data.stock_minimo : '');
+    $('#stock_maximo').val(data.stock_maximo !== undefined && data.stock_maximo !== '' ? data.stock_maximo : '');
+    $('#almacen_id').val(data.almacen_id || '');
     $('#proveedor_id').val(data.proveedor_id || '');
     $('#editar-insumo-id').val(data.id);
+    $('#proveedor_id').val(data.adicional || '');
     tasaParaEquivalenteInsumo = (data.tasa_insumo != null && parseFloat(data.tasa_insumo) > 0) ? parseFloat(data.tasa_insumo) : tasaCambiariaActual;
     actualizarEquivalenteBsInsumo();
     mostrarVista('crear');
@@ -189,7 +244,11 @@ $("#form-crear").on("submit", function(e) {
         nombre: $("#nombre").val(),
         unidad_medida: $("#unidad_medida").val(),
         costo_unitario: $("#costo_unitario").val(),
+        stock_minimo: $("#stock_minimo").val() || null,
+        stock_maximo: $("#stock_maximo").val() || null,
+        almacen_id: $("#almacen_id").val() || null,
         proveedor_id: $("#proveedor_id").val() || null
+        adicional: $("#adicional").val(),
     };
 
     if (!datos.nombre || datos.nombre.trim() === '') {

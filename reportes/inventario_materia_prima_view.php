@@ -65,46 +65,32 @@ $result = $conn->query($sql);
     </div>
 </div>
 
-<?php if ($result && $result->num_rows > 0): ?>
-
-<table class="table">
-
-<thead>
-<tr>
-<th>#</th>
-<th>Última Actualización</th>
-<th>Insumo</th>
-<th>Unidad</th>
-<th>Stock Actual</th>
-</tr>
-</thead>
-
-<tbody>
-
-<?php $i = 1; ?>
-
-<?php while ($row = $result->fetch_assoc()): ?>
-
-<tr>
-<td><?= $i++ ?></td>
-<td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
-<td><?= htmlspecialchars($row['insumo']) ?></td>
-<td><?= htmlspecialchars($row['unidad_medida']) ?></td>
-<td><?= htmlspecialchars($row['stock_actual'] ?? '0') ?></td>
-</tr>
-
-<?php endwhile; ?>
-
-</tbody>
-</table>
-
-<?php else: ?>
-
-<div class="no-data">
-No se encontraron resultados con los filtros aplicados.
-</div>
-
-<?php endif; ?>
+    <?php if ($result && $result->num_rows > 0): ?>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Última Actualización</th>
+                    <th>Insumo</th>
+                    <th>Unidad</th>
+                    <th>Stock Actual</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($row = $result->fetch_assoc()): ?>
+                    <tr>
+                        <td><?= $i++ ?></td>
+                        <td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($row['insumo']) ?></td>
+                        <td><?= htmlspecialchars($row['unidad_medida']) ?></td>
+                        <td><?= htmlspecialchars($row['stock_actual'] ?? '0') ?></td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    <?php else: ?>
+        <div class="no-data">No hay registros de materia prima.</div>
+    <?php endif; ?>
 
 <div class="reporte-footer">
 Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>

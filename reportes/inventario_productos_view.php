@@ -50,8 +50,41 @@ $result = $conn->query($sql);
             <p><?= date('d/m/Y') ?></p>
         </div>
     </div>
+<<<<<<< HEAD
     <div class="titulo-reporte">
         <h2>Inventario de Productos Terminados</h2>
+=======
+
+    <?php if ($result && $result->num_rows > 0): ?>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Última Actualización</th>
+                    <th>Producto</th>
+                    <th>Rango de Tallas</th>
+                    <th>Stock Actual</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $i = 0; while ($row = $result->fetch_assoc()): $i++; ?>
+                    <tr>
+                        <td><?= $i ?></td>
+                        <td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
+                        <td><?= htmlspecialchars($row['producto']) ?></td>
+                        <td><?= htmlspecialchars($row['rango_tallas'] ?? '—') ?></td>
+                        <td><?= isset($row['stock_actual']) ? htmlspecialchars($row['stock_actual']) : '0' ?></td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    <?php else: ?>
+        <div class="no-data">No existen productos terminados en inventario.</div>
+    <?php endif; ?>
+
+    <div class="reporte-footer">
+        Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+>>>>>>> b0af407c927076f506920c1867c86e82ae163dd4
     </div>
 </div>
 

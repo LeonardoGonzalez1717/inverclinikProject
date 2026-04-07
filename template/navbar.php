@@ -15,6 +15,7 @@
                     <li><a href="../cliente/cotizacion.php">Cotización</a></li>
                     <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
                     <li><a href="../src/movimientos_inventario.php">Movimientos de Inventario</a></li>
+                    <li><a href="../src/historial_movimientos.php">Historial de movimientos</a></li>
                     <li><a href="../src/registrar_compra.php">Registrar Compra</a></li>
                     <li><a href="../src/registrar_venta.php">Registrar Venta</a></li>
                 </ul>

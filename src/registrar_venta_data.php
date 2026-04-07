@@ -1,6 +1,8 @@
 <?php
 require_once "../connection/connection.php";
 
+$tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
+
 $action = $_POST['action'] ?? '';
 
 if (empty($action)) {
@@ -51,13 +53,16 @@ try {
                 dv.cantidad,
                 dv.precio_unitario,
                 dv.subtotal,
-                p.nombre AS producto_nombre
+                p.nombre AS producto_nombre,
+                rt.nombre_rango AS talla_nombre
             FROM detalle_venta dv
-            INNER JOIN productos p ON dv.producto_id = p.id
+            INNER JOIN recetas r ON dv.producto_id = r.id
+            INNER JOIN productos p ON r.producto_id = p.id
+            INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
             WHERE dv.venta_id = ?
             ORDER BY p.nombre ASC
         ";
-        
+
         $stmt = $conn->prepare($sqlDetalles);
         $stmt->bind_param("i", $venta_id);
         $stmt->execute();
@@ -171,6 +176,24 @@ try {
 
     header('Content-Type: application/json');
 
+    if ($action === 'obtener_siguiente_numero_factura') {
+        $siguiente = '1';
+        $res = $conn->query("SELECT numero_factura FROM ventas ORDER BY id DESC LIMIT 1");
+        if ($res && $row = $res->fetch_assoc() && !empty($row['numero_factura'])) {
+            $ultimo = trim($row['numero_factura']);
+            if (ctype_digit($ultimo)) {
+                $siguiente = (string)((int)$ultimo + 1);
+            } elseif (preg_match('/(\d+)\s*$/', $ultimo, $m)) {
+                $siguiente = (string)((int)$m[1] + 1);
+            } elseif (preg_match('/^(\d+)/', $ultimo, $m)) {
+                $siguiente = (string)((int)$m[1] + 1);
+            }
+        }
+        echo json_encode(['success' => true, 'siguiente_numero_factura' => $siguiente]);
+        $conn->close();
+        exit;
+    }
+
     if ($action === 'obtener_precio_producto') {
         $producto_id = $_POST['producto_id'] ?? null;
         
@@ -180,7 +203,7 @@ try {
         
         // Obtener el precio_total y datos de la receta más reciente para este producto
         $sql = "
-            SELECT precio_total, rango_tallas_id, tipo_produccion_id
+            SELECT id, precio_total, rango_tallas_id, tipo_produccion_id
             FROM recetas 
             WHERE producto_id = ? AND precio_total > 0
             ORDER BY creado_en DESC 
@@ -193,22 +216,24 @@ try {
         $result = $stmt->get_result();
         
         if ($row = $result->fetch_assoc()) {
+            $receta_id = intval($row['id']);
             $precio_total = floatval($row['precio_total']);
             $rango_tallas_id = intval($row['rango_tallas_id']);
             $tipo_produccion_id = intval($row['tipo_produccion_id']);
             
-            // Obtener el stock actual del producto
-            $sqlStock = "
-                SELECT stock_actual 
-                FROM inventario_productos 
-                WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?
-            ";
-            $stmtStock = $conn->prepare($sqlStock);
-            $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+            // Obtener el stock actual del producto (inventario unificado o inventario_productos)
+            $stock_actual = 0;
+            if ($tieneInventarioNuevo) {
+                $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
+                $stmtStock = $conn->prepare($sqlStock);
+                $stmtStock->bind_param("i", $receta_id);
+            } else {
+                $sqlStock = "SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
+                $stmtStock = $conn->prepare($sqlStock);
+                $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+            }
             $stmtStock->execute();
             $resultStock = $stmtStock->get_result();
-            $stock_actual = 0;
-            
             if ($rowStock = $resultStock->fetch_assoc()) {
                 $stock_actual = floatval($rowStock['stock_actual']);
             }
@@ -228,6 +253,39 @@ try {
         
         $stmt->close();
         $conn->close();
+        exit;
+    }
+
+    if ($action === 'actualizar_estatus') {
+        $venta_id = $_POST['venta_id'] ?? null;
+        $nuevo_estado = $_POST['estado'] ?? null;
+
+        if (!$venta_id || !$nuevo_estado) {
+            echo json_encode(['success' => false, 'mensaje' => 'Datos insuficientes']);
+            exit;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            // 1. Actualizar el estatus de la venta
+            $stmt = $conn->prepare("UPDATE ventas SET estado = ? WHERE id = ?");
+            $stmt->bind_param("si", $nuevo_estado, $venta_id);
+            
+            if (!$stmt->execute()) {
+                throw new Exception("No se pudo actualizar el estado.");
+            }
+
+            // OPCIONAL: Aquí podrías disparar el descuento de stock si el estado es 'entregado'
+            // o generar la orden de producción si fuera necesario.
+
+            $conn->commit();
+            echo json_encode(['success' => true]);
+
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'mensaje' => $e->getMessage()]);
+        }
         exit;
     }
 
@@ -301,9 +359,9 @@ try {
                 $stmtDetalle->bind_param("iidd", $venta_id, $producto_id, $cantidad, $precio_unitario);
                 $stmtDetalle->execute();
 
-                // Obtener la receta más reciente para este producto
+                // Obtener la receta más reciente para este producto (y su id para inventario unificado)
                 $sqlReceta = "
-                    SELECT rango_tallas_id, tipo_produccion_id 
+                    SELECT id, rango_tallas_id, tipo_produccion_id 
                     FROM recetas 
                     WHERE producto_id = ? 
                     ORDER BY creado_en DESC 
@@ -315,56 +373,59 @@ try {
                 $resultReceta = $stmtReceta->get_result();
                 
                 if ($rowReceta = $resultReceta->fetch_assoc()) {
+                    $receta_id = intval($rowReceta['id']);
                     $rango_tallas_id = intval($rowReceta['rango_tallas_id']);
                     $tipo_produccion_id = intval($rowReceta['tipo_produccion_id']);
                     
-                    // Obtener stock actual
-                    $sqlStock = "
-                        SELECT stock_actual 
-                        FROM inventario_productos 
-                        WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?
-                    ";
-                    $stmtStock = $conn->prepare($sqlStock);
-                    $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                    if ($tieneInventarioNuevo) {
+                        $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
+                        $stmtStock = $conn->prepare($sqlStock);
+                        $stmtStock->bind_param("i", $receta_id);
+                    } else {
+                        $sqlStock = "SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
+                        $stmtStock = $conn->prepare($sqlStock);
+                        $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                    }
                     $stmtStock->execute();
                     $resultStock = $stmtStock->get_result();
                     $stockActual = 0;
-                    
                     if ($rowStock = $resultStock->fetch_assoc()) {
                         $stockActual = floatval($rowStock['stock_actual']);
                     }
                     $stmtStock->close();
-                    
-                    // Calcular nuevo stock (restar cantidad vendida)
                     $nuevoStock = $stockActual - $cantidad;
-                    if ($nuevoStock < 0) {
-                        $nuevoStock = 0;
-                    }
+                    if ($nuevoStock < 0) $nuevoStock = 0;
                     
-                    // Registrar movimiento de salida
-                    $stmtMovimiento = $conn->prepare("
-                        INSERT INTO movimientos_productos_detalle 
-                        (producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones)
-                        VALUES (?, ?, ?, 'salida', ?, ?)
-                    ");
                     $observacionesMovimiento = "Salida por venta #{$venta_id}";
-                    $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $observacionesMovimiento);
+                    $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
+                    if ($tieneRecetaIdDet) {
+                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) VALUES ('producto', ?, 'salida', ?, ?)");
+                        $stmtMovimiento->bind_param("ids", $receta_id, $cantidad, $observacionesMovimiento);
+                    } else {
+                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'salida', ?, ?)");
+                        $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $observacionesMovimiento);
+                    }
                     $stmtMovimiento->execute();
                     $stmtMovimiento->close();
                     
-                    // Actualizar inventario
-                    $stmtInventario = $conn->prepare("
-                        INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
-                        VALUES (?, ?, ?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE 
-                            stock_actual = VALUES(stock_actual),
-                            ultima_actualizacion = NOW()
-                    ");
-                    $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                    if ($tieneInventarioNuevo) {
+                        $stmtInventario = $conn->prepare("
+                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
+                            VALUES ('producto', ?, ?, 'manual', NOW())
+                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
+                        ");
+                        $stmtInventario->bind_param("id", $receta_id, $nuevoStock);
+                    } else {
+                        $stmtInventario = $conn->prepare("
+                            INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
+                            VALUES (?, ?, ?, ?, NOW())
+                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
+                        ");
+                        $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                    }
                     $stmtInventario->execute();
                     $stmtInventario->close();
                 }
-                
                 $stmtReceta->close();
             }
 
