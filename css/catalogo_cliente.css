@@ -180,7 +180,7 @@ body {
     border-radius: 15px;
     padding: 25px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    border-top: 5px solid #005bbe;
+    border-left: 5px solid #005bbe;
     position: sticky;
     top: 20px;
 }

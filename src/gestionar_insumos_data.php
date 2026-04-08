@@ -33,7 +33,8 @@ try {
                 i.tasa_cambiaria_id,
                 tc.tasa AS tasa_insumo,
                 p.nombre AS proveedor_nombre,
-                a.nombre AS almacen_nombre
+                a.nombre AS almacen_nombre,
+                i.adicional
             FROM insumos i
             LEFT JOIN proveedores p ON i.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = i.tasa_cambiaria_id
@@ -80,6 +81,8 @@ try {
         $conn->close();
         exit;
     }
+
+    restringirEscritura();
 
     header('Content-Type: application/json');
 
@@ -174,7 +177,7 @@ try {
                 $tasa_cambiaria_id = (int) $row_tasa['id'];
             }
 
-            $stmt = $conn->prepare("
+           $stmt = $conn->prepare("
                 UPDATE insumos 
                 SET nombre = ?, 
                     unidad_medida = ?, 
@@ -183,14 +186,21 @@ try {
                     stock_maximo = ?,
                     almacen_id = ?,
                     proveedor_id = ?,
-                    tasa_cambiaria_id = ?
+                    tasa_cambiaria_id = ?,
                     adicional = ?
                 WHERE id = ?
             ");
 
+            // Asegúrate de procesar el checkbox antes
+            $adicional_val = isset($_POST['adicional']) ? 1 : 0;
+
             $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
             $almacen_id_val = $almacen_id !== null ? $almacen_id : 1;
-            $stmt->bind_param("ssddiiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $almacen_id_val, $proveedor_id, $tasa_cambiaria_id, $id);
+
+            // "ssddiiiiii" ahora tiene 10 letras para 10 variables
+            $stmt->bind_param("ssddiiiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $almacen_id_val, $proveedor_id, 
+                $tasa_cambiaria_id, $adicional_val, $id);
+
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo actualizado exitosamente']);
             break;

@@ -1,5 +1,5 @@
 <?php require_once('../template/header.php'); ?>
-<?php include '../connection/connection.php'; ?>
+<?php require_once "../connection/connection.php"; ?>
 
 <head>
     <meta charset="UTF-8">
@@ -142,13 +142,95 @@
         }
     }
 
+    function actualizarTotalGeneral() {
+        let total = 0;
+        $('.row-subtotal').each(function() {
+            total += parseFloat($(this).text().replace('$', '')) || 0;
+        });
+        $('#gran-total-display').text('$' + total.toFixed(2));
+    }
+
+
+    function generarFilaTabla(id, nombre, tallaId, tallaNombre, cant, precio, origen) {
+        let subtotal = (precio * cant).toFixed(2);
+        let badge = origen === 'manual' ? '<small style="color:#28a745; display:block;">(Venta Directa)</small>' : '';
+        
+        return `
+            <tr style="border-bottom: 1px solid #eee;" 
+                data-id-receta="${id}" 
+                data-id-talla="${tallaId}"
+                data-precio-original="${precio}"
+                data-origen="${origen}">
+                <td><strong>${nombre}</strong></td>
+                <td class="col-cant" style="font-weight:bold; text-align:center;">${cant}</td>
+                <td style="color:#555;">${tallaNombre}</td>
+                <td>$${precio}</td>
+                <td>
+                    <select class="form-control perso-sel">
+                        <option value="" data-precio="0">Ninguna</option>
+                        <?php
+                            $resExtras = mysqli_query($conn, "SELECT id, nombre, costo_unitario FROM insumos WHERE adicional = 1 ORDER BY nombre ASC");
+                            while($e = mysqli_fetch_assoc($resExtras)){
+                                echo "<option value='".$e['id']."' data-precio='".$e['costo_unitario']."'>".$e['nombre']." (+$".$e['costo_unitario'].")</option>";
+                            }
+                        ?>
+                    </select>
+                </td>
+                <td><input type="text" class="form-control nota-input" placeholder="Bordado, color, etc..."></td>
+                <td class="row-subtotal" style="font-weight: bold;">$${subtotal}</td>
+                <td><button type="button" class="btn-eliminar-fila" style="color:#dc3545; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
+            </tr>`;
+    }
+
     function verDetalles(data) {
-        console.log(data);
+        console.log("Editando Cotización:", data);
         
+        // 1. Limpiar tabla antes de cargar
+        $('#tabla-cotizador-body').empty();
+        
+        // 2. Setear Cliente
         $('#select-cliente').val(data.id_cliente).trigger('change');
-        $('#select-presupuesto').val(data.id_presupuesto).trigger('change');
         
-        mostrarVista('crear');
+        // 3. Pequeño delay para dejar que el select de presupuestos se cargue por el evento 'change' del cliente
+        setTimeout(() => {
+            if(data.codigo_presupuesto_origen !== 'VENTA DIRECTA'){
+                $('#select-presupuesto').val(data.codigo_presupuesto_origen).trigger('change');
+            }
+        }, 500);
+
+        // 4. Cargar los productos REALES de esta cotización
+        $.ajax({
+            url: 'cotizacion_data.php',
+            type: 'GET',
+            data: { action: 'obtener_detalle_cotizacion', id_cotizacion: data.id_cotizacion },
+            dataType: 'json',
+            success: function(items) {
+                let html = "";
+                items.forEach(item => {
+                    html += generarFilaTabla(
+                        item.id_receta, 
+                        item.nombre_producto, 
+                        item.id_talla, 
+                        item.talla_nombre, 
+                        item.cantidad, 
+                        item.precio_unitario, 
+                        item.origen 
+                    );
+                });
+                $('#tabla-cotizador-body').html(html);
+                
+                // 5. Asignar las personalizaciones y notas guardadas
+                items.forEach((item, index) => {
+                    let fila = $('#tabla-cotizador-body tr').eq(index);
+                    fila.find('.perso-sel').val(item.id_personalizacion);
+                    fila.find('.nota-input').val(item.notas);
+                });
+
+                $('#contenedor-items').fadeIn();
+                actualizarTotalGeneral();
+                mostrarVista('crear');
+            }
+        });
     }
 
     $(document).ready(function() {
@@ -316,38 +398,6 @@
             $('#manual-producto').val('').trigger('change');
             $('#manual-cantidad').val(1);
         };
-        // --- HELPER: GENERADOR DE FILAS ---
-
-        function generarFilaTabla(id, nombre, tallaId, tallaNombre, cant, precio, origen) {
-            let subtotal = (precio * cant).toFixed(2);
-            let badge = origen === 'manual' ? '<small style="color:#28a745; display:block;">(Venta Directa)</small>' : '';
-            
-            return `
-                <tr style="border-bottom: 1px solid #eee;" 
-                    data-id-receta="${id}" 
-                    data-id-talla="${tallaId}"
-                    data-precio-original="${precio}"
-                    data-origen="${origen}">
-                    <td><strong>${nombre}</strong></td>
-                    <td class="col-cant" style="font-weight:bold; text-align:center;">${cant}</td>
-                    <td style="color:#555;">${tallaNombre}</td>
-                    <td>$${precio}</td>
-                    <td>
-                        <select class="form-control perso-sel">
-                            <option value="" data-precio="0">Ninguna</option>
-                            <?php
-                                $resExtras = mysqli_query($conn, "SELECT id, nombre, costo_unitario FROM insumos ORDER BY nombre ASC");
-                                while($e = mysqli_fetch_assoc($resExtras)){
-                                    echo "<option value='".$e['id']."' data-precio='".$e['costo_unitario']."'>".$e['nombre']." (+$".$e['costo_unitario'].")</option>";
-                                }
-                            ?>
-                        </select>
-                    </td>
-                    <td><input type="text" class="form-control nota-input" placeholder="Bordado, color, etc..."></td>
-                    <td class="row-subtotal" style="font-weight: bold;">$${subtotal}</td>
-                    <td><button type="button" class="btn-eliminar-fila" style="color:#dc3545; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
-                </tr>`;
-        }
 
         // --- EVENTOS DINÁMICOS ---
 
@@ -370,14 +420,7 @@
 
         // --- CÁLCULOS Y GUARDADO FINAL ---
 
-        function actualizarTotalGeneral() {
-            let total = 0;
-            $('.row-subtotal').each(function() {
-                total += parseFloat($(this).text().replace('$', '')) || 0;
-            });
-            $('#gran-total-display').text('$' + total.toFixed(2));
-        }
-
+        
         function limpiarFormulario() {
             $('#select-cliente').val('').trigger('change');
             $('#select-presupuesto').val('').trigger('change').prop('disabled', true);

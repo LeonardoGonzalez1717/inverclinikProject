@@ -36,10 +36,7 @@ $stmtDet->execute();
 $res_det = $stmtDet->get_result();
 ?>
 
-<!DOCTYPE html>
-<html lang="es">
 <head>
-    <meta charset="UTF-8">
     <title>Cotización_<?php echo $c['codigo_cotizacion']; ?></title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 20px; background-color: #f9f9f9; }
@@ -52,13 +49,25 @@ $res_det = $stmtDet->get_result();
         .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 25px 0; }
         .info-card { padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #eee; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        table th { background: #005bbe; color: white; padding: 12px; text-align: left; }
-        table td { border-bottom: 1px solid #eee; padding: 12px; vertical-align: top; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #000000; }
+        table th { padding: 12px; text-align: left; border: 1px solid #000000;  }
+        table td { border-bottom: 1px solid #eee; padding: 12px; vertical-align: top; border: 1px solid #000000;  }
+
+        .tabla-cliente { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-bottom: 20px;
+            border: none; /* Elimina bordes externos */
+        }
+        .tabla-cliente td { 
+            padding: 5px 0; 
+            border: none !important; /* Elimina bordes de celdas */
+            font-size: 14px;
+        }
         
-        .notas { font-size: 0.85em; color: #666; font-style: italic; margin-top: 5px; }
+        .notas { font-size: 11px; font-style: italic; margin-top: 5px; }
         .totales { text-align: right; margin-top: 30px; }
-        .total-final { font-size: 1.5em; color: #333; border-top: 2px solid #005bbe; display: inline-block; padding-top: 10px; }
+        .total-final { font-size: 14px; border-top: 2px solid #000000; display: inline-block; padding-top: 10px; }
 
         @media print {
             .btn-imprimir { display: none; }
@@ -69,14 +78,10 @@ $res_det = $stmtDet->get_result();
 </head>
 <body>
 
-    <div class="cotizacion-box">
-        <button class="btn-imprimir" onclick="window.print()">🖨️ Imprimir Cotización</button>
-
-        <div class="header">
-            <div>
-                <p class="logo-text">INVERCLINIK C.A.</p>
-                <small>Confección Textil de Alta Calidad</small>
-            </div>
+    <div style="width:700px; margin: auto; text-align: center;">
+            <img src="../assets/img/brand.png" alt="brand" width="100%" height="120px">
+            <p style="margin:0; text-align: left; font-size: 10px;">RIF J-41173381-4</p>
+        <div>
             <div style="text-align: right;">
                 <h2 style="margin:0; color: #555;">COTIZACIÓN</h2>
                 <p style="margin:5px 0;"><strong>Nro:</strong> <?php echo $c['codigo_cotizacion']; ?></p>
@@ -84,41 +89,48 @@ $res_det = $stmtDet->get_result();
             </div>
         </div>
 
-        <div class="info-grid">
-            <div class="info-card">
-                <strong>DATOS DEL CLIENTE:</strong><br>
-                <?php echo htmlspecialchars($c['cliente']); ?><br>
-                Tel: <?php echo $c['telefono'] ?? 'S/N'; ?><br>
-                <?php echo htmlspecialchars($c['correo']); ?>
-            </div>
-            <div class="info-card">
-                <strong>VALIDEZ Y CONDICIONES:</strong><br>
-                Validez: 15 días continuos.<br>
-                Forma de pago: 50% anticipo / 50% entrega.<br>
-                Tiempo estimado: Según volumen de pedido.
-            </div>
-        </div>
+        <table class="tabla-cliente">
+            <tr>
+                <td><b>Cliente: </b></td>
+                <td><?php echo htmlspecialchars($c['cliente']); ?></td>
 
+                <td><b>RIF/Cedula: </b></td>
+                <td><?php echo $c['numero_documento'] ?? 'S/N'; ?></td>
+            </tr>
+            <tr>
+                <td><b>Direccion: </b></td>
+                <td><?php echo htmlspecialchars($c['direccion']); ?></td>
+
+                <td><b>Telefono: </b></td>
+                <td><?php echo $c['telefono'] ?? 'S/N'; ?></td>
+            </tr>
+        </table>
         <table>
             <thead>
                 <tr>
-                    <th width="10%">CANT</th>
-                    <th width="50%">DESCRIPCIÓN / DETALLES</th>
-                    <th width="20%">P. UNIT ($)</th>
-                    <th width="20%">SUBTOTAL ($)</th>
+                    <th width="5%">REF.</th>
+                    <th width="45%">PRODUCTO</th>
+                    <th width="10%">CANT.</th>
+                    <th width="20%">PRECIO UNIT. ($)</th>
+                    <th width="20%">TOTAL ($)</th>
                 </tr>
             </thead>
             <tbody>
-                <?php while($d = $res_det->fetch_assoc()): ?>
+                <?php 
+                $i = 0;
+                while($d = $res_det->fetch_assoc()): 
+                $i++;?>
                 <tr>
-                    <td align="center"><strong><?php echo number_format($d['cantidad'], 0); ?></strong></td>
+                    <td align="center"><strong><?php echo $i; ?></strong></td>
                     <td>
                         <strong><?php echo htmlspecialchars($d['producto_nombre']); ?></strong><br>
-                        <small>Talla: <?php echo $d['nombre_talla'] ?? 'Única'; ?></small>
+                        <small>Talla: <?php echo $d['talla'] ?? 'Única'; ?></small>
                         <?php if(!empty($d['notas'])): ?>
                             <div class="notas">Obs: <?php echo htmlspecialchars($d['notas']); ?></div>
                         <?php endif; ?>
                     </td>
+                    <td align="center"><strong><?php echo number_format($d['cantidad'], 0); ?></strong></td>
+
                     <td align="right">$<?php echo number_format($d['precio_unitario'], 2); ?></td>
                     <td align="right"><strong>$<?php echo number_format($d['subtotal'], 2); ?></strong></td>
                 </tr>
@@ -131,15 +143,19 @@ $res_det = $stmtDet->get_result();
                 <strong>TOTAL PRESUPUESTADO: $<?php echo number_format($c['total'], 2); ?></strong>
             </div>
             <p style="margin-top:10px; font-size: 0.9em; color: #777;">
-                <i>Precios sujetos a cambios según disponibilidad de materia prima.</i>
+                <i>Precios no incluyen IVA.</i>
             </p>
         </div>
 
         <div style="margin-top: 60px; text-align: center; font-size: 0.8em; border-top: 1px solid #eee; padding-top: 20px;">
-            <p>Inverclinik C.A. | RIF J-12345678-9 | Turmero, Estado Aragua</p>
-            <p><strong>"Calidad que se siente en cada costura"</strong></p>
+            <p>Inverclinik C.A. | RIF J-41173381-4</p>
+            <p>Calle Gradizco, Galpon Nro 1, San Pablo, Turmero, Estado Aragua</p>
+            <p>Telefono: 0244-6612009 | 0414-1148322 | 0414-1148322 / Email: inverclinik@gmail.com</p>
         </div>
     </div>
 
 </body>
 </html>
+<script>
+    window.print();
+</script>

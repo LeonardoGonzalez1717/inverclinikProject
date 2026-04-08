@@ -2,12 +2,12 @@
 <link rel="stylesheet" href="../css/navbar.css" />
 <aside class="sidebar">
     <div class="logo">
-        <a href="<?php echo ($_SESSION['role_id'] === 2) ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
+        <a href="<?php echo ($_SESSION['role_id'] === 3) ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
             INVERCLINIK
         </a>
     </div>
     <nav>
-        <?php if ($_SESSION['role_id'] === 1) { ?>
+        <?php if ($_SESSION['role_id'] === 1 || $_SESSION['role_id'] === 2) { ?>
             <ul>
                 <li class="collapsible">
                 <button class="collapsible-toggle">Procesos</button>

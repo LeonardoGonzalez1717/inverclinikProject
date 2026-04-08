@@ -216,6 +216,8 @@ try {
         exit;
     }
 
+    restringirEscritura();
+
     header('Content-Type: application/json');
 
     if ($action === 'obtener_siguiente_numero_factura') {
@@ -318,7 +320,7 @@ try {
         $proveedor_id = $data['proveedor_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
-        $estado = $data['estado'] ?? 'pendiente';
+        $estado = $data['estado'] ?? 'recibido';
         $insumos = $data['insumos'] ?? [];
 
         if (!$proveedor_id) {

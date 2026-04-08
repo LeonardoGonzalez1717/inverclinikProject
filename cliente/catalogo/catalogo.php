@@ -30,7 +30,7 @@ include '../modales_cliente.php';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="../../css/catalogo_cliente.css">
     <link rel="stylesheet" href="../../assets/css/all.min.css">
-    </head>
+</head>
 <body>
 
 <div class="container">
@@ -50,15 +50,6 @@ include '../modales_cliente.php';
 
     <div class="main-layout">
         <div class="products-grid">
-            <!-- <?php if($isAdmin): ?>
-            <div class="product-card add-new-card" onclick="abrirModalAdmin()" style="border: 2px dashed #005bbe; display: flex; align-items: center; justify-content: center; cursor: pointer;">
-                <div style="text-align: center; color: #005bbe;">
-                    <i class="fas fa-plus-circle" style="font-size: 3rem;"></i>
-                    <p>Activar Nueva Receta/Talla</p>
-                </div>
-            </div>
-            <?php endif; ?> -->
-
             <?php
             $sql = "SELECT 
                         r.id AS id_receta, 
@@ -75,7 +66,6 @@ include '../modales_cliente.php';
             
             $result = mysqli_query($conn, $sql);
             while($p = mysqli_fetch_assoc($result)):
-                // Creamos un nombre descriptivo
                 $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
             ?>
             <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>" style="position: relative;">
@@ -139,6 +129,16 @@ include '../modales_cliente.php';
 <script>
     let pedido = [];
 
+    function abrirModalAcceso() {
+        const modal = document.getElementById('modalAcceso');
+        if(modal) {
+            modal.style.display = 'block';
+        } else {
+            alert("Por favor, inicie sesión o regístrese para continuar.");
+            window.location.href = "../../index.php";
+        }
+    }
+
     function agregarAlPedido(nombre, pDetal, pMayor, inputId, recetaId) {
         const input = document.getElementById(inputId);
         const cantidad = parseInt(input.value);
@@ -163,20 +163,23 @@ include '../modales_cliente.php';
         input.value = 1; 
         aplicarReglaDePrecios(); 
         actualizarVista();
+        mostrarNotificacion("¡" + nombre + " añadido!");
+    }
+
+    function quitarDelPedido(recetaId) {
+        pedido = pedido.filter(item => item.recetaId !== recetaId);
+        aplicarReglaDePrecios();
+        actualizarVista();
     }
 
     function aplicarReglaDePrecios() {
         const totalProductos = pedido.reduce((acc, item) => acc + item.cantidad, 0);
-        
         const esPrecioMayor = totalProductos >= 12;
 
         pedido.forEach(item => {
             item.precioUnit = esPrecioMayor ? item.pMayor : item.pDetal;
             item.subtotal = item.cantidad * item.precioUnit;
         });
-        // if(esPrecioMayor) {
-        //     mostrarNotificacion("¡Felicidades! Se ha aplicado precio al mayor (12+ unidades)");
-        // }
     }
 
     function actualizarVista() {
@@ -194,12 +197,17 @@ include '../modales_cliente.php';
         pedido.forEach(item => {
             sumaTotal += item.subtotal;
             listaContainer.innerHTML += `
-                <div class="cart-item" style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                    <div>
+                <div class="cart-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
+                    <div style="flex:1;">
                         <h4 style="margin:0; font-size:0.85rem;">${item.nombre}</h4>
                         <small>${item.cantidad} x $${item.precioUnit.toFixed(2)}</small>
                     </div>
-                    <strong>$${item.subtotal.toFixed(2)}</strong>
+                    <div style="text-align:right; display:flex; align-items:center; gap:10px;">
+                        <strong>$${item.subtotal.toFixed(2)}</strong>
+                        <button onclick="quitarDelPedido(${item.recetaId})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:1.1rem;" title="Quitar">
+                            <i class="fas fa-times-circle"></i>
+                        </button>
+                    </div>
                 </div>`;
         });
         totalTxt.innerText = `$${sumaTotal.toFixed(2)}`;
@@ -232,7 +240,6 @@ include '../modales_cliente.php';
 
     function enviarWhatsApp(correlativo) {
         const telefonoAdmin = "584243084640"; 
-        // Usamos la variable de PHP directamente
         const nombreParaMensaje = "<?php echo $nombreUsuario; ?>";
         
         let mensaje = "¡Hola! Soy *" + nombreParaMensaje + "*.\n";
@@ -240,7 +247,6 @@ include '../modales_cliente.php';
         mensaje += "✅ *DETALLE DEL PEDIDO*\n";
         mensaje += "-----------------------------\n";
 
-        // Nota: El array 'pedido' debe tener datos antes de limpiar el carrito
         pedido.forEach(item => {
             mensaje += `• ${item.nombre}\n`;
             mensaje += `   Cant: ${item.cantidad} x $${item.precioUnit.toFixed(2)}\n`;

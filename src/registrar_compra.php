@@ -93,18 +93,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         <div class="col-md-3">
                             <label class="form-label">Número de Factura</label>
 <input type="text" name="numero_factura" id="numero_factura" class="form-control"
-                                   maxlength="50" placeholder="Ej: FAC-001" readonly>
-                        </div>
-                    </div>
-
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Estado</label>
-                            <select name="estado" id="estado" class="form-control">
-                                <option value="pendiente">Pendiente</option>
-                                <option value="recibido">Recibido</option>
-                                <option value="cancelado">Cancelado</option>
-                            </select>
+                                   maxlength="50" placeholder="Ej: FAC-001">
                         </div>
                     </div>
 
@@ -243,12 +232,6 @@ function limpiarFormulario() {
     actualizarTablaInsumos();
     limpiarFormularioInsumo();
     $('#nuevo-insumo-id').html('<option value="">-- Primero seleccione un proveedor --</option>').prop('disabled', true);
-    // Cargar siguiente número de factura según la última compra registrada
-    $.post('registrar_compra_data.php', { action: 'obtener_siguiente_numero_factura' }, function(resp) {
-        if (resp && resp.success && resp.siguiente_numero_factura !== undefined) {
-            $('#numero_factura').val(resp.siguiente_numero_factura);
-        }
-    }, 'json');
 }
 
 function calcularSubtotal(cantidad, costoUnitario) {
