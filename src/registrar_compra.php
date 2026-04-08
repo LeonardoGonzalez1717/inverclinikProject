@@ -501,25 +501,55 @@ $("#form-compra").on("submit", function(e) {
         return;
     }
 
+    function enviarCompraAlServidor() {
+        $.ajax({
+            url: "registrar_compra_data.php",
+            type: "POST",
+            data: JSON.stringify(datos),
+            contentType: "application/json",
+            success: function(resp) {
+                if (resp && resp.success) {
+                    alert(resp.message);
+                    mostrarVista("listado");
+                    cargarListado();
+                } else {
+                    alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                }
+            },
+            error: function(xhr) {
+                console.error("Error:", xhr.responseText);
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    alert("Error: " + (resp.message || "Error al guardar la compra"));
+                } catch (e) {
+                    alert("Error de conexión.");
+                }
+            }
+        });
+    }
+
     $.ajax({
         url: "registrar_compra_data.php",
         type: "POST",
-        data: JSON.stringify(datos),
+        data: JSON.stringify({ action: 'prevalidar_stock_max', insumos: insumosAgregados }),
         contentType: "application/json",
-        success: function(resp) {
-            if (resp && resp.success) {
-                alert(resp.message);
-                mostrarVista("listado");
-                cargarListado();
-            } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+        success: function(pre) {
+            if (!pre || !pre.success) {
+                alert(pre && pre.message ? pre.message : 'Error al validar el stock');
+                return;
             }
+            if (pre.requiere_confirmacion) {
+                if (!confirm('El stock máximo ha sido superado, ¿estás seguro que deseas continuar?')) {
+                    return;
+                }
+            }
+            enviarCompraAlServidor();
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
             try {
                 var resp = JSON.parse(xhr.responseText);
-                alert("Error: " + (resp.message || "Error al guardar la compra"));
+                alert("Error: " + (resp.message || "Error al validar"));
             } catch (e) {
                 alert("Error de conexión.");
             }

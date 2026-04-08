@@ -12,13 +12,17 @@ $row = $result->fetch_assoc();
 // Filtros
 $where = [];
 
-$insumo = isset($_GET['nombre']) ? trim($_GET['nombre']) : '';
+$proveedor_id = isset($_GET['proveedor_id']) ? (int) $_GET['proveedor_id'] : 0;
+$insumo_id = isset($_GET['insumo_id']) ? (int) $_GET['insumo_id'] : 0;
 $unidad = isset($_GET['unidad_medida']) ? trim($_GET['unidad_medida']) : '';
 $estado = isset($_GET['estado']) ? trim($_GET['estado']) : '';
 
-if (!empty($insumo)) {
-  $nombre = $conn->real_escape_string($insumo);
-  $where[] = "i.nombre LIKE '%$nombre%'";
+if ($proveedor_id > 0) {
+  $where[] = 'i.proveedor_id = ' . $proveedor_id;
+}
+
+if ($insumo_id > 0) {
+  $where[] = 'i.id = ' . $insumo_id;
 }
 
 if (!empty($unidad)) {

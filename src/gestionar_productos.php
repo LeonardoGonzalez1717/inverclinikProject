@@ -2,6 +2,14 @@
 require_once "../template/header.php";
 require_once "../connection/connection.php";
 
+$categorias = [];
+$resCat = $conn->query("SELECT id, nombre FROM categorias ORDER BY nombre ASC");
+if ($resCat) {
+    while ($row = $resCat->fetch_assoc()) {
+        $categorias[] = $row;
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -55,8 +63,14 @@ require_once "../connection/connection.php";
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Categoría</label>
-                                <input type="text" name="categoria" id="categoria" class="form-control" 
-                                       maxlength="100" placeholder="Ej: Pantalón, Camisa, Chaqueta">
+                                <select name="categoria" id="categoria" class="form-control">
+                                    <option value="">-- Seleccione una categoría --</option>
+                                    <?php foreach ($categorias as $cat): ?>
+                                        <option value="<?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Tipo/Género</label>
@@ -118,6 +132,7 @@ function cargarListado() {
 
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
+    $('#categoria').find('option[data-legacy]').remove();
     $('#nombre').val('');
     $('#categoria').val('');
     $('#tipo_genero').val('');
@@ -130,7 +145,18 @@ function limpiarFormulario() {
 
 function editarProducto(data) {
     $('#nombre').val(data.nombre || '');
-    $('#categoria').val(data.categoria || '');
+    var catVal = data.categoria || '';
+    $('#categoria').find('option[data-legacy]').remove();
+    var catExists = false;
+    $('#categoria option').each(function() {
+        if ($(this).val() === catVal) { catExists = true; return false; }
+    });
+    if (catVal && !catExists) {
+        $('#categoria').append(
+            $('<option></option>').attr('value', catVal).attr('data-legacy', '1').text(catVal + ' (valor actual)')
+        );
+    }
+    $('#categoria').val(catVal);
     $('#tipo_genero').val(data.tipo_genero || '');
     $('#descripcion').val(data.descripcion || '');
     $('#activo').val(data.activo || '');

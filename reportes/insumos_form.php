@@ -8,6 +8,21 @@ $stmt->bind_param("i", $iduser);
 $stmt->execute();
 $result = $stmt->get_result();
 $row = $result->fetch_assoc();
+
+$proveedores = [];
+$r = $conn->query('SELECT id, nombre FROM proveedores ORDER BY nombre ASC');
+if ($r) {
+    while ($p = $r->fetch_assoc()) {
+        $proveedores[] = $p;
+    }
+}
+$lista_insumos = [];
+$r = $conn->query('SELECT id, nombre FROM insumos ORDER BY nombre ASC');
+if ($r) {
+    while ($p = $r->fetch_assoc()) {
+        $lista_insumos[] = $p;
+    }
+}
 ?>
 
 <div class="main-content">
@@ -17,8 +32,23 @@ $row = $result->fetch_assoc();
 
       <form method="GET" action="insumos_view.php" target="_blank">
         <div class="mb-3">
-			<label for="nombre" class="form-label">Insumo</label>
-			<input type="text" name="nombre" id="nombre" class="form-control">
+          <label class="form-label" for="proveedor_id">Proveedor</label>
+          <select name="proveedor_id" id="proveedor_id" class="form-control">
+            <option value="">Todos los proveedores</option>
+            <?php foreach ($proveedores as $prov): ?>
+              <option value="<?php echo (int) $prov['id']; ?>"><?php echo htmlspecialchars($prov['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div class="mb-3">
+			<label for="insumo_id" class="form-label">Insumo</label>
+			<select name="insumo_id" id="insumo_id" class="form-control">
+				<option value="">Todos los insumos</option>
+				<?php foreach ($lista_insumos as $ins): ?>
+					<option value="<?php echo (int) $ins['id']; ?>"><?php echo htmlspecialchars($ins['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+				<?php endforeach; ?>
+			</select>
         </div>
 
         <div class="mb-3">

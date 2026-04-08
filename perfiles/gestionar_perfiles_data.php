@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 $action = $_POST['action'] ?? '';
 
@@ -74,13 +75,20 @@ try {
         $stmt = $conn->prepare("INSERT INTO users (username, password, correo, role_id) VALUES (?, ?, ?, ?)");
         $stmt->bind_param("sssi", $username, $hash, $correo, $role_id);
         $stmt->execute();
-        
+        $nuevoId = (int) $conn->insert_id;
+        $stmt->close();
+
+        Auditoria::registrar(
+            $conn,
+            'Usuario interno creado: id ' . $nuevoId . ', username ' . $username . ', correo ' . $correo . ', role_id ' . $role_id,
+            'Usuarios'
+        );
+
         echo json_encode([
             'success' => true,
             'message' => 'Usuario creado exitosamente',
-            'id' => $conn->insert_id
+            'id' => $nuevoId
         ]);
-        $stmt->close();
     } elseif ($action === 'editar') {
         restringirEscritura();
 
@@ -99,12 +107,18 @@ try {
         $stmt = $conn->prepare("UPDATE users SET role_id = ? WHERE id = ?");
         $stmt->bind_param("ii", $role_id, $id);
         $stmt->execute();
+        $stmt->close();
+
+        Auditoria::registrar(
+            $conn,
+            'Rol de usuario actualizado: user id ' . (int) $id . ', nuevo role_id ' . $role_id,
+            'Usuarios'
+        );
 
         echo json_encode([
             'success' => true,
             'message' => 'Rol actualizado exitosamente'
         ]);
-        $stmt->close();
     } elseif ($action === 'obtener') {
         $id = $_POST['id'] ?? null;
         if (!$id) {
@@ -143,12 +157,14 @@ try {
         $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
-        
+        $stmt->close();
+
+        Auditoria::registrar($conn, 'Usuario interno eliminado: id ' . (int) $id, 'Usuarios');
+
         echo json_encode([
             'success' => true,
             'message' => 'Usuario eliminado exitosamente'
         ]);
-        $stmt->close();
     } else {
         throw new Exception("Acción no válida");
     }

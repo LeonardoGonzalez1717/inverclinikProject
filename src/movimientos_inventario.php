@@ -13,8 +13,17 @@ if ($row['count'] == 0) {
     $conn->query($sqlInsertRecetas);
 }
 
+$checkInsumoMin = $conn->query("SHOW COLUMNS FROM insumos LIKE 'stock_maximo'");
+if ($checkInsumoMin && $checkInsumoMin->num_rows == 0) {
+    try {
+        $conn->query("ALTER TABLE insumos ADD COLUMN stock_minimo decimal(12,2) DEFAULT NULL AFTER costo_unitario");
+        $conn->query("ALTER TABLE insumos ADD COLUMN stock_maximo decimal(12,2) DEFAULT NULL AFTER stock_minimo");
+    } catch (Exception $e) {
+    }
+}
+
 // Insumos: stock se obtiene por AJAX (almacén del insumo)
-$sqlInsumos = "SELECT i.id, i.nombre, i.unidad_medida
+$sqlInsumos = "SELECT i.id, i.nombre, i.unidad_medida, i.stock_maximo
                FROM insumos i
                WHERE i.activo = 1
                ORDER BY i.nombre ASC";
@@ -95,8 +104,6 @@ if ($resultRecetas) {
                                                 <th>Última Actualización</th>
                                                 <th>Insumo</th>
                                                 <th>Almacén</th>
-                                                <th>Último Movimiento</th>
-                                                <th>Origen del Movimiento</th>
                                                 <th>Stock Actual</th>
                                                 <th>Stock Mín.</th>
                                                 <th>Stock Máx.</th>
@@ -119,7 +126,6 @@ if ($resultRecetas) {
                                                 <th>Producto</th>
                                                 <th>Rango Tallas</th>
                                                 <th>Tipo Producción</th>
-                                                <th>Último Movimiento</th>
                                                 <th>Stock Actual</th>
                                                 <th>Stock Mín.</th>
                                                 <th>Stock Máx.</th>
@@ -154,8 +160,13 @@ if ($resultRecetas) {
                                     <select name="insumo_id" id="insumo_id" class="form-control" onchange="actualizarStockInfo();">
                                         <option value=""></option>
                                         <?php foreach ($insumos as $insumo): ?>
+                                            <?php
+                                            $sm = $insumo['stock_maximo'] ?? null;
+                                            $attrMax = ($sm !== null && $sm !== '') ? htmlspecialchars((string) $sm, ENT_QUOTES, 'UTF-8') : '';
+                                            ?>
                                             <option value="<?php echo htmlspecialchars($insumo['id']); ?>" 
-                                                    data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>">
+                                                    data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>"
+                                                    data-stock-max="<?php echo $attrMax; ?>">
                                                 <?php echo htmlspecialchars($insumo['nombre'] . ' (' . $insumo['unidad_medida'] . ')'); ?>
                                             </option>
                                         <?php endforeach; ?>
@@ -297,9 +308,9 @@ function cargarListado(tipo = 'materia_prima') {
         }
     }).fail(function(xhr, status, error) {
         if (tipo === 'materia_prima') {
-            $('#tbody-materia-prima').html('<tr><td colspan="9" class="text-center text-danger">Error al cargar inventario</td></tr>');
+            $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">Error al cargar inventario</td></tr>');
         } else {
-            $('#tbody-productos').html('<tr><td colspan="10" class="text-center text-danger">Error al cargar inventario</td></tr>');
+            $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">Error al cargar inventario</td></tr>');
         }
     });
 }
@@ -370,6 +381,7 @@ $("#form-crear").on("submit", function(e) {
     e.preventDefault();
 
     const tipoInventario = $("#tipo_inventario").val();
+    const tabListadoTrasGuardar = tipoInventario || tabActivo || 'materia_prima';
     const insumoId = $("#insumo_id").val();
     const recetaId = $("#receta_id").val();
     const tipo = $("#tipo").val();
@@ -413,40 +425,76 @@ $("#form-crear").on("submit", function(e) {
     }
 
     const tipoMovimiento = $("#tipo_movimiento").val();
-    
     const datos = {
         action: 'crear',
         tipo_inventario: tipoInventario,
-        insumo_id: tipoInventario === 'materia_prima' ? insumoId : null,
-        receta_id: tipoInventario === 'productos' ? recetaId : null,
+        insumo_id: tipoInventario === 'materia_prima' ? insumoId : '',
+        receta_id: tipoInventario === 'productos' ? recetaId : '',
         tipo: tipo,
         tipo_movimiento: tipoMovimiento,
         cantidad: cantidad,
         observaciones: observaciones
     };
 
+    function ejecutarGuardadoMovimiento() {
+        $.ajax({
+            url: "movimientos_inventario_data.php",
+            type: "POST",
+            data: datos,
+            dataType: "json",
+            success: function(resp) {
+                if (resp && resp.success) {
+                    alert(resp.message);
+                    limpiarFormulario();
+                    mostrarVista("listado");
+                    if (tabListadoTrasGuardar === 'productos') {
+                        cambiarTab('productos');
+                    } else {
+                        cambiarTab('materia_prima');
+                    }
+                } else {
+                    alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                }
+            },
+            error: function(xhr) {
+                console.error("Error:", xhr.responseText);
+                alert("Error de conexión.");
+            }
+        });
+    }
+
     $.ajax({
         url: "movimientos_inventario_data.php",
         type: "POST",
-        data: datos,
-        success: function(resp) {
-            if (resp && resp.success) {
-                alert(resp.message);
-                limpiarFormulario();
-                mostrarVista("listado");
-                const tipoInventario = $("#tipo_inventario").val() || tabActivo || 'materia_prima';
-                if (tipoInventario === 'productos') {
-                    cambiarTab('productos');
-                } else {
-                    cambiarTab('materia_prima');
-                }
-            } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+        data: {
+            action: 'prevalidar_stock_max_movimiento',
+            tipo_inventario: tipoInventario,
+            insumo_id: tipoInventario === 'materia_prima' ? insumoId : '',
+            receta_id: tipoInventario === 'productos' ? recetaId : '',
+            tipo: tipo,
+            cantidad: cantidad
+        },
+        dataType: "json",
+        success: function(pre) {
+            if (!pre || pre.success !== true) {
+                alert(pre && pre.message ? pre.message : 'Error al validar el stock máximo.');
+                return;
             }
+            if (pre.supera_maximo) {
+                if (!confirm('El stock máximo ha sido superado, ¿estás seguro que deseas continuar?')) {
+                    return;
+                }
+            }
+            ejecutarGuardadoMovimiento();
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+            try {
+                var err = JSON.parse(xhr.responseText);
+                alert("Error: " + (err.message || 'No se pudo validar el movimiento.'));
+            } catch (e) {
+                alert("Error de conexión.");
+            }
         }
     });
 });

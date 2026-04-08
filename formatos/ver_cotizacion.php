@@ -1,26 +1,39 @@
 <?php
 require_once "../connection/connection.php";
 
-$id_cotizacion = $_GET['id'] ?? null;
-if (!$id_cotizacion) die("Cotización no encontrada.");
+$id_cotizacion = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+if ($id_cotizacion <= 0) {
+    die("Cotización no encontrada.");
+}
 
-// 1. Consulta de cabecera: Cotización + Cliente
-$sql = "SELECT c.*, cl.nombre as cliente, cl.telefono, cl.direccion, cl.numero_documento
+$sql = "SELECT c.*, cl.nombre AS cliente, cl.telefono, cl.direccion,
+        COALESCE(cl.email, '') AS correo
         FROM cotizaciones c
         INNER JOIN clientes cl ON c.id_cliente = cl.id
-        WHERE c.id_cotizacion = $id_cotizacion";
+        WHERE c.id_cotizacion = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param('i', $id_cotizacion);
+$stmt->execute();
+$res = $stmt->get_result();
+$c = $res ? $res->fetch_assoc() : null;
+$stmt->close();
 
-$res = $conn->query($sql);
-$c = $res->fetch_assoc();
+if (!$c) {
+    die("Cotización no encontrada.");
+}
 
-// 2. Consulta de detalles (incluyendo Talla y Producto/Receta)
-$sql_det = "SELECT cd.*, t.nombre_rango as talla, p.nombre as producto_nombre
+$fechaCab = !empty($c['fecha_registro']) ? $c['fecha_registro'] : date('Y-m-d');
+
+$sql_det = "SELECT cd.*, p.nombre AS producto_nombre, rt.nombre_rango AS nombre_talla
             FROM cotizacion_detalles cd
             INNER JOIN recetas r ON cd.id_receta = r.id
             INNER JOIN productos p ON r.producto_id = p.id
-            LEFT JOIN rangos_tallas t ON cd.id_talla = t.id
-            WHERE cd.id_cotizacion = $id_cotizacion";
-$res_det = $conn->query($sql_det);
+            LEFT JOIN rangos_tallas rt ON rt.id = cd.id_talla
+            WHERE cd.id_cotizacion = ?";
+$stmtDet = $conn->prepare($sql_det);
+$stmtDet->bind_param('i', $id_cotizacion);
+$stmtDet->execute();
+$res_det = $stmtDet->get_result();
 ?>
 
 <head>
@@ -70,8 +83,9 @@ $res_det = $conn->query($sql_det);
             <p style="margin:0; text-align: left; font-size: 10px;">RIF J-41173381-4</p>
         <div>
             <div style="text-align: right;">
-                <strong>COTIZACIÓN <?php echo $c['codigo_cotizacion']; ?></strong>
-                <p style="margin:0; text-align: left;"><strong>Fecha:</strong> <?php echo date('d/m/Y', strtotime($c['fecha_registro'])); ?></p>
+                <h2 style="margin:0; color: #555;">COTIZACIÓN</h2>
+                <p style="margin:5px 0;"><strong>Nro:</strong> <?php echo $c['codigo_cotizacion']; ?></p>
+                <p style="margin:0;"><strong>Fecha:</strong> <?php echo date('d/m/Y', strtotime($fechaCab)); ?></p>
             </div>
         </div>
 

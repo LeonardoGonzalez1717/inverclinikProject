@@ -288,6 +288,41 @@ CREATE TABLE IF NOT EXISTS `almacenes` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `auditoria`
+-- Registro de auditoría del sistema (usada por lib/Auditoria.php).
+--
+
+CREATE TABLE IF NOT EXISTS `auditoria` (
+  `id_evento` int(11) NOT NULL AUTO_INCREMENT,
+  `id_usuario` int(11) DEFAULT NULL COMMENT 'users.id si es staff',
+  `id_cliente` int(11) DEFAULT NULL COMMENT 'clientes.id si es portal cliente',
+  `nombre_actor` varchar(255) NOT NULL DEFAULT '',
+  `modulo` varchar(120) DEFAULT NULL,
+  `accion` text NOT NULL,
+  `fecha_hora` datetime NOT NULL DEFAULT current_timestamp(),
+  `ip` varchar(45) DEFAULT NULL,
+  PRIMARY KEY (`id_evento`),
+  KEY `idx_auditoria_fecha` (`fecha_hora`),
+  KEY `idx_auditoria_user` (`id_usuario`),
+  KEY `idx_auditoria_cliente` (`id_cliente`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `categorias`
+--
+
+CREATE TABLE IF NOT EXISTS `categorias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `roles`
 --
 
@@ -654,4 +689,3 @@ COMMIT;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-

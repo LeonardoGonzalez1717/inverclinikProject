@@ -28,6 +28,8 @@
                     <li><a href="../src/gestionar_productos.php">Gestionar Productos</a></li>
                     <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                     <li><a href="../src/nuevo_producto.php">Recetas</a></li>
+                    <li><a href="../src/registrar_categoria.php">Registrar Categoria</a></li>
+                    <li><a href="../src/registrar_almacen.php">Registrar Almacén</a></li>
                     <li><a href="../src/gestionar_proveedores.php">Proveedores</a></li>
                     <li><a href="../src/gestionar_clientes.php">Clientes</a></li>
                 </ul>
@@ -37,12 +39,14 @@
             <li class="collapsible">
                 <button class="collapsible-toggle">Reportes</button>
                 <ul class="collapsible-content">
+                <li><a href="../reportes/compras_form.php">Reporte de Compras</a></li>
                 <li><a href="../reportes/insumos_form.php">Reporte de Insumos</a></li>
-                <li><a href="../reportes/ordenes_view.php" target="_blank">Reporte de Ordenes</a></li>
-                <li><a href="../reportes/productos_view.php" target="_blank">Reporte de Productos</a></li>
-                <li><a href="../reportes/ordenes_produccion_view.php" target="_blank">Reporte de Ordenes P.</a></li>
-                <li><a href="../reportes/inventario_materia_prima_view.php" target="_blank">Reporte de Materia Prima</a></li>
-                <li><a href="../reportes/inventario_productos_view.php" target="_blank">Reporte de Stock</a></li>
+                <li><a href="../reportes/ordenes_form.php">Reporte de Ordenes</a></li>
+                <li><a href="../reportes/productos_form.php">Reporte de Productos</a></li>
+                <li><a href="../reportes/ordenes_produccion_form.php">Reporte de Ordenes P.</a></li>
+                <li><a href="../reportes/inventario_materia_prima_form_v2.php">Reporte de Materia Prima</a></li>
+                <li><a href="../reportes/inventario_productos_form_v2.php">Reporte de Stock</a></li>
+                <li><a href="../reportes/ventas_form.php">Reporte de Ventas</a></li>
                 </ul>
             </li>
             </ul>
@@ -52,7 +56,8 @@
                 <li class="collapsible"> <button class="collapsible-toggle">Mis Servicios</button>
                   <ul class="collapsible-content">
                     <li><a href="../cliente/catalogo/catalogo.php">Ver Catálogo</a></li>
-                    <li><a href="../cliente/mis_pedidos.php">Estado de mis Pedidos</a></li>
+                    <li><a href="../cliente/mis_presupuestos.php">Mis presupuestos</a></li>
+                    <li><a href="../cliente/mis_cotizaciones.php">Mis cotizaciones</a></li>
                   </ul>
                 </li>
             </ul>
@@ -66,7 +71,7 @@
               <ul class="collapsible-content">
                 <?php if ($_SESSION['role_id'] === 1) { ?>
                     <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
-                    <li><a href="../src">Auditoria</a></li>
+                    <li><a href="../src/auditoria.php">Auditoría</a></li>
                     <li><a href="../cliente/catalogo/catalogo.php">Catálogo</a></li>
                     <li><a href="../src/tasas_cambiarias.php">Tasas cambiarias</a></li>
                 <?php } ?>

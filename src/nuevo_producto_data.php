@@ -1,5 +1,6 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 // Verificar y agregar columna precio_total a la tabla recetas si no existe
 $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
@@ -132,7 +133,7 @@ try {
                 echo '<td>' . $fecha . '</td>';
                 echo '<td>';
                 echo '<button class="btn btn-sm btn-primary" onclick="editarReceta(' . htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8') . ')">Editar</button> ';
-                echo '<a href="receta_pdf.php?id=' . (int)$r['id'] . '" target="_blank" class="btn btn-sm btn-secondary">Ver PDF</a>';
+                // echo '<a href="receta_pdf.php?id=' . (int)$r['id'] . '" target="_blank" class="btn btn-sm btn-secondary">Ver PDF</a>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -263,6 +264,23 @@ try {
                 }
                 
                 $conn->commit();
+                $nomProd = '';
+                $pn = $conn->prepare('SELECT nombre FROM productos WHERE id = ? LIMIT 1');
+                if ($pn) {
+                    $pn->bind_param('i', $producto_id);
+                    $pn->execute();
+                    $rp = $pn->get_result();
+                    if ($rp && ($f = $rp->fetch_assoc())) {
+                        $nomProd = $f['nombre'] ?? '';
+                    }
+                    $pn->close();
+                }
+                $nomTxt = $nomProd !== '' ? $nomProd : ('producto_id ' . (int) $producto_id);
+                Auditoria::registrar(
+                    $conn,
+                    'Receta guardada: ' . $nomTxt . ' con ' . count($insumos) . ' insumo(s).',
+                    'Recetas'
+                );
                 echo json_encode(['success' => true, 'message' => 'Receta completa creada exitosamente con ' . count($insumos) . ' insumo(s)']);
             } catch (Exception $e) {
                 $conn->rollback();
@@ -383,6 +401,12 @@ try {
             ");
             $stmt->bind_param("iiiiddsi", $producto_id, $insumo_id, $rango_tallas_id, $tipo_produccion_id, $cantidad_por_unidad, $costo_por_unidad, $observaciones, $id);
             $stmt->execute();
+            $stmt->close();
+            Auditoria::registrar(
+                $conn,
+                'Línea de receta actualizada: id línea ' . (int) $id . ', producto_id ' . (int) $producto_id . ', insumo_id ' . (int) $insumo_id,
+                'Recetas'
+            );
             echo json_encode(['success' => true, 'message' => 'Receta actualizada exitosamente']);
             break;
 

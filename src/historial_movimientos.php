@@ -10,6 +10,7 @@ require_once "../template/navbar.php";
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Historial de movimientos</title>
+    <link rel="stylesheet" href="../css/movimientos_inventario.css">
 </head>
 <body>
     <div class="main-content">
@@ -28,11 +29,11 @@ require_once "../template/navbar.php";
                                     <th>Fecha</th>
                                     <th>Tipo ítem</th>
                                     <th>Ítem</th>
-                                    <th>Movimiento</th>
+                                    <th>Último Movimiento</th>
+                                    <th>Origen del Movimiento</th>
                                     <th>Cantidad</th>
-                                    <th>Origen</th>
                                     <th>Observaciones</th>
-                                    <th>Orden prod.</th>
+                                    <!-- <th>Orden prod.</th> -->
                                 </tr>
                             </thead>
                             <tbody id="tbody-historial">

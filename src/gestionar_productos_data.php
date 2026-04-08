@@ -1,5 +1,9 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 $action = $_POST['action'] ?? '';
 
@@ -129,7 +133,14 @@ try {
 
             $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $activo);
             $stmt->execute();
-            echo json_encode(['success' => true, 'message' => 'Producto creado exitosamente', 'id' => $conn->insert_id]);
+            $pid = (int) $conn->insert_id;
+            $stmt->close();
+            Auditoria::registrar(
+                $conn,
+                'Producto creado: id ' . $pid . ' — ' . $nombre . ($categoria ? ' (cat. ' . $categoria . ')' : ''),
+                'Productos'
+            );
+            echo json_encode(['success' => true, 'message' => 'Producto creado exitosamente', 'id' => $pid]);
             break;
 
         case 'editar':
@@ -215,6 +226,12 @@ try {
 
             $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $id);
             $stmt->execute();
+            $stmt->close();
+            Auditoria::registrar(
+                $conn,
+                'Producto actualizado: id ' . (int) $id . ' — ' . $nombre,
+                'Productos'
+            );
             echo json_encode(['success' => true, 'message' => 'Producto actualizado exitosamente']);
             break;
 

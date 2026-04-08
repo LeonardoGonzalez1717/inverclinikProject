@@ -1,6 +1,21 @@
 <?php
 require_once "../connection/connection.php";
 
+function html_origen_movimiento_detalle($codigo)
+{
+    $c = ($codigo === null || $codigo === '') ? 'manual' : $codigo;
+    switch ($c) {
+        case 'compra':
+            return '<span style="color: #0056b3; font-weight: bold;">Compra</span>';
+        case 'orden_produccion':
+            return '<span style="color: #6c757d; font-weight: bold;">Orden Producción</span>';
+        case 'ajuste':
+            return '<span style="color: #ffc107; font-weight: bold;">Ajuste</span>';
+        default:
+            return '<span style="color: #28a745; font-weight: bold;">Manual</span>';
+    }
+}
+
 $action = $_POST['action'] ?? '';
 
 if ($action !== 'listar_html') {
@@ -89,12 +104,12 @@ if (!empty($filas)) {
         }
         $movimiento = $r['tipo'] === 'entrada' ? 'Entrada' : 'Salida';
         $badgeClass = $r['tipo'] === 'entrada' ? 'badge-entrada' : 'badge-salida';
-        $origen = htmlspecialchars($r['origen'] ?? 'manual');
+        $origenHtml = html_origen_movimiento_detalle($r['origen'] ?? null);
         $observaciones = htmlspecialchars(substr($r['observaciones'] ?? '', 0, 80));
         if (strlen($r['observaciones'] ?? '') > 80) {
             $observaciones .= '…';
         }
-        $ordenProd = $r['orden_produccion_id'] ? (int)$r['orden_produccion_id'] : '—';
+        // $ordenProd = $r['orden_produccion_id'] ? (int)$r['orden_produccion_id'] : '—';
 
         echo '<tr>';
         echo '<td>' . $i . '</td>';
@@ -102,10 +117,10 @@ if (!empty($filas)) {
         echo '<td>' . $tipoItem . '</td>';
         echo '<td>' . $itemNombre . '</td>';
         echo '<td><span class="' . $badgeClass . '">' . $movimiento . '</span></td>';
+        echo '<td>' . $origenHtml . '</td>';
         echo '<td>' . number_format((float)$r['cantidad'], 2, '.', ',') . '</td>';
-        echo '<td>' . $origen . '</td>';
         echo '<td>' . $observaciones . '</td>';
-        echo '<td>' . $ordenProd . '</td>';
+        // echo '<td>' . $ordenProd . '</td>';
         echo '</tr>';
     }
 } else {

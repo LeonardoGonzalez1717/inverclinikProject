@@ -14,9 +14,9 @@ if ($r) {
   <div class="container-wrapper">
     <div class="container-inner">
 
-      <h1 class="main-title">Reporte de Órdenes de Producción</h1>
+      <h1 class="main-title">Reporte de Inventario de Productos Terminados</h1>
 
-      <form method="GET" action="ordenes_view.php">
+      <form method="GET" action="inventario_productos_view.php">
 
         <div class="mb-3">
           <label class="form-label">Producto</label>
@@ -29,23 +29,13 @@ if ($r) {
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Estado</label>
-          <select name="estado" class="form-control">
-            <option value="">Todos</option>
-            <option value="Pendiente">Pendiente</option>
-            <option value="En Proceso">En Proceso</option>
-            <option value="Finalizada">Finalizada</option>
-          </select>
+          <label class="form-label">Stock mínimo</label>
+          <input type="number" name="stock_min" class="form-control">
         </div>
 
         <div class="mb-3">
-          <label class="form-label">Fecha Inicio</label>
-          <input type="date" name="fecha_inicio" class="form-control">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Fecha Fin</label>
-          <input type="date" name="fecha_fin" class="form-control">
+          <label class="form-label">Stock máximo</label>
+          <input type="number" name="stock_max" class="form-control">
         </div>
 
         <div class="text-center">

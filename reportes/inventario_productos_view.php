@@ -2,6 +2,28 @@
 $sin_sidebar = true;
 require_once('../template/header.php');
 
+$where = [];
+
+$producto_id = isset($_GET['producto_id']) ? (int) $_GET['producto_id'] : 0;
+$stock_min = isset($_GET['stock_min']) ? trim($_GET['stock_min']) : '';
+$stock_max = isset($_GET['stock_max']) ? trim($_GET['stock_max']) : '';
+
+if ($producto_id > 0) {
+    $where[] = 'ip.producto_id = ' . $producto_id;
+}
+
+if ($stock_min !== '') {
+    $stock_min = $conn->real_escape_string($stock_min);
+    $where[] = "ip.stock_actual >= '$stock_min'";
+}
+
+if ($stock_max !== '') {
+    $stock_max = $conn->real_escape_string($stock_max);
+    $where[] = "ip.stock_actual <= '$stock_max'";
+}
+
+$condiciones = count($where) ? 'WHERE ' . implode(' AND ', $where) : '';
+
 $sql = "
 SELECT
     ip.producto_id AS id,
@@ -10,6 +32,7 @@ SELECT
     ip.stock_actual
 FROM inventario_productos ip
 JOIN productos p ON p.id = ip.producto_id
+$condiciones
 ORDER BY p.nombre ASC
 ";
 
@@ -18,49 +41,62 @@ $result = $conn->query($sql);
 
 <div class="contenido-principal">
 
-    <div class="reporte-header">
-        <div class="logo-info">
-            <img src="../assets/img/inverclinik_3.png" alt="Logo INVERCLINIK">
-            <div class="empresa-fecha">
-                <h1>INVERCLINIK</h1>
-                <p><?= date('d/m/Y') ?></p>
-            </div>
-        </div>
-        <div class="titulo-reporte">
-            <h2>Inventario de Productos Terminados</h2>
+<div class="reporte-header">
+    <div class="logo-info">
+        <img src="../assets/img/inverclinik_3.png" alt="Logo INVERCLINIK">
+        <div class="empresa-fecha">
+            <h1>INVERCLINIK</h1>
+            <p><?= date('d/m/Y') ?></p>
         </div>
     </div>
-
-    <?php if ($result && $result->num_rows > 0): ?>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Última Actualización</th>
-                    <th>Producto</th>
-                    <th>Rango de Tallas</th>
-                    <th>Stock Actual</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php $i = 0; while ($row = $result->fetch_assoc()): $i++; ?>
-                    <tr>
-                        <td><?= $i ?></td>
-                        <td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
-                        <td><?= htmlspecialchars($row['producto']) ?></td>
-                        <td><?= htmlspecialchars($row['rango_tallas'] ?? '—') ?></td>
-                        <td><?= isset($row['stock_actual']) ? htmlspecialchars($row['stock_actual']) : '0' ?></td>
-                    </tr>
-                <?php endwhile; ?>
-            </tbody>
-        </table>
-    <?php else: ?>
-        <div class="no-data">No existen productos terminados en inventario.</div>
-    <?php endif; ?>
-
-    <div class="reporte-footer">
-        Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+    <div class="titulo-reporte">
+        <h2>Inventario de Productos Terminados</h2>
     </div>
+</div>
+
+<?php if ($result && $result->num_rows > 0): ?>
+
+<table class="table">
+
+<thead>
+<tr>
+<th>#</th>
+<th>Última Actualización</th>
+<th>Producto</th>
+<th>Stock Actual</th>
+</tr>
+</thead>
+
+<tbody>
+
+<?php $i = 1; ?>
+
+<?php while ($row = $result->fetch_assoc()): ?>
+
+<tr>
+<td><?= $i++ ?></td>
+<td><?= htmlspecialchars($row['ultima_actualizacion'] ?? '—') ?></td>
+<td><?= htmlspecialchars($row['producto']) ?></td>
+<td><?= htmlspecialchars($row['stock_actual'] ?? '0') ?></td>
+</tr>
+
+<?php endwhile; ?>
+
+</tbody>
+
+</table>
+
+<?php else: ?>
+
+<div class="no-data">
+No existen productos terminados en inventario con esos filtros.
+</div>
+
+<?php endif; ?>
+
+<div class="reporte-footer">
+Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+</div>
 
 </div>
 
