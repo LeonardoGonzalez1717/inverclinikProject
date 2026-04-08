@@ -2,7 +2,7 @@
 <link rel="stylesheet" href="../css/navbar.css" />
 <aside class="sidebar">
     <div class="logo">
-        <a href="<?php echo ($_SESSION['role_id'] === 2) ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
+        <a href="<?php echo ($_SESSION['role_id'] === 3) ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
             INVERCLINIK
         </a>
     </div>
