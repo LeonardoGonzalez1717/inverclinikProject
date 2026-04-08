@@ -175,6 +175,8 @@ try {
         exit;
     }
 
+    restringirEscritura();
+
     header('Content-Type: application/json');
 
     if ($action === 'obtener_siguiente_numero_factura') {

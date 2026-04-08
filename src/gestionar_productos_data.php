@@ -54,6 +54,8 @@ try {
         exit;
     }
 
+    restringirEscritura();
+
     header('Content-Type: application/json');
 
     // Verificar si existe la columna imagen, si no, agregarla

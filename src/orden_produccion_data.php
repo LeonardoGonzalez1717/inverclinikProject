@@ -81,6 +81,8 @@ try {
         exit;
     }
 
+    restringirEscritura();
+
     header('Content-Type: application/json');
 
     switch ($action) {

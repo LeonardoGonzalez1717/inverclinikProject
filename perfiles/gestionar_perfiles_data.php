@@ -41,6 +41,8 @@ try {
             }
         }
     } elseif ($action === 'crear') {
+        restringirEscritura();
+
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
         $correo   = $_POST['correo'] ?? '';
@@ -80,6 +82,8 @@ try {
         ]);
         $stmt->close();
     } elseif ($action === 'editar') {
+        restringirEscritura();
+
         $id      = $_POST['id'] ?? null;
         $role_id = (int) ($_POST['role_id'] ?? 0);
 
@@ -119,6 +123,8 @@ try {
         }
         $stmt->close();
     } elseif ($action === 'eliminar') {
+        restringirEscritura();
+
         $id = $_POST['id'] ?? null;
         $idActivo = $_SESSION['iduser'] ?? null;
 

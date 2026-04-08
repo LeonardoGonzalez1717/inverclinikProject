@@ -205,25 +205,9 @@ try {
         exit;
     }
 
-    header('Content-Type: application/json');
+    restringirEscritura();
 
-    if ($action === 'obtener_siguiente_numero_factura') {
-        $siguiente = '1';
-        $res = $conn->query("SELECT numero_factura FROM compras ORDER BY id DESC LIMIT 1");
-        if ($res && $row = $res->fetch_assoc() && !empty($row['numero_factura'])) {
-            $ultimo = trim($row['numero_factura']);
-            if (ctype_digit($ultimo)) {
-                $siguiente = (string)((int)$ultimo + 1);
-            } elseif (preg_match('/(\d+)\s*$/', $ultimo, $m)) {
-                $siguiente = (string)((int)$m[1] + 1);
-            } elseif (preg_match('/^(\d+)/', $ultimo, $m)) {
-                $siguiente = (string)((int)$m[1] + 1);
-            }
-        }
-        echo json_encode(['success' => true, 'siguiente_numero_factura' => $siguiente]);
-        $conn->close();
-        exit;
-    }
+    header('Content-Type: application/json');
 
     if ($action === 'crear') {
         $input = file_get_contents('php://input');
@@ -231,7 +215,7 @@ try {
         $proveedor_id = $data['proveedor_id'] ?? null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
-        $estado = $data['estado'] ?? 'pendiente';
+        $estado = $data['estado'] ?? 'recibido';
         $insumos = $data['insumos'] ?? [];
 
         if (!$proveedor_id) {

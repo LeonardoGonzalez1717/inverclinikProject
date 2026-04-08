@@ -1,6 +1,6 @@
 <?php
 session_start();
-include '../connection/connection.php';
+require_once "../connection/connection.php";
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
@@ -135,8 +135,46 @@ switch ($action) {
         }
         echo json_encode($productos);
         break;
+    // Agrega esto dentro del switch ($action)
+
+    case 'obtener_detalle_cotizacion':
+        $id_cotizacion = $_GET['id_cotizacion'] ?? 0;
+        
+        $sql = "SELECT 
+                    cd.id_receta, 
+                    cd.cantidad, 
+                    cd.precio_unitario, 
+                    cd.subtotal, 
+                    cd.id_personalizacion,
+                    cd.notas,
+                    pr.nombre as nombre_producto,
+                    rt.nombre_rango as talla_nombre,
+                    cd.id_talla,
+                    c.codigo_presupuesto_origen as origen_raw
+                FROM cotizacion_detalles cd
+                INNER JOIN cotizaciones c ON cd.id_cotizacion = c.id_cotizacion
+                INNER JOIN recetas r ON cd.id_receta = r.id
+                INNER JOIN productos pr ON r.producto_id = pr.id
+                INNER JOIN rangos_tallas rt ON cd.id_talla = rt.id
+                WHERE cd.id_cotizacion = ?";
+        
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $id_cotizacion);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $items = [];
+        while ($row = $result->fetch_assoc()) {
+            // Determinamos el origen para el badge visual
+            $row['origen'] = ($row['origen_raw'] == 'VENTA DIRECTA') ? 'manual' : 'presupuesto';
+            $items[] = $row;
+        }
+        echo json_encode($items);
+        break;
 
     case 'guardar_cotizacion':
+        restringirEscritura();
+
         $id_cliente = $_POST['id_cliente'];
         $codigo_presupuesto = $_POST['codigo_presupuesto'] ?? '';
         $items = json_decode($_POST['items'], true); 

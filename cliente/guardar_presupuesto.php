@@ -1,6 +1,6 @@
 <?php
 session_start();
-include '../connection/connection.php'; 
+require_once "../connection/connection.php"; 
 header('Content-Type: application/json');
 
 if (!isset($_SESSION['id_cliente'])) {

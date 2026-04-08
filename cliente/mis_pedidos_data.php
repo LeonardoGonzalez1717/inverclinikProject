@@ -1,5 +1,5 @@
 <?php
-include '../connection/connection.php';
+require_once "../connection/connection.php";
 
 $action = $_REQUEST['action'] ?? '';
 
