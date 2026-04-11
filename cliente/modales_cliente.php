@@ -1,3 +1,6 @@
+    <link rel="stylesheet" href="assets/css/bootstrap.css">
+    <link rel="stylesheet" href="assets/css/select2.min.css">
+
 <!-- Modal Cliente -->
 <div id="modal-cliente" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; overflow-y: auto; padding: 20px;">
     <div style="background-color: #fff; padding: 30px; border-radius: 12px; max-width: 450px; width: 90%; position: relative; margin: auto;">
@@ -18,18 +21,21 @@
         <div id="vista-registro" style="display: none;">
             <h2 style="color: #005bbe; margin-bottom: 20px; text-align: center;">Crear Cuenta</h2>
             <form id="form-registro-cliente">
-                <input type="text" name="nombre" placeholder="Nombre / Razón Social *" required style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;" />
-                <div style="display: flex; gap: 5px; margin-bottom: 10px;">
-                    <select name="tipo_doc" style="width: 30%; padding: 12px; border: 1px solid #ccc; border-radius: 6px;">
-                        <option value="V">V</option><option value="J">J</option><option value="E">E</option>
+                <input type="text" name="nombre" placeholder="Nombre / Razón Social *" required />
+                <div style="display: flex; gap: 5px; ">
+                    <select name="tipo_doc" id="tipo_doc" class="form-control" style="width: 30%;">
+                        <option value=""></option>
+                        <option value="V">V</option>
+                        <option value="J">J</option>
+                        <option value="E">E</option>
                     </select>
-                    <input type="text" name="nro_doc" placeholder="Documento" style="width: 70%; padding: 12px; border: 1px solid #ccc; border-radius: 6px;" />
+                    <input type="text" name="nro_doc" maxlength="9" id="nro_doc" placeholder="Documento" class="form-control"/>
                 </div>
-
-                <input type="email" name="email_reg" placeholder="Correo Electrónico *" required style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;" />
+                <small class="text-muted">Cédula: 8 dígitos. RIF: 9.</small>
+                <input type="email" name="email_reg"  class="form-control" placeholder="Correo Electrónico *" required/>
                 
-                <input type="password" id="pass_reg" name="pass_reg" placeholder="Crear Contraseña *" required style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;" />
-                <input type="password" id="pass_reg_2" placeholder="Repetir Contraseña *" required style="width: 100%; padding: 12px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 6px;" />                
+                <input type="password" id="pass_reg" name="pass_reg" placeholder="Crear Contraseña *" required/>
+                <input type="password" id="pass_reg_2" placeholder="Repetir Contraseña *" required/>                
                 <button type="submit" style="background-color: #005bbe; color: #fff; border: none; padding: 12px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%;">Confirmar Registro</button>
             </form>
             <p style="text-align: center; margin-top: 15px; font-size: 14px;">

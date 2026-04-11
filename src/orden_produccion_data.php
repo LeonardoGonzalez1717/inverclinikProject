@@ -141,6 +141,13 @@ try {
                 throw new Exception("Receta y cantidad válida son obligatorios");
             }
 
+            if (!empty($fecha_inicio) && !empty($fecha_fin)) {
+                if (strtotime($fecha_fin) < strtotime($fecha_inicio)) {
+                    echo json_encode(['success' => false, 'message' => 'La fecha de fin no puede ser menor a la de inicio.']);
+                    exit;
+                }
+            }
+
             $conn->begin_transaction();
             try {
                 // Primero obtener la información de la receta
@@ -372,6 +379,13 @@ try {
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
             $estado = $_POST['estado'] ?? 'pendiente';
             $observaciones = $_POST['observaciones'] ?? '';
+
+            if (!empty($fecha_inicio) && !empty($fecha_fin)) {
+                if (strtotime($fecha_fin) < strtotime($fecha_inicio)) {
+                    echo json_encode(['success' => false, 'message' => 'La fecha de fin no puede ser menor a la de inicio.']);
+                    exit;
+                }
+            }
 
             // Si se está cambiando la receta, obtener el recetas_productos.id correcto
             $receta_producto_id = $ordenActual['receta_producto_id']; // Mantener el actual por defecto

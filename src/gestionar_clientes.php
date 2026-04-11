@@ -31,12 +31,10 @@ require_once "../connection/connection.php";
                                 <thead>
                                     <tr>
                                         <th>#</th>
+                                        <th>Doc. Identidad</th>
                                         <th>Nombre</th>
-                                        <th>Tipo Documento</th>
-                                        <th>Número Documento</th>
                                         <th>Teléfono</th>
                                         <th>Email</th>
-                                        <th>Dirección</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -49,36 +47,55 @@ require_once "../connection/connection.php";
                     <div id="vista-crear" class="hidden">
                         <h5 class="subtitle">Crear/Editar Cliente</h5>
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Nombre del Cliente <span style="color: red;">*</span></label>
-                                <input type="text" name="nombre" id="nombre" class="form-control" required 
-                                       maxlength="100" placeholder="Ej: Juan Pérez">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Cédula / RIF <span style="color: red;">*</span></label>
+                                    <div style="display: flex; gap: 5px; ">
+                                        <select name="tipo_doc" id="tipo_doc" class="form-control" style="width: 30%;">
+                                            <option value=""></option>
+                                            <option value="V">V</option>
+                                            <option value="J">J</option>
+                                            <option value="E">E</option>
+                                        </select>
+                                        <input type="text" name="nro_doc" maxlength="9" id="nro_doc" placeholder="Documento" class="form-control"/>
+                                    </div>
+                                    <small class="text-muted">Cédula: 8 dígitos. RIF: 9.</small>
+                                </div>
+
+                                <div class="col-md-8 mb-3">
+                                    <label class="form-label">Nombre del Cliente <span style="color: red;">*</span></label>
+                                    <input type="text" name="nombre" id="nombre" class="form-control" required 
+                                           maxlength="100" placeholder="">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Documento</label>
-                                <select name="tipo_documento" id="tipo_documento" class="form-control">
-                                    <option value="">-- Seleccione --</option>
-                                    <option value="V">V - Venezolano</option>
-                                    <option value="E">E - Extranjero</option>
-                                    <option value="J">J - Jurídico</option>
-                                    <option value="G">G - Gobierno</option>
-                                </select>
+
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label">Teléfono <span style="color: red;">*</span></label>
+                                    <div style="display: flex; gap: 5px; ">
+                                        <select name="prefijo_tel" id="prefijo_tel" class="form-control" style="width: 30%;">
+                                            <option value=""></option>
+                                            <option value="0412">0412</option>
+                                            <option value="0422">0422</option>
+                                            <option value="0414">0414</option>
+                                            <option value="0424">0424</option>
+                                            <option value="0416">0416</option>
+                                            <option value="0426">0426</option>
+                                        </select>
+                                        <input type="text" name="nro_tel" maxlength="7" id="nro_tel" placeholder="Telefono" class="form-control"/>
+                                    </div>
+
+
+                                    <small class="text-muted">Código + 7 dígitos.</small>
+                                </div>
+
+                                <div class="col-md-7 mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" name="email" id="email" class="form-control" 
+                                           maxlength="100" placeholder="">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Número de Documento</label>
-                                <input type="text" name="numero_documento" id="numero_documento" class="form-control" 
-                                       maxlength="30" placeholder="Ej: 12345678">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Teléfono</label>
-                                <input type="text" name="telefono" id="telefono" class="form-control" 
-                                       maxlength="20" placeholder="Ej: 0412-1234567">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="email" id="email" class="form-control" 
-                                       maxlength="100" placeholder="Ej: cliente@email.com">
-                            </div>
+                            
                             <div class="mb-3">
                                 <label class="form-label">Dirección</label>
                                 <textarea name="direccion" id="direccion" class="form-control" rows="3" 
@@ -171,28 +188,66 @@ document.addEventListener('DOMContentLoaded', function() {
 $("#form-crear").on("submit", function(e) {
     e.preventDefault();
 
-    var idCliente = $("#editar-cliente-id").val();
+    // 1. Obtener valores y limpiar caracteres no numéricos
+    const tipoDoc = $("#tipo_doc").val();
+    const nroDoc  = $("#nro_doc").val().replace(/\D/g, ''); 
+    const prefijo = $("#prefijo_tel").val();
+    const nroTel  = $("#nro_tel").val().replace(/\D/g, '');
+    const nombre  = $("#nombre").val().trim();
 
-    var datos = {
+    if (nombre === '') {
+        alert('El nombre del proveedor es obligatorio.');
+        return;
+    }
+
+    // --- VALIDACIÓN DE DOCUMENTO (Cédula/RIF) ---
+    if (tipoDoc === '') {
+        alert('Debe seleccionar el tipo de documento (V, J, E).');
+        return;
+    }
+
+    if (tipoDoc === 'J') {
+        // Exactamente 9
+        if (nroDoc.length !== 9) {
+            alert('Para RIF (J), el número debe tener exactamente 9 dígitos.');
+            return;
+        }
+    } else {
+        // 7 u 8
+        if (nroDoc.length < 7 || nroDoc.length > 8) {
+            alert('La cédula debe tener entre 7 y 8 dígitos.');
+            return;
+        }
+    }
+
+    // --- VALIDACIÓN DE TELÉFONO ---
+    if (prefijo === '') {
+        alert('Debe seleccionar un código de área/operadora.');
+        return;
+    }
+
+    if (nroTel.length !== 7) {
+        alert('El número de teléfono debe tener exactamente 7 dígitos después del código.');
+        return;
+    }
+
+    var idCliente = $("#editar-cliente-id").val();
+    const datos = {
         action: idCliente ? "editar" : "crear",
         id: idCliente || null,
-        nombre: $("#nombre").val(),
-        tipo_documento: $("#tipo_documento").val() || "",
-        numero_documento: $("#numero_documento").val() || "",
-        telefono: $("#telefono").val() || "",
+        tipo_documento: tipoDoc,
+        documento: nroDoc, 
+        nombre: nombre,
+        telefono: prefijo + nroTel,  // 04121234567
         email: $("#email").val() || "",
         direccion: $("#direccion").val() || ""
     };
-
-    if (!datos.nombre || datos.nombre.trim() === '') {
-        alert('El nombre del cliente es obligatorio');
-        return;
-    }
 
     $.ajax({
         url: "gestionar_clientes_data.php",
         type: "POST",
         data: datos,
+        dataType: 'json',
         success: function(resp) {
             if (resp && resp.success) {
                 alert(resp.message);
@@ -202,9 +257,8 @@ $("#form-crear").on("submit", function(e) {
                 alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
             }
         },
-        error: function(xhr) {
-            console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+        error: function() {
+            alert("Error de comunicación con el servidor.");
         }
     });
 });

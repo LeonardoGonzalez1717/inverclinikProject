@@ -90,44 +90,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
     <title>Órdenes de Producción</title>
 
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f8f9fa;
-            margin: 0;
-            padding: 0;
-        }
-
-        .container-wrapper {
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container-inner {
-            background-color: white;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Encabezados */
-        .main-title {
-            color: #0056b3;
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            text-align: center;
-            border-bottom: 3px solid #ffc107;
-            padding-bottom: 15px;
-        }
-
-        .subtitle {
-            color: #004085;
-            font-size: 18px;
-            text-align: center;
-            margin-top: 0;
-            margin-bottom: 25px;
-        }
-
         /* Tabla */
         .orders-table {
             width: 100%;
@@ -169,68 +131,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         .table-container {
             overflow-x: auto;
             margin-top: 20px;
-        }
-
-        .btn-success {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-
-        .btn-success:hover {
-            background-color: #218838;
-        }
-
-        .form-control {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 4px;
-            font-size: 14px;
-            height: auto;
-        }
-
-        .form-label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #495057;
-        }
-
-        .mb-3 {
-            margin-bottom: 15px;
-        }
-
-        .btn-primary {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
-
-        .btn-primary:hover {
-            background-color: #0056b3;
-        }
-
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .btn-secondary:hover {
-            background-color: #545b62;
         }
 
         .hidden {
@@ -275,7 +175,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h4 class="main-title">Crear Nueva Orden</h4>
+                        <h4 class="subtitle">Crear Nueva Orden</h4>
                         <form id="form-crear">
                             <div class="mb-3">
                                 <label class="form-label">Receta</label>
@@ -496,17 +396,27 @@ $("#form-crear").on("submit", function(e) {
     e.preventDefault();
 
     var idOrden = $("#editar-orden-id").val();
+    var fInicio = $("#fecha_inicio").val();
+    var fFin = $("#fecha_fin").val();
 
-        var datos = {
-            action: idOrden ? "editar" : "crear",
-            id: idOrden || null,
-            receta_id: $("#receta_id").val(),
-            cantidad_a_producir: $("#cantidad_a_producir").val(),
-            fecha_inicio: $("#fecha_inicio").val() || "",
-            fecha_fin: $("#fecha_fin").val() || "",
-            observaciones: $("#obser").val() || "",
-            orden_id: $('#editar-orden-id').val() || ""
-        };
+    // VALIDACIÓN DE FECHAS
+    if (fInicio && fFin) {
+        if (new Date(fFin) < new Date(fInicio)) {
+            alert("La fecha de fin no puede ser anterior a la fecha de inicio.");
+            return; // Detiene el envío
+        }
+    }
+
+    var datos = {
+        action: idOrden ? "editar" : "crear",
+        id: idOrden || null,
+        receta_id: $("#receta_id").val(),
+        cantidad_a_producir: $("#cantidad_a_producir").val(),
+        fecha_inicio: fInicio || "",
+        fecha_fin: fFin || "",
+        observaciones: $("#obser").val() || "",
+        orden_id: $('#editar-orden-id').val() || ""
+    };
 
     $.ajax({
         url: "orden_produccion_data.php",

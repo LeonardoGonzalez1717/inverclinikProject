@@ -11,7 +11,8 @@ try {
                 nombre,
                 telefono,
                 email,
-                direccion
+                direccion, 
+                cedrif
             FROM proveedores
             ORDER BY nombre ASC
         ";
@@ -29,10 +30,10 @@ try {
                 $i++;
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
+                echo '<td>' . htmlspecialchars($p['cedrif']) . '</td>';
                 echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($p['telefono'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($p['email'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars(substr($p['direccion'] ?? '', 0, 50)) . (strlen($p['direccion'] ?? '') > 50 ? '...' : '') . '</td>';
                 echo '<td style="white-space: nowrap;">';
                 echo '<button class="btn btn-sm btn-primary" onclick="editarProveedor(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;">Editar</button>';
                 echo '<button class="btn btn-sm btn-danger" onclick="eliminarProveedor(' . $p['id'] . ')">Eliminar</button>';
@@ -53,6 +54,7 @@ try {
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
+            $documento = trim($_POST['documento'] ?? '');
             $telefono = trim($_POST['telefono'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $direccion = trim($_POST['direccion'] ?? '');
@@ -61,26 +63,26 @@ try {
                 throw new Exception("El nombre del proveedor es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM proveedores WHERE nombre = ?";
+            $checkSql = "SELECT id FROM proveedores WHERE cedrif = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("s", $nombre);
+            $checkStmt->bind_param("s", $documento);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe un proveedor con el nombre: " . $nombre);
+                throw new Exception("Ya existe un proveedor con el Documento: " . $documento);
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO proveedores (nombre, telefono, email, direccion)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO proveedores (nombre, cedrif, telefono, email, direccion)
+                VALUES (?, ?, ?, ?, ?)
             ");
 
             $telefono = empty($telefono) ? null : $telefono;
             $email = empty($email) ? null : $email;
             $direccion = empty($direccion) ? null : $direccion;
 
-            $stmt->bind_param("ssss", $nombre, $telefono, $email, $direccion);
+            $stmt->bind_param("sssss", $nombre, $documento, $telefono, $email, $direccion);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Proveedor creado exitosamente', 'id' => $conn->insert_id]);
             break;
@@ -90,6 +92,7 @@ try {
             if (!$id) throw new Exception("ID de proveedor requerido");
 
             $nombre = trim($_POST['nombre'] ?? '');
+            $documento = trim($_POST['documento'] ?? '');
             $telefono = trim($_POST['telefono'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $direccion = trim($_POST['direccion'] ?? '');
@@ -111,6 +114,7 @@ try {
             $stmt = $conn->prepare("
                 UPDATE proveedores 
                 SET nombre = ?, 
+                    cedrif = ?,
                     telefono = ?, 
                     email = ?, 
                     direccion = ?
@@ -121,7 +125,7 @@ try {
             $email = empty($email) ? null : $email;
             $direccion = empty($direccion) ? null : $direccion;
 
-            $stmt->bind_param("ssssi", $nombre, $telefono, $email, $direccion, $id);
+            $stmt->bind_param("sssssi", $nombre, $documento, $telefono, $email, $direccion, $id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Proveedor actualizado exitosamente']);
             break;

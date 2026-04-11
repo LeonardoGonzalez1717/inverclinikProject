@@ -10,7 +10,7 @@ if ($resultProductos) {
     }
 }
 
-$sqlInsumos = "SELECT id, nombre, costo_unitario FROM insumos WHERE activo = 1 ORDER BY nombre";
+$sqlInsumos = "SELECT id, nombre, costo_unitario, unidad_medida FROM insumos WHERE activo = 1 ORDER BY nombre";
 $resultInsumos = $conn->query($sqlInsumos);
 $insumos = [];
 if ($resultInsumos) {
@@ -69,23 +69,23 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Recetas</title>
+    <title>Gestión de Guia de Corte</title>
 </head>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Gestión de Recetas</h2>
+                <h2 class="main-title">Gestión de Guia de Corte</h2>
                 
                 <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Receta</button>
+                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Guia de Corte</button>
                     </div>
                 </div>
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Recetas</h5>
+                        <h5 class="subtitle">Lista de Guias de Cortes</h5>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -110,7 +110,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear Nueva Receta</h5>
+                        <h5 class="subtitle">Crear Nueva Guia de Corte</h5>
                         <input type="text" class="hidden" id="precio_total" name="precio_total" value="">
                         <form id="form-crear">
                             <div class="mb-3">
@@ -135,7 +135,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="mb-3">
+                            <!-- <div class="mb-3">
                                 <label class="form-label">Tipo de Producción</label>
                                 <select name="tipo_produccion_id" id="tipo_produccion_id" class="form-control" required>
                                     <option value="">-- Seleccione un tipo --</option>
@@ -145,7 +145,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                            </div>
+                            </div> -->
                             <div class="mb-3">
                                 <label class="form-label">Almacén</label>
                                 <select name="almacen_id" id="almacen_id" class="form-control">
@@ -175,22 +175,27 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 
                                 <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
                                     <div class="row">
-                                        <div class="col-md-5 mb-2">
+                                        <div class="col-md-4 mb-2">
                                             <label class="form-label">Insumo</label>
                                             <select id="nuevo-insumo-id" class="form-control">
                                                 <option value="">-- Seleccione un insumo --</option>
                                                 <?php foreach ($insumos as $i): ?>
                                                     <option value="<?php echo htmlspecialchars($i['id']); ?>" 
                                                             data-costo="<?php echo htmlspecialchars($i['costo_unitario']); ?>"
-                                                            data-nombre="<?php echo htmlspecialchars($i['nombre']); ?>">
+                                                            data-nombre="<?php echo htmlspecialchars($i['nombre']); ?>"
+                                                            data-unidad="<?php echo htmlspecialchars($i['unidad_medida']); ?>">
                                                         <?php echo htmlspecialchars($i['nombre'] . ' ($' . number_format($i['costo_unitario'], 2) . ')'); ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        <div class="col-md-3 mb-2">
-                                            <label class="form-label">Cantidad por Unidad</label>
-                                            <input type="number" step="1" min="1" id="nuevo-cantidad" class="form-control" placeholder="Ej: 1.1">
+                                        <div class="col-md-2 mb-2" id="div-unidad-medida" style="display: none;">
+                                            <label class="form-label">U. Medida</label>
+                                            <input type="text" id="mostrar-unidad" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold;">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Cantidad</label>
+                                            <input type="number" step="0.001" min="0.001" id="nuevo-cantidad" class="form-control" placeholder="Ej: 1.5">
                                         </div>
                                         <div class="col-md-3 mb-2">
                                             <label class="form-label">Costo Calculado</label>
@@ -530,6 +535,15 @@ function editarReceta(data) {
 }
 
 $(document).ready(function() {
+    $('#nuevo-insumo-id').on('change', function() {
+        var unidad = $(this).find(':selected').data('unidad');
+        if (unidad) {
+            $('#mostrar-unidad').val(unidad);
+            $('#div-unidad-medida').fadeIn();
+        } else {
+            $('#div-unidad-medida').hide();
+        }
+    });
     $('#nuevo-insumo-id, #nuevo-cantidad').on('change input', function() {
         var insumoId = $('#nuevo-insumo-id').val();
         var cantidad = parseFloat($('#nuevo-cantidad').val()) || 0;
