@@ -31,12 +31,10 @@ try {
                 $i++;
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
-                echo '<td>' . htmlspecialchars($c['nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($c['tipo_documento'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($c['numero_documento'] ?? '-') . '</td>';
+                echo '<td>' . htmlspecialchars($c['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($c['telefono'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($c['email'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars(substr($c['direccion'] ?? '', 0, 50)) . (strlen($c['direccion'] ?? '') > 50 ? '...' : '') . '</td>';
                 echo '<td style="white-space: nowrap;">';
                 echo '<button class="btn btn-sm btn-primary" onclick="editarCliente(' . htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;">Editar</button>';
                 echo '<button class="btn btn-sm btn-danger" onclick="eliminarCliente(' . $c['id'] . ')">Eliminar</button>';
@@ -57,49 +55,50 @@ try {
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
-            $tipo_documento = trim($_POST['tipo_documento'] ?? '');
-            $numero_documento = trim($_POST['numero_documento'] ?? '');
+            $num_doc = trim($_POST['documento'] ?? '');
+            $tipo_doc = trim($_POST['tipo_documento'] ?? '');
             $telefono = trim($_POST['telefono'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $direccion = trim($_POST['direccion'] ?? '');
 
-            if (empty($nombre)) {
-                throw new Exception("El nombre del cliente es obligatorio");
+            if (empty($nombre) || empty($num_doc)) {
+                throw new Exception("El nombre y el documento son obligatorios");
             }
 
-            $checkSql = "SELECT id FROM clientes WHERE nombre = ?";
+            $checkSql = "SELECT id FROM clientes WHERE numero_documento = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("s", $nombre);
+            $checkStmt->bind_param("s", $num_doc);
             $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            
-            if ($result->num_rows > 0) {
-                throw new Exception("Ya existe un cliente con el nombre: " . $nombre);
+            if ($checkStmt->get_result()->num_rows > 0) {
+                throw new Exception("Ya existe un cliente con el documento: " . $num_doc);
             }
+
+            // Usamos el documento como clave inicial 27123456
+            $password_hash = password_hash($num_doc, PASSWORD_DEFAULT);
+
+            $doc= $tipo_doc . $num_doc;
 
             $stmt = $conn->prepare("
-                INSERT INTO clientes (nombre, tipo_documento, numero_documento, telefono, email, direccion)
+                INSERT INTO clientes (nombre, numero_documento, telefono, email, direccion, password)
                 VALUES (?, ?, ?, ?, ?, ?)
             ");
 
-            $tipo_documento = empty($tipo_documento) ? null : $tipo_documento;
-            $numero_documento = empty($numero_documento) ? null : $numero_documento;
-            $telefono = empty($telefono) ? null : $telefono;
-            $email = empty($email) ? null : $email;
-            $direccion = empty($direccion) ? null : $direccion;
-
-            $stmt->bind_param("ssssss", $nombre, $tipo_documento, $numero_documento, $telefono, $email, $direccion);
-            $stmt->execute();
-            echo json_encode(['success' => true, 'message' => 'Cliente creado exitosamente', 'id' => $conn->insert_id]);
+            $stmt->bind_param("ssssss", $nombre, $doc, $telefono, $email, $direccion, $password_hash);
+            
+            if ($stmt->execute()) {
+                echo json_encode(['success' => true, 'message' => 'Cliente registrado.']);
+            } else {
+                throw new Exception("Error al insertar: " . $stmt->error);
+            }
             break;
-
+        
         case 'editar':
             $id = $_POST['id'] ?? null;
             if (!$id) throw new Exception("ID de cliente requerido");
 
             $nombre = trim($_POST['nombre'] ?? '');
             $tipo_documento = trim($_POST['tipo_documento'] ?? '');
-            $numero_documento = trim($_POST['numero_documento'] ?? '');
+            $numero_documento = trim($_POST['documento'] ?? '');
             $telefono = trim($_POST['telefono'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $direccion = trim($_POST['direccion'] ?? '');
@@ -108,20 +107,19 @@ try {
                 throw new Exception("El nombre del cliente es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM clientes WHERE nombre = ? AND id != ?";
+            $checkSql = "SELECT id FROM clientes WHERE numero_documento = ? AND id != ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("si", $nombre, $id);
+            $checkStmt->bind_param("si", $numero_documento, $id);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe otro cliente con el nombre: " . $nombre);
+                throw new Exception("Ya existe otro cliente con el mismo documento: " . $nombre);
             }
 
             $stmt = $conn->prepare("
                 UPDATE clientes 
                 SET nombre = ?, 
-                    tipo_documento = ?, 
                     numero_documento = ?, 
                     telefono = ?, 
                     email = ?, 
@@ -134,8 +132,9 @@ try {
             $telefono = empty($telefono) ? null : $telefono;
             $email = empty($email) ? null : $email;
             $direccion = empty($direccion) ? null : $direccion;
+            $doc= $tipo_tipo_documentodoc . $numero_documento;
 
-            $stmt->bind_param("ssssssi", $nombre, $tipo_documento, $numero_documento, $telefono, $email, $direccion, $id);
+            $stmt->bind_param("sssssi", $nombre, $doc, $telefono, $email, $direccion, $id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Cliente actualizado exitosamente']);
             break;

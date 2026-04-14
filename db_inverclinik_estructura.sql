@@ -477,6 +477,8 @@ ALTER TABLE `compras`
   ADD KEY `proveedor_id` (`proveedor_id`),
   ADD KEY `orden_produccion_id` (`orden_produccion_id`);
 
+ALTER TABLE proveedores 
+ADD COLUMN cedrif VARCHAR(15) NOT NULL AFTER id;
 --
 -- Indices de la tabla `detalle_compra`
 --

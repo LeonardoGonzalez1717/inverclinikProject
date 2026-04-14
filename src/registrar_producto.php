@@ -45,13 +45,13 @@ if ($resultTipos) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Recetas</title>
+    <title>Gestión de Guia de Corte</title>
 </head>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Gestión de Recetas</h2>
+                <h2 class="main-title">Gestión de Guia de Corte</h2>
                 
                 <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
@@ -61,7 +61,7 @@ if ($resultTipos) {
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Recetas</h5>
+                        <h5 class="subtitle">Lista de Guia de corte</h5>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>

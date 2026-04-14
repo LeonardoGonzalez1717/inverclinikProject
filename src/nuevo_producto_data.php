@@ -152,7 +152,7 @@ try {
         case 'crear_receta_completa':
             $producto_id = $_POST['producto_id'] ?? null;
             $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
-            $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
+            $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? 1;
             $almacen_id = !empty($_POST['almacen_id']) ? (int)$_POST['almacen_id'] : null;
             $precio_total = floatval($_POST['precio_total'] ?? 0);
             $porcentaje_ganancia = isset($_POST['porcentaje_ganancia']) && $_POST['porcentaje_ganancia'] !== '' ? (float)$_POST['porcentaje_ganancia'] : null;
@@ -278,7 +278,7 @@ try {
                 $nomTxt = $nomProd !== '' ? $nomProd : ('producto_id ' . (int) $producto_id);
                 Auditoria::registrar(
                     $conn,
-                    'Receta guardada: ' . $nomTxt . ' con ' . count($insumos) . ' insumo(s).',
+                    'Guia guardada: ' . $nomTxt . ' con ' . count($insumos) . ' insumo(s).',
                     'Recetas'
                 );
                 echo json_encode(['success' => true, 'message' => 'Receta completa creada exitosamente con ' . count($insumos) . ' insumo(s)']);
