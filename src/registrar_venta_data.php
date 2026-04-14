@@ -465,6 +465,8 @@ try {
             ");
 
             foreach ($productos as $producto) {
+                // En el payload, producto_id representa productos.id (catálogo).
+                // detalle_venta.producto_id referencia recetas.id, por lo que se resuelve aquí.
                 $producto_id = intval($producto['producto_id'] ?? 0);
                 $cantidad = floatval($producto['cantidad'] ?? 0);
                 $precio_unitario = floatval($producto['precio_unitario'] ?? 0);
@@ -472,9 +474,6 @@ try {
                 if ($producto_id <= 0 || $cantidad <= 0 || $precio_unitario <= 0) {
                     throw new Exception("Datos inválidos en el detalle de la venta");
                 }
-
-                $stmtDetalle->bind_param("iidd", $venta_id, $producto_id, $cantidad, $precio_unitario);
-                $stmtDetalle->execute();
 
                 // Obtener la receta más reciente para este producto (y su id para inventario unificado)
                 $sqlReceta = "
@@ -493,6 +492,9 @@ try {
                     $receta_id = intval($rowReceta['id']);
                     $rango_tallas_id = intval($rowReceta['rango_tallas_id']);
                     $tipo_produccion_id = intval($rowReceta['tipo_produccion_id']);
+
+                    $stmtDetalle->bind_param("iidd", $venta_id, $receta_id, $cantidad, $precio_unitario);
+                    $stmtDetalle->execute();
                     
                     if ($tieneInventarioNuevo) {
                         $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
@@ -510,6 +512,11 @@ try {
                         $stockActual = floatval($rowStock['stock_actual']);
                     }
                     $stmtStock->close();
+
+                    if ($cantidad > $stockActual) {
+                        throw new Exception("stock insuficiente");
+                    }
+
                     $nuevoStock = $stockActual - $cantidad;
                     if ($nuevoStock < 0) $nuevoStock = 0;
                     
@@ -542,6 +549,9 @@ try {
                     }
                     $stmtInventario->execute();
                     $stmtInventario->close();
+                } else {
+                    $stmtReceta->close();
+                    throw new Exception("No existe una receta asociada al producto seleccionado (ID: {$producto_id})");
                 }
                 $stmtReceta->close();
             }
