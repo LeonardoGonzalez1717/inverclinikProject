@@ -92,7 +92,10 @@ $result = $conn->query($sql);
       <td><?= htmlspecialchars($row['fecha']) ?></td>
       <td><?= htmlspecialchars($row['numero_factura']) ?></td>
       <td><?= htmlspecialchars($row['cliente']) ?></td>
-      <td><?= htmlspecialchars($row['estado']) ?></td>
+      <td><?php
+        $etqEst = ['pendiente'=>'Pendiente','por_pagar'=>'Por pagar','aprobado'=>'Aprobado','entregado'=>'Entregado','cancelado'=>'Cancelado'];
+        echo htmlspecialchars($etqEst[$row['estado']] ?? $row['estado']);
+      ?></td>
       <td style="text-align:right"><?= htmlspecialchars($row['total']) ?></td>
     </tr>
     <?php endwhile; ?>

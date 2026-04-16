@@ -366,10 +366,11 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `fecha` date NOT NULL,
   `numero_factura` varchar(50) DEFAULT NULL,
   `total` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `estado` enum('pendiente','entregado','cancelado') DEFAULT 'pendiente',
+  `estado` enum('pendiente','entregado','cancelado','aprobado','por_pagar') DEFAULT 'por_pagar',
   `orden_produccion_id` int(11) DEFAULT NULL,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `tasa_cambiaria_id` int(11) DEFAULT NULL,
+  `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Referencia o número de comprobante de pago asociado a la venta',
   PRIMARY KEY (`id`),
   KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
   KEY `cotizacion_id` (`cotizacion_id`)
@@ -436,6 +437,9 @@ CREATE TABLE IF NOT EXISTS `cotizaciones` (
   `total` decimal(10,2) NOT NULL,
   `status` int(11) DEFAULT 1 COMMENT '1: Enviada, 2: Aprobada/Venta, 3: Rechazada',
   `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
+  `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Número de referencia del pago indicado por el cliente',
+  `comprobante_archivo` varchar(255) DEFAULT NULL COMMENT 'Nombre de archivo en uploads/comprobantes_cotizaciones/',
+  `comprobante_fecha` datetime DEFAULT NULL COMMENT 'Última carga o actualización del comprobante',
   PRIMARY KEY (`id_cotizacion`),
   KEY `id_cliente` (`id_cliente`),
   CONSTRAINT `fk_cotizaciones_cliente` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE

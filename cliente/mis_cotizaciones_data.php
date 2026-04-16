@@ -2,15 +2,44 @@
 session_start();
 require_once '../connection/connection.php';
 
+/** Asegura columnas de comprobante de pago en instalaciones antiguas. */
+function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $chk = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'comprobante_referencia'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    $conn->query(
+        'ALTER TABLE cotizaciones
+        ADD COLUMN comprobante_referencia VARCHAR(120) DEFAULT NULL,
+        ADD COLUMN comprobante_archivo VARCHAR(255) DEFAULT NULL,
+        ADD COLUMN comprobante_fecha DATETIME DEFAULT NULL'
+    );
+}
+
+asegurar_columnas_comprobante_cotizaciones($conn);
+
 $action = $_REQUEST['action'] ?? '';
 $id_cliente = isset($_SESSION['id_cliente']) ? (int) $_SESSION['id_cliente'] : 0;
 
-if ($id_cliente <= 0 && in_array($action, ['listar_mis_cotizaciones', 'ver_detalle_cotizacion_cliente'], true)) {
-    if ($action === 'ver_detalle_cotizacion_cliente') {
+$acciones_cliente = [
+    'listar_mis_cotizaciones',
+    'ver_detalle_cotizacion_cliente',
+    'datos_comprobante_cotizacion',
+    'guardar_comprobante_cotizacion',
+];
+
+if ($id_cliente <= 0 && in_array($action, $acciones_cliente, true)) {
+    if (in_array($action, ['ver_detalle_cotizacion_cliente', 'datos_comprobante_cotizacion', 'guardar_comprobante_cotizacion'], true)) {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['error' => 'Sesión no válida']);
     } else {
-        echo '<tr><td colspan="6" class="text-center">Inicia sesión para ver tus cotizaciones.</td></tr>';
+        echo '<tr><td colspan="7" class="text-center">Inicia sesión para ver tus cotizaciones.</td></tr>';
     }
     exit;
 }
@@ -32,7 +61,8 @@ function etiqueta_estado_cotizacion(int $st): array
 switch ($action) {
     case 'listar_mis_cotizaciones':
         $sql = "SELECT c.id_cotizacion, c.codigo_cotizacion, c.codigo_presupuesto_origen, c.total, c.status,
-                DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha
+                DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha,
+                c.comprobante_referencia, c.comprobante_archivo, c.comprobante_fecha
                 FROM cotizaciones c
                 WHERE c.id_cliente = ?
                 ORDER BY c.id_cotizacion DESC";
@@ -56,6 +86,21 @@ switch ($action) {
                 $codEsc = htmlspecialchars($cod, ENT_QUOTES, 'UTF-8');
                 $jsonCod = json_encode($cod, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE);
                 $idCot = (int) $row['id_cotizacion'];
+                $refComp = trim((string) ($row['comprobante_referencia'] ?? ''));
+                $archComp = trim((string) ($row['comprobante_archivo'] ?? ''));
+                $tieneComp = ($refComp !== '' || $archComp !== '');
+                if ($tieneComp) {
+                    $compBits = [];
+                    if ($refComp !== '') {
+                        $compBits[] = '<span class="text-muted small">Ref.:</span> ' . htmlspecialchars(mb_strlen($refComp) > 24 ? mb_substr($refComp, 0, 22) . '…' : $refComp);
+                    }
+                    if ($archComp !== '') {
+                        $compBits[] = '<span class="badge badge-light border">Archivo</span>';
+                    }
+                    $compHtml = '<div class="small">' . implode('<br>', $compBits) . '</div>';
+                } else {
+                    $compHtml = '<span class="text-muted">—</span>';
+                }
 
                 $html .= '<tr>'
                     . '<td><strong>' . $codEsc . '</strong></td>'
@@ -63,14 +108,16 @@ switch ($action) {
                     . '<td>' . $origHtml . '</td>'
                     . '<td><span class="badge ' . $estCls . '">' . htmlspecialchars($estTxt) . '</span></td>'
                     . '<td><strong>$' . number_format((float) $row['total'], 2, '.', ',') . '</strong></td>'
+                    . '<td class="small">' . $compHtml . '</td>'
                     . '<td style="white-space:nowrap">'
                     . '<button type="button" class="btn btn-sm btn-primary" onclick=\'verDetalleCotizacion(' . $idCot . ', ' . $jsonCod . ')\'>Ver</button> '
-                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a>'
+                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a> '
+                    . '<button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'>Cargar comprobante</button>'
                     . '</td>'
                     . '</tr>';
             }
         } else {
-            $html = '<tr><td colspan="6" class="text-center">Aún no tienes cotizaciones registradas.</td></tr>';
+            $html = '<tr><td colspan="7" class="text-center">Aún no tienes cotizaciones registradas.</td></tr>';
         }
         $stmt->close();
         echo $html;
@@ -86,7 +133,9 @@ switch ($action) {
 
         $stmtCab = $conn->prepare(
             'SELECT codigo_cotizacion, codigo_presupuesto_origen, total, status,
-             DATE_FORMAT(fecha_registro, \'%d/%m/%Y\') AS fecha
+             DATE_FORMAT(fecha_registro, \'%d/%m/%Y\') AS fecha,
+             comprobante_referencia, comprobante_archivo,
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
         $stmtCab->bind_param('ii', $id_cotizacion, $id_cliente);
@@ -114,6 +163,9 @@ switch ($action) {
             'total' => (float) ($cabRow['total'] ?? 0),
             'estado_texto' => $estTxt,
             'estado_class' => $estCls,
+            'comprobante_referencia' => trim((string) ($cabRow['comprobante_referencia'] ?? '')),
+            'comprobante_archivo' => trim((string) ($cabRow['comprobante_archivo'] ?? '')),
+            'comprobante_fecha' => (string) ($cabRow['comprobante_fecha_fmt'] ?? ''),
         ];
 
         $sql = "SELECT cd.cantidad, cd.precio_unitario, cd.subtotal,
@@ -134,5 +186,151 @@ switch ($action) {
         }
         $stmt->close();
         echo json_encode(['cabecera' => $cabecera, 'items' => $items]);
+        break;
+
+    case 'datos_comprobante_cotizacion':
+        header('Content-Type: application/json; charset=utf-8');
+        $id_cot = (int) ($_GET['id'] ?? 0);
+        if ($id_cot <= 0) {
+            echo json_encode(['error' => 'Cotización no válida']);
+            exit;
+        }
+        $stmt = $conn->prepare(
+            'SELECT codigo_cotizacion, comprobante_referencia, comprobante_archivo,
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha
+             FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
+        );
+        $stmt->bind_param('ii', $id_cot, $id_cliente);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        if (!$r || $r->num_rows === 0) {
+            $stmt->close();
+            echo json_encode(['error' => 'Cotización no encontrada']);
+            exit;
+        }
+        $row = $r->fetch_assoc();
+        $stmt->close();
+        echo json_encode([
+            'id_cotizacion' => $id_cot,
+            'codigo_cotizacion' => (string) ($row['codigo_cotizacion'] ?? ''),
+            'comprobante_referencia' => (string) ($row['comprobante_referencia'] ?? ''),
+            'comprobante_archivo' => (string) ($row['comprobante_archivo'] ?? ''),
+            'comprobante_fecha' => (string) ($row['comprobante_fecha'] ?? ''),
+            'tiene_archivo' => trim((string) ($row['comprobante_archivo'] ?? '')) !== '',
+        ]);
+        break;
+
+    case 'guardar_comprobante_cotizacion':
+        header('Content-Type: application/json; charset=utf-8');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['error' => 'Método no permitido']);
+            exit;
+        }
+        $id_cot = (int) ($_POST['id_cotizacion'] ?? 0);
+        $refNueva = trim((string) ($_POST['comprobante_referencia'] ?? ''));
+
+        if ($id_cot <= 0) {
+            echo json_encode(['error' => 'Cotización no válida']);
+            exit;
+        }
+
+        $stmt0 = $conn->prepare(
+            'SELECT comprobante_archivo FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
+        );
+        $stmt0->bind_param('ii', $id_cot, $id_cliente);
+        $stmt0->execute();
+        $r0 = $stmt0->get_result();
+        if (!$r0 || $r0->num_rows === 0) {
+            $stmt0->close();
+            echo json_encode(['error' => 'Cotización no encontrada']);
+            exit;
+        }
+        $existente = $r0->fetch_assoc();
+        $stmt0->close();
+        $archivoAnterior = trim((string) ($existente['comprobante_archivo'] ?? ''));
+
+        $subioArchivo = false;
+        $nombreArchivoGuardar = $archivoAnterior;
+
+        $uploadBase = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'comprobantes_cotizaciones' . DIRECTORY_SEPARATOR;
+        if (!is_dir($uploadBase)) {
+            mkdir($uploadBase, 0755, true);
+        }
+
+        $fileField = $_FILES['archivo_comprobante'] ?? null;
+        if (is_array($fileField) && (!empty($fileField['name']) || (($fileField['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE))) {
+            $err = (int) ($fileField['error'] ?? UPLOAD_ERR_NO_FILE);
+            if ($err === UPLOAD_ERR_NO_FILE) {
+                // sin archivo nuevo
+            } elseif ($err !== UPLOAD_ERR_OK) {
+                echo json_encode(['error' => 'Error al subir el archivo (código ' . $err . ').']);
+                exit;
+            } else {
+                $file = $fileField;
+                $maxBytes = 8 * 1024 * 1024;
+                if ((int) $file['size'] > $maxBytes) {
+                    echo json_encode(['error' => 'El archivo supera el máximo permitido (8 MB).']);
+                    exit;
+                }
+                $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                $permitidas = ['pdf', 'jpg', 'jpeg', 'png', 'webp'];
+                if (!in_array($ext, $permitidas, true)) {
+                    echo json_encode(['error' => 'Formato no permitido. Use PDF, JPG, PNG o WEBP.']);
+                    exit;
+                }
+                $mimeOk = [
+                    'application/pdf',
+                    'image/jpeg',
+                    'image/png',
+                    'image/webp',
+                ];
+                $detectado = null;
+                if (function_exists('mime_content_type')) {
+                    $detectado = @mime_content_type($file['tmp_name']);
+                }
+                if ($detectado !== null && $detectado !== '' && !in_array($detectado, $mimeOk, true)) {
+                    if ($detectado !== 'application/octet-stream') {
+                        echo json_encode(['error' => 'El tipo de archivo no es válido.']);
+                        exit;
+                    }
+                }
+                $nuevoNombre = 'cot_' . $id_cot . '_' . time() . '_' . uniqid('', true) . '.' . $ext;
+                $destino = $uploadBase . $nuevoNombre;
+                if (!move_uploaded_file($file['tmp_name'], $destino)) {
+                    echo json_encode(['error' => 'No se pudo guardar el archivo.']);
+                    exit;
+                }
+                if ($archivoAnterior !== '' && is_file($uploadBase . $archivoAnterior)) {
+                    @unlink($uploadBase . $archivoAnterior);
+                }
+                $nombreArchivoGuardar = $nuevoNombre;
+                $subioArchivo = true;
+            }
+        }
+
+        $refFinal = $refNueva;
+        if ($refFinal === '' && !$subioArchivo && $archivoAnterior === '') {
+            echo json_encode(['error' => 'Indique un número de referencia o adjunte un comprobante de pago.']);
+            exit;
+        }
+
+        $refSql = $refFinal;
+        $archSql = $nombreArchivoGuardar;
+
+        $stmtUp = $conn->prepare(
+            'UPDATE cotizaciones SET
+                comprobante_referencia = NULLIF(TRIM(?), \'\'),
+                comprobante_archivo = NULLIF(TRIM(?), \'\'),
+                comprobante_fecha = NOW()
+             WHERE id_cotizacion = ? AND id_cliente = ?'
+        );
+        $stmtUp->bind_param('ssii', $refSql, $archSql, $id_cot, $id_cliente);
+        if (!$stmtUp->execute()) {
+            $stmtUp->close();
+            echo json_encode(['error' => 'No se pudo guardar los datos.']);
+            exit;
+        }
+        $stmtUp->close();
+        echo json_encode(['ok' => true, 'mensaje' => 'Comprobante guardado correctamente.']);
         break;
 }

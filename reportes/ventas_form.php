@@ -54,6 +54,8 @@ if ($r) {
           <select name="estado" class="form-control">
             <option value=""></option>
             <option value="pendiente">Pendiente</option>
+            <option value="por_pagar">Por pagar</option>
+            <option value="aprobado">Aprobado</option>
             <option value="entregado">Entregado</option>
             <option value="cancelado">Cancelado</option>
           </select>
