@@ -402,7 +402,7 @@ $("#form-crear").on("submit", function(e) {
     // VALIDACIÓN DE FECHAS
     if (fInicio && fFin) {
         if (new Date(fFin) < new Date(fInicio)) {
-            alert("La fecha de fin no puede ser anterior a la fecha de inicio.");
+            Swal.fire({ icon: 'warning', text: "La fecha de fin no puede ser anterior a la fecha de inicio." });
             return; // Detiene el envío
         }
     }
@@ -426,11 +426,11 @@ $("#form-crear").on("submit", function(e) {
         success: function(resp) {
             if (resp && resp.success) {
                 console.log(resp,"resp")
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function(xhr) {
@@ -438,12 +438,12 @@ $("#form-crear").on("submit", function(e) {
             try {
                 var resp = JSON.parse(xhr.responseText);
                 if (resp && resp.message) {
-                    alert("Error: " + resp.message);
+                    Swal.fire({ icon: 'error', text: "Error: " + resp.message });
                 } else {
-                    alert("Error de conexión.");
+                    Swal.fire({ icon: 'error', text: "Error de conexión." });
                 }
             } catch (e) {
-                alert("Error de conexión.");
+                Swal.fire({ icon: 'error', text: "Error de conexión." });
             }
         }
     });

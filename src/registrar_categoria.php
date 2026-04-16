@@ -44,8 +44,9 @@ require_once "../connection/connection.php";
                 </div>
 
                 <div id="vista-crear" class="hidden">
-                    <h5 class="subtitle">Registrar Nueva Categoría</h5>
+                    <h5 class="subtitle" id="subtitle-form-categoria">Registrar Nueva Categoría</h5>
                     <form id="form-categoria">
+                        <input type="hidden" id="editar-categoria-id" value="">
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Nombre <span style="color:red">*</span></label>
@@ -60,7 +61,7 @@ require_once "../connection/connection.php";
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <button type="submit" class="btn btn-primary">Guardar Categoría</button>
-                                <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                                <button type="button" class="btn btn-secondary" onclick="limpiarFormulario(); mostrarVista('listado');">Cancelar</button>
                             </div>
                         </div>
                     </form>
@@ -84,16 +85,19 @@ function cargarListado() {
 }
 
 function limpiarFormulario() {
+    $('#editar-categoria-id').val('');
+    $('#subtitle-form-categoria').text('Registrar Nueva Categoría');
     $('#form-categoria')[0].reset();
 }
 
 $("#form-categoria").on("submit", function(e) {
     e.preventDefault();
-    var datos = {
-        action: 'crear',
-        nombre: $("#nombre").val(),
-        descripcion: $("#descripcion").val()
-    };
+    var idEdit = $('#editar-categoria-id').val();
+    var nombre = $("#nombre").val().trim();
+    var descripcion = $("#descripcion").val().trim();
+    var datos = idEdit
+        ? { action: 'editar', id: parseInt(idEdit, 10), nombre: nombre, descripcion: descripcion }
+        : { action: 'crear', nombre: nombre, descripcion: descripcion };
     $.ajax({
         url: "registrar_categoria_data.php",
         type: "POST",
@@ -102,58 +106,53 @@ $("#form-categoria").on("submit", function(e) {
         dataType: "json", // <-- asegura interpretar JSON
         success: function(resp) {
             if(resp && resp.success){
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
+                limpiarFormulario();
                 mostrarVista('listado');
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Error desconocido"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error desconocido") });
             }
         },
         error: function(xhr) {
-            alert("Error: " + xhr.responseText);
+            Swal.fire({ icon: 'error', text: "Error: " + xhr.responseText });
         }
     });
 });
 
-function editarCategoria(id) {
-    var nombre = prompt("Nuevo nombre de la categoría:");
-    if(nombre === null || nombre.trim() === "") return;
-    var descripcion = prompt("Nueva descripción (opcional):");
-
-    $.ajax({
-        url: "registrar_categoria_data.php",
-        type: "POST",
-        data: JSON.stringify({action: 'editar', id: id, nombre: nombre, descripcion: descripcion}),
-        contentType: "application/json",
-        dataType: "json",
-        success: function(resp){
-            if(resp.success){
-                alert(resp.message);
-                cargarListado();
-            } else {
-                alert("Error: " + (resp ? resp.message : "Error desconocido"));
-            }
-        }
-    });
+function editarCategoria(id, nombre, descripcion) {
+    $('#editar-categoria-id').val(String(id));
+    $('#nombre').val(nombre != null ? String(nombre) : '');
+    $('#descripcion').val(descripcion != null ? String(descripcion) : '');
+    $('#subtitle-form-categoria').text('Editar categoría');
+    mostrarVista('crear');
 }
 
 function eliminarCategoria(id){
-    if(!confirm("¿Desea eliminar esta categoría?")) return;
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea eliminar esta categoría?',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
 
-    $.ajax({
-        url: "registrar_categoria_data.php",
-        type: "POST",
-        data: JSON.stringify({action: 'eliminar', id: id}),
-        contentType: "application/json",
-        dataType: "json",
-        success: function(resp){
-            if(resp.success){
-                alert(resp.message);
-                cargarListado();
-            } else {
-                alert("Error: " + (resp ? resp.message : "Error desconocido"));
+        $.ajax({
+            url: "registrar_categoria_data.php",
+            type: "POST",
+            data: JSON.stringify({action: 'eliminar', id: id}),
+            contentType: "application/json",
+            dataType: "json",
+            success: function(resp){
+                if(resp.success){
+                    Swal.fire({ icon: 'success', text: resp.message });
+                    cargarListado();
+                } else {
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error desconocido") });
+                }
             }
-        }
+        });
     });
 }
 

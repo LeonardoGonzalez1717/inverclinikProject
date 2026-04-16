@@ -1,0 +1,20 @@
+/* SweetAlert2: Bootstrap deja html a 62.5% → 1rem ≈ 10px.
+   Los estilos por defecto de SweetAlert2 usan rem y el popup se ve pequeño. */
+.swal2-popup {
+  font-size: 1.4rem !important;
+  line-height: 1.5;
+}
+
+.swal2-title {
+  font-size: 1.65rem !important;
+}
+
+.swal2-html-container {
+  font-size: 1.4rem !important;
+}
+
+.swal2-confirm,
+.swal2-cancel,
+.swal2-deny {
+  font-size: 1.4rem !important;
+}

@@ -160,38 +160,38 @@ $("#form-crear").on("submit", function(e) {
     const nombre  = $("#nombre").val().trim();
 
     if (nombre === '') {
-        alert('El nombre del proveedor es obligatorio.');
+        Swal.fire({ icon: 'warning', text: 'El nombre del proveedor es obligatorio.' });
         return;
     }
 
     // --- VALIDACIÓN DE DOCUMENTO (Cédula/RIF) ---
     if (tipoDoc === '') {
-        alert('Debe seleccionar el tipo de documento (V, J, E).');
+        Swal.fire({ icon: 'warning', text: 'Debe seleccionar el tipo de documento (V, J, E).' });
         return;
     }
 
     if (tipoDoc === 'J') {
         // Exactamente 9
         if (nroDoc.length !== 9) {
-            alert('Para RIF (J), el número debe tener exactamente 9 dígitos.');
+            Swal.fire({ icon: 'warning', text: 'Para RIF (J), el número debe tener exactamente 9 dígitos.' });
             return;
         }
     } else {
         // 7 u 8
         if (nroDoc.length < 7 || nroDoc.length > 8) {
-            alert('La cédula debe tener entre 7 y 8 dígitos.');
+            Swal.fire({ icon: 'warning', text: 'La cédula debe tener entre 7 y 8 dígitos.' });
             return;
         }
     }
 
     // --- VALIDACIÓN DE TELÉFONO ---
     if (prefijo === '') {
-        alert('Debe seleccionar un código de área/operadora.');
+        Swal.fire({ icon: 'warning', text: 'Debe seleccionar un código de área/operadora.' });
         return;
     }
 
     if (nroTel.length !== 7) {
-        alert('El número de teléfono debe tener exactamente 7 dígitos después del código.');
+        Swal.fire({ icon: 'warning', text: 'El número de teléfono debe tener exactamente 7 dígitos después del código.' });
         return;
     }
 
@@ -213,15 +213,15 @@ $("#form-crear").on("submit", function(e) {
         dataType: 'json',
         success: function(resp) {
             if (resp && resp.success) {
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function() {
-            alert("Error de comunicación con el servidor.");
+            Swal.fire({ icon: 'error', text: "Error de comunicación con el servidor." });
         }
     });
 });

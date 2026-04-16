@@ -69,18 +69,19 @@
             <li class="collapsible">
               <button class="collapsible-toggle">Herramientas</button>
               <ul class="collapsible-content">
-                <?php if ($_SESSION['role_id'] === 1) { ?>
+                <?php if ($role_id === 1) { ?>
                     <li><a href="../importaciones/importar_insumos_form.php">Importar</a></li>
                     <li><a href="../src/auditoria.php">Auditoría</a></li>
                     <li><a href="../cliente/catalogo/catalogo.php">Catálogo</a></li>
                     <li><a href="../src/tasas_cambiarias.php">Tasas cambiarias</a></li>
+                    <li><a href="../src/respaldos_bd.php">Respaldos y restauración</a></li>
                 <?php } ?>
                 <li><a href="../src">Manuales</a></li>
               </ul>
             </li>
         </ul>
         <button onclick="window.location.href='../perfiles/perfil.php'">Perfil</button>
-        <?php if ($_SESSION['role_id'] === 1) { ?>
+        <?php if ($role_id === 1) { ?>
             <button onclick="window.location.href='../perfiles/gestionar_perfiles.php'">Gestionar Perfiles</button>
         <?php } ?>
         <button onclick="window.location.href='../template/logout.php'">Cerrar sesión</button>

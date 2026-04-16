@@ -248,11 +248,18 @@
         });
 
         $('#btn-volver-listado').on('click', function() {
-            if(confirm("¿Desea salir? Se perderán los cambios no guardados.")) {
+            Swal.fire({
+                icon: 'question',
+                text: '¿Desea salir? Se perderán los cambios no guardados.',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, salir',
+                cancelButtonText: 'Cancelar'
+            }).then(function(r) {
+                if (!r.isConfirmed) return;
                 $('#vista-crear').fadeOut(200, function() {
                     $('#vista-listado').fadeIn();
                 });
-            }
+            });
         });
 
         // --- LÓGICA DE VENTA POR PRESUPUESTO ---
@@ -340,7 +347,7 @@
             let select = $("#manual-producto option:selected");
             let idProd = $('#manual-producto').val();
             
-            if (!idProd) return alert("Seleccione un producto.");
+            if (!idProd) { Swal.fire({ icon: 'warning', text: "Seleccione un producto." }); return; }
 
             let nombreLimpio = select.data('nombre'); 
             let precioDetal  = parseFloat(select.data('precio')) || 0;
@@ -349,7 +356,7 @@
             let tallaNombre  = select.data('talla-nom');
             let cantidadNueva = parseInt($('#manual-cantidad').val());
 
-            if (cantidadNueva < 1) return alert("Cantidad inválida.");
+            if (cantidadNueva < 1) { Swal.fire({ icon: 'warning', text: "Cantidad inválida." }); return; }
 
             // --- VALIDACIÓN DE EXISTENCIA ---
             let existe = false;
@@ -434,7 +441,7 @@
             let totalFinal = parseFloat($('#gran-total-display').text().replace('$', ''));
             let idCliente = $('#select-cliente').val();
 
-            if(!idCliente) return alert("Por favor, seleccione un cliente.");
+            if(!idCliente) { Swal.fire({ icon: 'warning', text: "Por favor, seleccione un cliente." }); return; }
 
             $('#tabla-cotizador-body tr').each(function() {
                 let fila = $(this);
@@ -453,7 +460,7 @@
                 });
             });
 
-            if(itemsCotizacion.length === 0) return alert("Agregue al menos un producto.");
+            if(itemsCotizacion.length === 0) { Swal.fire({ icon: 'warning', text: "Agregue al menos un producto." }); return; }
 
             $.ajax({
                 url: 'cotizacion_data.php',
@@ -468,10 +475,10 @@
                 dataType: 'json',
                 success: function(resp) {
                     if (resp.success) {
-                        alert("Cotización guardada exitosamente.");
+                        Swal.fire({ icon: 'success', text: "Cotización guardada exitosamente." });
                         location.reload(); 
                     } else {
-                        alert("Error: " + resp.mensaje);
+                        Swal.fire({ icon: 'error', text: "Error: " + resp.mensaje });
                     }
                 }
             });

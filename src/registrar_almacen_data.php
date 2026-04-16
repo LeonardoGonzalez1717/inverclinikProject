@@ -51,7 +51,7 @@ try {
     if ($action === 'crear') {
         $nombre = trim($data['nombre'] ?? '');
         $codigo = trim($data['codigo'] ?? '');
-        $activo = 1;
+        $activo = !empty($data['activo']) ? 1 : 0;
 
         if ($nombre === '') {
             throw new Exception("El nombre del almacén es obligatorio");

@@ -1,0 +1,2 @@
+# Evitar descarga directa de respaldos por URL (solo uso vía aplicación)
+Require all denied

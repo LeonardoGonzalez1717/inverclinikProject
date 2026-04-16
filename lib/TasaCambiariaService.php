@@ -101,15 +101,23 @@ class TasaCambiariaService
         $hora = (int) $ahoraVz->format('H');
         $minuto = (int) $ahoraVz->format('i');
 
-        $enVentanaManana = ($hora === 8 && $minuto >= 30);
-        $enVentanaTarde = ($hora === 13 && $minuto >= 30);
-        $esPostVentana = ($hora > 8 && $hora < 13) || ($hora > 13);
+        // Franja manana: desde 8:30 hasta antes de 13:00 (BCV publica ~8:30).
+        $permiteManana = (($hora === 8 && $minuto >= 30) || ($hora > 8 && $hora < 13));
+        // Franja tarde: desde 13:30 en adelante (BCV publica ~13:30). 13:00-13:29 queda fuera a proposito.
+        $permiteTarde = ($hora === 13 && $minuto >= 30) || ($hora > 13);
 
-        if (!$enVentanaManana && !$enVentanaTarde && !$esPostVentana) {
+        if (!$permiteManana && !$permiteTarde) {
+            if ($hora === 13 && $minuto < 30) {
+                return [
+                    'success' => true,
+                    'updated' => false,
+                    'message' => 'Fuera de ventana: la actualizacion de la tarde aplica desde las 13:30 (hora Venezuela).'
+                ];
+            }
             return [
                 'success' => true,
                 'updated' => false,
-                'message' => 'Fuera de ventana programada (08:30 o 13:30 hora Venezuela).'
+                'message' => 'Fuera de ventana programada (08:30-12:59 o desde 13:30, hora Venezuela).'
             ];
         }
 

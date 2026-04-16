@@ -341,12 +341,12 @@ function agregarInsumo() {
     var cantidad = parseFloat($('#nuevo-cantidad').val()) || 0;
     
     if (!insumoId || cantidad <= 0) {
-        alert('Por favor selecciona un insumo e ingresa una cantidad válida');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un insumo e ingresa una cantidad válida' });
         return;
     }
     
     if (insumosAgregados.some(i => i.insumo_id == insumoId)) {
-        alert('Este insumo ya fue agregado a la receta');
+        Swal.fire({ icon: 'warning', text: 'Este insumo ya fue agregado a la receta' });
         return;
     }
     
@@ -587,7 +587,7 @@ $("#form-crear").on("submit", function(e) {
     e.preventDefault();
     
     if (insumosAgregados.length === 0) {
-        alert('Debes agregar al menos un insumo a la receta');
+        Swal.fire({ icon: 'warning', text: 'Debes agregar al menos un insumo a la receta' });
         return;
     }
     
@@ -600,12 +600,12 @@ $("#form-crear").on("submit", function(e) {
     var observaciones = $("#observaciones").val() || "";
     
     if (!producto_id || !rango_tallas_id || !tipo_produccion_id) {
-        alert('Por favor completa todos los campos requeridos');
+        Swal.fire({ icon: 'warning', text: 'Por favor completa todos los campos requeridos' });
         return;
     }
     
     if (precio_total <= 0) {
-        alert('Por favor ingresa un precio total del producto válido');
+        Swal.fire({ icon: 'warning', text: 'Por favor ingresa un precio total del producto válido' });
         return;
     }
     
@@ -635,16 +635,16 @@ $("#form-crear").on("submit", function(e) {
         data: datos,
         success: function(resp) {
             if (resp && resp.success) {
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+            Swal.fire({ icon: 'error', text: "Error de conexión." });
         }
     });
 });
