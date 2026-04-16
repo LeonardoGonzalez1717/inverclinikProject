@@ -12,8 +12,8 @@ $sql_kpis = "SELECT
 
     (SELECT COUNT(*) FROM cotizaciones WHERE status = 1) as coti_pendientes_cant,
     (SELECT IFNULL(SUM(total), 0) FROM cotizaciones WHERE status = 1) as coti_pendientes_monto,
-    (SELECT COUNT(*) FROM ventas WHERE estado = 'pendiente') as v_pendientes,
-    (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado = 'pendiente') as ventas_pendientes_monto,
+    (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar')) as v_pendientes,
+    (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar')) as ventas_pendientes_monto,
 
     (SELECT COUNT(*) FROM inventario inner join insumos on inventario.tipo_item_id = insumos.id 
         WHERE tipo_item = 'insumo' AND stock_actual <= stock_minimo) as insumos_bajos,

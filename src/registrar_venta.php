@@ -61,6 +61,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Cantidad</th>
                                         <th>Total</th>
                                         <th>Total Bs.</th>
+                                        <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -93,6 +94,13 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </div>
                     </div>
                     <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label" for="venta_comprobante_referencia">Número o referencia del comprobante de pago</label>
+                            <input type="text" class="form-control" id="venta_comprobante_referencia" name="comprobante_referencia" maxlength="120" placeholder="Opcional — referencia bancaria, operación, últimos dígitos, etc." autocomplete="off">
+                            <small class="form-text text-muted" id="venta_nota_comprobante_cot" style="display: none;"></small>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha <span style="color: red;">*</span></label>
                             <input type="date" name="fecha" id="fecha" class="form-control" required
@@ -109,7 +117,9 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 
                     <div class="mb-3">
                         <h5 style="color: #0056b3; margin-bottom: 15px;">Detalle de la Venta</h5>
-                        
+                        <div id="alerta-comprobante-cot-venta" class="alert alert-warning small" style="display: none;">
+                            Esta cotización tiene <strong>comprobante de pago</strong> registrado: el detalle debe coincidir con la cotización. No puede agregar ni quitar artículos ni modificar cantidades o precios desde aquí.
+                        </div>
                         <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
                             <div class="row">
                                 <div class="col-md-5 mb-2">
@@ -214,9 +224,81 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         </div>
     </div>
 
+    <div class="modal fade" id="modalStockInsuficiente" tabindex="-1" role="dialog" aria-labelledby="modalStockInsuficienteTitulo">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalStockInsuficienteTitulo">Inventario insuficiente</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body text-left">
+                    <p class="mb-2">No hay stock suficiente para registrar esta venta. Detalle:</p>
+                    <ul id="modal-stock-lista-faltantes" class="small pl-3 mb-3"></ul>
+                    <p class="small text-muted mb-0">
+                        ¿Desea generar <strong>órdenes de producción</strong> por las <strong>cantidades faltantes</strong>?
+                        La venta <strong>no se guardará</strong> en este paso; cuando exista inventario podrá registrar la venta de nuevo.
+                        Las órdenes quedarán en pendientes en Orden de producción.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="btn-modal-stock-cancelar" data-dismiss="modal">No, cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-modal-crear-ordenes">Sí, crear órdenes de producción</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
 var productosAgregados = [];
+var ventaCotizacionComprobanteBloqueo = false;
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+
+function limpiarComprobanteVentaYNotaCot() {
+    $('#venta_comprobante_referencia').val('');
+    $('#venta_nota_comprobante_cot').hide().text('');
+}
+
+function rellenarCamposComprobanteDesdeResp(resp) {
+    if (resp && resp.tiene_comprobante) {
+        $('#venta_comprobante_referencia').val((resp.comprobante_referencia || '').trim());
+        var partes = [];
+        var nom = ((resp.comprobante_archivo_nombre || '').trim());
+        if (resp.tiene_archivo_comprobante && nom) {
+            partes.push('Archivo en cotización: ' + nom);
+        } else if (resp.tiene_archivo_comprobante) {
+            partes.push('La cotización incluye un archivo de comprobante.');
+        }
+        var fec = (resp.comprobante_fecha || '').trim();
+        if (fec) {
+            partes.push('Registrado en cotización: ' + fec);
+        }
+        if (partes.length) {
+            $('#venta_nota_comprobante_cot').text(partes.join(' · ')).show();
+        } else {
+            $('#venta_nota_comprobante_cot').hide().text('');
+        }
+    } else {
+        $('#venta_comprobante_referencia').val('');
+        $('#venta_nota_comprobante_cot').hide().text('');
+    }
+}
+
+function aplicarEstadoBloqueoComprobanteCotizacion() {
+    if (ventaCotizacionComprobanteBloqueo) {
+        $('#alerta-comprobante-cot-venta').show();
+        $('#btn-agregar-producto').prop('disabled', true);
+        $('#nuevo-producto-id, #nuevo-cantidad, #nuevo-precio-unitario').prop('disabled', true);
+    } else {
+        $('#alerta-comprobante-cot-venta').hide();
+        $('#nuevo-producto-id, #nuevo-cantidad, #nuevo-precio-unitario').prop('disabled', false);
+        var cantidad = parseFloat($('#nuevo-cantidad').val()) || 0;
+        var precioUnitario = parseFloat($('#nuevo-precio-unitario').val()) || 0;
+        $('#btn-agregar-producto').prop('disabled', !(cantidad > 0 && precioUnitario > 0));
+    }
+    actualizarTablaProductos();
+}
 
 function formatearBs(valor) {
     if (valor == null || isNaN(valor)) return '—';
@@ -258,6 +340,9 @@ function rellenarSelectCotizaciones(idCliente) {
         if (resp && resp.success && resp.cotizaciones && resp.cotizaciones.length) {
             resp.cotizaciones.forEach(function(c) {
                 var label = c.codigo_cotizacion + ' ($' + parseFloat(c.total || 0).toFixed(2) + ') — ' + (c.fecha || '');
+                if (parseInt(c.tiene_comprobante, 10) === 1) {
+                    label += ' — comprobante';
+                }
                 $s.append($('<option/>').attr('value', c.id_cotizacion).text(label));
             });
         }
@@ -273,9 +358,11 @@ function limpiarFormulario() {
     $('#cliente_id').val('');
     $('#cotizacion_id').val('');
     productosAgregados = [];
-    actualizarTablaProductos();
+    ventaCotizacionComprobanteBloqueo = false;
+    limpiarComprobanteVentaYNotaCot();
     limpiarFormularioProducto();
     rellenarSelectCotizaciones('');
+    aplicarEstadoBloqueoComprobanteCotizacion();
     // Cargar siguiente número de factura según la última registrada
     $.post('registrar_venta_data.php', { action: 'obtener_siguiente_numero_factura' }, function(resp) {
         if (resp && resp.success && resp.siguiente_numero_factura !== undefined) {
@@ -301,6 +388,10 @@ function hayProductosDuplicadosPorId(lista) {
 }
 
 function agregarProducto() {
+    if (ventaCotizacionComprobanteBloqueo) {
+        alert('Esta cotización tiene comprobante de pago registrado: no puede agregar artículos que no estén en la cotización.');
+        return;
+    }
     var productoId = $('#nuevo-producto-id').val();
     var cantidad = parseFloat($('#nuevo-cantidad').val()) || 0;
     var precioUnitario = parseFloat($('#nuevo-precio-unitario').val()) || 0;
@@ -337,6 +428,10 @@ function agregarProducto() {
 }
 
 function eliminarProducto(index) {
+    if (ventaCotizacionComprobanteBloqueo) {
+        alert('Esta cotización tiene comprobante de pago registrado: no puede quitar artículos del detalle.');
+        return;
+    }
     productosAgregados.splice(index, 1);
     actualizarTablaProductos();
 }
@@ -353,6 +448,11 @@ function actualizarTablaProductos() {
         var equivBs = (tasaCambiariaActual && tasaCambiariaActual > 0) ? (producto.subtotal * tasaCambiariaActual) : null;
         if (equivBs != null) totalVentaBs += equivBs;
         var equivBsTexto = formatearBs(equivBs);
+        var btnElim = ventaCotizacionComprobanteBloqueo
+            ? '<button type="button" class="btn btn-sm btn-secondary" disabled title="Detalle fijado por cotización con comprobante">Eliminar</button>'
+            : `<button type="button" class="btn btn-sm btn-danger" onclick="eliminarProducto(${index})">
+                        <i class="fa fa-trash"></i> Eliminar
+                    </button>`;
         var row = `
             <tr>
                 <td>${producto.producto_nombre}</td>
@@ -360,11 +460,7 @@ function actualizarTablaProductos() {
                 <td>$${producto.precio_unitario.toFixed(2)}</td>
                 <td>$${producto.subtotal.toFixed(2)}</td>
                 <td>${equivBsTexto}</td>
-                <td>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="eliminarProducto(${index})">
-                        <i class="fa fa-trash"></i> Eliminar
-                    </button>
-                </td>
+                <td>${btnElim}</td>
             </tr>
         `;
         tbody.append(row);
@@ -433,6 +529,13 @@ function verDetalle(ventaId) {
             html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
             html += '<div class="col-md-6"><strong>Cotización:</strong> ' + (resp.venta.codigo_cotizacion ? $('<div>').text(resp.venta.codigo_cotizacion).html() : '—') + '</div>';
             html += '</div>';
+            var estTxt = resp.venta.estado_texto || resp.venta.estado || '—';
+            var estCls = resp.venta.estado_badge_class || 'badge-secondary';
+            html += '<div class="row mb-3">';
+            html += '<div class="col-md-6"><strong>Estado:</strong> <span class="badge ' + $('<div>').text(estCls).html() + '">' + $('<div>').text(estTxt).html() + '</span></div>';
+            var refV = (resp.venta.comprobante_referencia || '').trim();
+            html += '<div class="col-md-6"><strong>Ref. comprobante (venta):</strong> ' + (refV ? $('<div>').text(refV).html() : '<span class="text-muted">—</span>') + '</div>';
+            html += '</div>';
             
             html += '<hr>';
             html += '<h6><strong>Detalle de Productos:</strong></h6>';
@@ -474,14 +577,21 @@ document.addEventListener('DOMContentLoaded', function() {
         var idc = $(this).val();
         $('#cotizacion_id').val('');
         productosAgregados = [];
-        actualizarTablaProductos();
+        ventaCotizacionComprobanteBloqueo = false;
+        limpiarComprobanteVentaYNotaCot();
         rellenarSelectCotizaciones(idc);
+        aplicarEstadoBloqueoComprobanteCotizacion();
     });
 
     $('#cotizacion_id').on('change', function() {
         var cid = $(this).val();
         var idCliente = $('#cliente_id').val();
         if (!cid) {
+            ventaCotizacionComprobanteBloqueo = false;
+            productosAgregados = [];
+            limpiarFormularioProducto();
+            limpiarComprobanteVentaYNotaCot();
+            aplicarEstadoBloqueoComprobanteCotizacion();
             return;
         }
         if (!idCliente) {
@@ -496,6 +606,8 @@ document.addEventListener('DOMContentLoaded', function() {
         })
             .done(function(resp) {
                 if (!resp || !resp.success) {
+                    ventaCotizacionComprobanteBloqueo = false;
+                    aplicarEstadoBloqueoComprobanteCotizacion();
                     alert((resp && resp.message) ? resp.message : 'No se pudieron cargar los productos de la cotización');
                     return;
                 }
@@ -512,12 +624,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     alert('La cotización incluye el mismo artículo más de una vez. Unifique las cantidades en la cotización o elimine líneas duplicadas antes de facturar.');
                     productosAgregados = [];
                     $('#cotizacion_id').val('');
-                    actualizarTablaProductos();
+                    ventaCotizacionComprobanteBloqueo = false;
+                    limpiarComprobanteVentaYNotaCot();
+                    aplicarEstadoBloqueoComprobanteCotizacion();
                     return;
                 }
-                actualizarTablaProductos();
+                rellenarCamposComprobanteDesdeResp(resp);
+                ventaCotizacionComprobanteBloqueo = !!(resp.tiene_comprobante);
+                aplicarEstadoBloqueoComprobanteCotizacion();
             })
             .fail(function(xhr) {
+                ventaCotizacionComprobanteBloqueo = false;
+                aplicarEstadoBloqueoComprobanteCotizacion();
                 try {
                     var r = JSON.parse(xhr.responseText);
                     alert(r.message || 'Error al cargar la cotización');
@@ -581,8 +699,8 @@ document.addEventListener('DOMContentLoaded', function() {
         var subtotal = calcularSubtotal(cantidad, precioUnitario);
         $('#nuevo-subtotal').val('$' + subtotal.toFixed(2));
         
-        // Habilitar botón agregar si hay cantidad y precio válidos
-        if (cantidad > 0 && precioUnitario > 0) {
+        // Habilitar botón agregar si hay cantidad y precio válidos (y no hay bloqueo por comprobante)
+        if (!ventaCotizacionComprobanteBloqueo && cantidad > 0 && precioUnitario > 0) {
             $('#btn-agregar-producto').prop('disabled', false);
         } else {
             $('#btn-agregar-producto').prop('disabled', true);
@@ -603,6 +721,75 @@ document.addEventListener('DOMContentLoaded', function() {
     $('#btn-guardar-venta').prop('disabled', true);
 });
 
+function construirPayloadVenta(crearOrdenesFaltantes) {
+    var cotSel = $("#cotizacion_id").val();
+    var datos = {
+        action: 'crear',
+        cliente_id: $("#cliente_id").val(),
+        fecha: $("#fecha").val(),
+        numero_factura: $("#numero_factura").val() || "",
+        productos: productosAgregados,
+        cotizacion_id: cotSel ? parseInt(cotSel, 10) : null,
+        comprobante_referencia: ($("#venta_comprobante_referencia").val() || "").trim()
+    };
+    if (crearOrdenesFaltantes) {
+        datos.crear_ordenes_produccion_faltantes = true;
+    }
+    return datos;
+}
+
+function mostrarModalStockInsuficiente(resp) {
+    var $ul = $('#modal-stock-lista-faltantes');
+    $ul.empty();
+    (resp.faltantes || []).forEach(function(f) {
+        var t = (f && f.texto) ? f.texto : '';
+        $ul.append($('<li>').text(t));
+    });
+    $('#modalStockInsuficiente').data('mensajeCompleto', resp.message || '');
+    $('#modalStockInsuficiente').modal('show');
+}
+
+function enviarRegistroVenta(crearOrdenesFaltantes) {
+    var datos = construirPayloadVenta(!!crearOrdenesFaltantes);
+    if (!datos.cliente_id || !datos.fecha) {
+        alert('Por favor completa todos los campos obligatorios');
+        return;
+    }
+    $.ajax({
+        url: "registrar_venta_data.php",
+        type: "POST",
+        data: JSON.stringify(datos),
+        contentType: "application/json",
+        dataType: "json",
+        success: function(resp) {
+            if (resp && resp.success) {
+                if (resp.code === 'ORDENES_PRODUCCION_CREADAS_SIN_VENTA') {
+                    alert(resp.message || 'Órdenes de producción registradas.');
+                    return;
+                }
+                alert(resp.message || 'Venta registrada.');
+                mostrarVista("listado");
+                cargarListado();
+            } else {
+                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+            }
+        },
+        error: function(xhr) {
+            console.error("Error:", xhr.responseText);
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp.code === 'STOCK_INSUFICIENTE' && resp.puede_crear_ordenes_produccion) {
+                    mostrarModalStockInsuficiente(resp);
+                    return;
+                }
+                alert("Error: " + (resp.message || "Error al guardar la venta"));
+            } catch (err) {
+                alert("Error de conexión.");
+            }
+        }
+    });
+}
+
 $("#form-venta").on("submit", function(e) {
     e.preventDefault();
 
@@ -616,45 +803,19 @@ $("#form-venta").on("submit", function(e) {
         return;
     }
 
-    var cotSel = $("#cotizacion_id").val();
-    var datos = {
-        action: 'crear',
-        cliente_id: $("#cliente_id").val(),
-        fecha: $("#fecha").val(),
-        numero_factura: $("#numero_factura").val() || "",
-        productos: productosAgregados,
-        cotizacion_id: cotSel ? parseInt(cotSel, 10) : null
-    };
+    enviarRegistroVenta(false);
+});
 
-    if (!datos.cliente_id || !datos.fecha) {
-        alert('Por favor completa todos los campos obligatorios');
-        return;
+$('#btn-modal-crear-ordenes').on('click', function() {
+    $('#modalStockInsuficiente').modal('hide');
+    enviarRegistroVenta(true);
+});
+
+$('#btn-modal-stock-cancelar').on('click', function() {
+    var msg = $('#modalStockInsuficiente').data('mensajeCompleto');
+    if (msg) {
+        setTimeout(function() { alert(msg); }, 300);
     }
-
-    $.ajax({
-        url: "registrar_venta_data.php",
-        type: "POST",
-        data: JSON.stringify(datos),
-        contentType: "application/json",
-        success: function(resp) {
-            if (resp && resp.success) {
-                alert(resp.message);
-                mostrarVista("listado");
-                cargarListado();
-            } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
-            }
-        },
-        error: function(xhr) {
-            console.error("Error:", xhr.responseText);
-            try {
-                var resp = JSON.parse(xhr.responseText);
-                alert("Error: " + (resp.message || "Error al guardar la venta"));
-            } catch (e) {
-                alert("Error de conexión.");
-            }
-        }
-    });
 });
 </script>
 

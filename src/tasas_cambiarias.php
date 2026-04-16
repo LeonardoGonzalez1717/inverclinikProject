@@ -13,11 +13,9 @@ require_once __DIR__ . '/../template/header.php';
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Tasas cambiarias</h2>
-                <p class="text-muted">Registrar tasa manual o desde BCV y borrar registros individuales.</p>
-
+                <p class="text-muted">Las tasas se registran automaticamente desde BCV por tarea programada, y tambien puedes cargar una tasa manual.</p>
                 <div class="row mb-3">
                     <div class="col-md-12">
-                        <button type="button" class="btn btn-success" id="btn-obtener-bcv">Obtener tasa BCV y registrar</button>
                         <button type="button" class="btn btn-primary" id="btn-registrar-manual">Registrar tasa manual</button>
                     </div>
                 </div>
@@ -41,7 +39,6 @@ require_once __DIR__ . '/../template/header.php';
         </div>
     </div>
 
-    <!-- Modal: Registrar tasa manual -->
     <div class="modal fade" id="modal-registrar" tabindex="-1">
         <div class="modal-dialog">
             <div class="modal-content">
@@ -74,44 +71,6 @@ require_once __DIR__ . '/../template/header.php';
             $('#tbody-tasas').html(html);
         });
     }
-
-    $('#btn-obtener-bcv').on('click', function() {
-        var $btn = $(this);
-        $btn.prop('disabled', true).text('Obteniendo...');
-        $.post('tasas_cambiarias_data.php', { action: 'obtener_bcv' }, function(res) {
-            if (res && res.success && res.tasa) {
-                $.post('tasas_cambiarias_data.php', {
-                    action: 'registrar',
-                    tasa: res.tasa,
-                    origen: 'bcv'
-                }, function(r2) {
-                    if (r2 && r2.success) {
-                        alert('Tasa BCV registrada: ' + res.tasa);
-                        cargarListado();
-                    } else {
-                        alert(r2 && r2.message ? r2.message : 'Error al registrar.');
-                    }
-                }, 'json').fail(function(xhr) {
-                    var msg = 'Error de conexión.';
-                    if (xhr.responseJSON && xhr.responseJSON.message) {
-                        msg = xhr.responseJSON.message;
-                    } else if (xhr.responseText) {
-                        try {
-                            var o = JSON.parse(xhr.responseText);
-                            if (o.message) msg = o.message;
-                        } catch (e) {}
-                    }
-                    alert(msg);
-                });
-            } else {
-                alert('Error: ' + (res && res.message ? res.message : 'No se pudo obtener la tasa del BCV.'));
-            }
-        }, 'json').fail(function() {
-            alert('Error de conexión.');
-        }).always(function() {
-            $btn.prop('disabled', false).text('Obtener tasa BCV y registrar');
-        });
-    });
 
     $('#btn-registrar-manual').on('click', function() {
         $('#input-tasa').val('');

@@ -2,7 +2,403 @@
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
 
+function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $chk = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'comprobante_referencia'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    $conn->query(
+        'ALTER TABLE cotizaciones
+        ADD COLUMN comprobante_referencia VARCHAR(120) DEFAULT NULL,
+        ADD COLUMN comprobante_archivo VARCHAR(255) DEFAULT NULL,
+        ADD COLUMN comprobante_fecha DATETIME DEFAULT NULL'
+    );
+}
+
+asegurar_columnas_comprobante_cotizaciones($conn);
+
+function asegurar_columna_comprobante_referencia_ventas(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $chk = $conn->query("SHOW COLUMNS FROM ventas LIKE 'comprobante_referencia'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    $conn->query(
+        'ALTER TABLE ventas ADD COLUMN comprobante_referencia VARCHAR(120) DEFAULT NULL COMMENT \'Referencia de comprobante de pago\''
+    );
+}
+
+asegurar_columna_comprobante_referencia_ventas($conn);
+
+function asegurar_enum_estado_ventas(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $r = $conn->query("SHOW COLUMNS FROM ventas LIKE 'estado'");
+    if (!$r || !($row = $r->fetch_assoc())) {
+        return;
+    }
+    $type = (string) ($row['Type'] ?? '');
+    if (stripos($type, 'aprobado') !== false && stripos($type, 'por_pagar') !== false) {
+        return;
+    }
+    $conn->query(
+        "ALTER TABLE ventas MODIFY COLUMN estado ENUM('pendiente','entregado','cancelado','aprobado','por_pagar') DEFAULT 'por_pagar'"
+    );
+}
+
+asegurar_enum_estado_ventas($conn);
+
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
+
+/**
+ * @param array<string,mixed> $filaCot
+ */
+function cotizacion_fila_tiene_comprobante(array $filaCot): bool
+{
+    $r = trim((string) ($filaCot['comprobante_referencia'] ?? ''));
+    $a = trim((string) ($filaCot['comprobante_archivo'] ?? ''));
+
+    return $r !== '' || $a !== '';
+}
+
+/**
+ * Si la cotización tiene comprobante, el detalle enviado debe coincidir exactamente con cotización_detalles.
+ *
+ * @param array<int,array<string,mixed>> $productosPayload
+ */
+function validar_venta_igual_a_cotizacion_con_comprobante(mysqli $conn, int $cotizacion_id, array $productosPayload): void
+{
+    $sql = 'SELECT r.producto_id AS catalogo_producto_id, cd.cantidad, cd.precio_unitario, cd.subtotal
+            FROM cotizacion_detalles cd
+            INNER JOIN recetas r ON r.id = cd.id_receta
+            WHERE cd.id_cotizacion = ?';
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param('i', $cotizacion_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $esperado = [];
+    while ($row = $res->fetch_assoc()) {
+        $esperado[] = [
+            'producto_id' => (int) $row['catalogo_producto_id'],
+            'cantidad' => round((float) $row['cantidad'], 4),
+            'precio_unitario' => round((float) $row['precio_unitario'], 2),
+            'subtotal' => round((float) $row['subtotal'], 2),
+        ];
+    }
+    $stmt->close();
+    usort($esperado, static function ($a, $b) {
+        if ($a['producto_id'] !== $b['producto_id']) {
+            return $a['producto_id'] <=> $b['producto_id'];
+        }
+        if ($a['cantidad'] != $b['cantidad']) {
+            return $a['cantidad'] <=> $b['cantidad'];
+        }
+
+        return 0;
+    });
+
+    $recibido = [];
+    foreach ($productosPayload as $p) {
+        $pid = (int) ($p['producto_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        $recibido[] = [
+            'producto_id' => $pid,
+            'cantidad' => round((float) ($p['cantidad'] ?? 0), 4),
+            'precio_unitario' => round((float) ($p['precio_unitario'] ?? 0), 2),
+            'subtotal' => round((float) ($p['subtotal'] ?? (($p['cantidad'] ?? 0) * ($p['precio_unitario'] ?? 0))), 2),
+        ];
+    }
+    usort($recibido, static function ($a, $b) {
+        if ($a['producto_id'] !== $b['producto_id']) {
+            return $a['producto_id'] <=> $b['producto_id'];
+        }
+        if ($a['cantidad'] != $b['cantidad']) {
+            return $a['cantidad'] <=> $b['cantidad'];
+        }
+
+        return 0;
+    });
+
+    if (count($esperado) !== count($recibido)) {
+        throw new Exception(
+            'Esta cotización tiene comprobante de pago registrado: no puede agregar ni quitar artículos respecto a la cotización.'
+        );
+    }
+    $eps = 0.0001;
+    for ($i = 0, $n = count($esperado); $i < $n; $i++) {
+        if ($esperado[$i]['producto_id'] !== ($recibido[$i]['producto_id'] ?? 0)) {
+            throw new Exception(
+                'Esta cotización tiene comprobante de pago registrado: el detalle debe coincidir con la cotización.'
+            );
+        }
+        if (abs($esperado[$i]['cantidad'] - $recibido[$i]['cantidad']) > $eps) {
+            throw new Exception(
+                'Esta cotización tiene comprobante de pago registrado: no puede modificarse cantidades respecto a la cotización.'
+            );
+        }
+        if (abs($esperado[$i]['precio_unitario'] - $recibido[$i]['precio_unitario']) > $eps) {
+            throw new Exception(
+                'Esta cotización tiene comprobante de pago registrado: no puede modificarse precios respecto a la cotización.'
+            );
+        }
+        if (abs($esperado[$i]['subtotal'] - $recibido[$i]['subtotal']) > 0.01) {
+            throw new Exception(
+                'Esta cotización tiene comprobante de pago registrado: el detalle debe coincidir con la cotización.'
+            );
+        }
+    }
+}
+
+/**
+ * @return array{0: string, 1: string} [texto visible, clase badge Bootstrap]
+ */
+function etiqueta_estado_venta(?string $estado): array
+{
+    $e = (string) ($estado ?? '');
+    $map = [
+        'pendiente' => ['Pendiente', 'badge-secondary'],
+        'por_pagar' => ['Por pagar', 'badge-warning'],
+        'aprobado' => ['Aprobado', 'badge-success'],
+        'entregado' => ['Entregado', 'badge-info'],
+        'cancelado' => ['Cancelado', 'badge-danger'],
+    ];
+    if (isset($map[$e])) {
+        return $map[$e];
+    }
+    if ($e === '') {
+        return ['—', 'badge-light'];
+    }
+
+    return [$e, 'badge-light'];
+}
+
+/**
+ * Analiza stock con saldo virtual por línea. Devuelve detalle para UI y órdenes de producción.
+ *
+ * @param array<int,array<string,mixed>> $productos
+ *
+ * @return array{ok: bool, faltantes: list<array<string,mixed>>, mensaje: string}
+ */
+function analizar_stock_venta(mysqli $conn, array $productos, bool $tieneInventarioNuevo): array
+{
+    $faltantes = [];
+    $saldoRestante = [];
+    $lineasTexto = [];
+
+    foreach ($productos as $idx => $producto) {
+        $numLinea = (int) $idx + 1;
+        $producto_id = (int) ($producto['producto_id'] ?? 0);
+        $cantidad = (float) ($producto['cantidad'] ?? 0);
+        if ($producto_id <= 0 || $cantidad <= 0) {
+            continue;
+        }
+
+        $precioU = (float) ($producto['precio_unitario'] ?? 0);
+        $subtotalLinea = isset($producto['subtotal'])
+            ? (float) $producto['subtotal']
+            : ($cantidad * $precioU);
+
+        $sn = $conn->prepare('SELECT nombre FROM productos WHERE id = ? LIMIT 1');
+        $sn->bind_param('i', $producto_id);
+        $sn->execute();
+        $rn = $sn->get_result()->fetch_assoc();
+        $sn->close();
+        $nombreProd = $rn ? trim((string) ($rn['nombre'] ?? '')) : '';
+        if ($nombreProd === '') {
+            $nombreProd = 'Producto #' . $producto_id;
+        }
+
+        $sqlReceta = "
+            SELECT id, rango_tallas_id, tipo_produccion_id
+            FROM recetas
+            WHERE producto_id = ?
+            ORDER BY creado_en DESC
+            LIMIT 1
+        ";
+        $stmtReceta = $conn->prepare($sqlReceta);
+        $stmtReceta->bind_param('i', $producto_id);
+        $stmtReceta->execute();
+        $resultReceta = $stmtReceta->get_result();
+        if (!($rowReceta = $resultReceta->fetch_assoc())) {
+            $stmtReceta->close();
+
+            return [
+                'ok' => false,
+                'faltantes' => [],
+                'mensaje' => "No existe una receta asociada al producto: {$nombreProd} (ID {$producto_id}).",
+            ];
+        }
+        $receta_id = (int) $rowReceta['id'];
+        $rango_tallas_id = (int) $rowReceta['rango_tallas_id'];
+        $tipo_produccion_id = (int) $rowReceta['tipo_produccion_id'];
+        $stmtReceta->close();
+
+        if ($tieneInventarioNuevo) {
+            $claveInv = 'r:' . $receta_id;
+        } else {
+            $claveInv = 'p:' . $producto_id . ':' . $rango_tallas_id . ':' . $tipo_produccion_id;
+        }
+
+        if (!array_key_exists($claveInv, $saldoRestante)) {
+            $stockBd = 0.0;
+            if ($tieneInventarioNuevo) {
+                $stmtStock = $conn->prepare(
+                    'SELECT stock_actual FROM inventario WHERE tipo_item = \'producto\' AND tipo_item_id = ?'
+                );
+                $stmtStock->bind_param('i', $receta_id);
+            } else {
+                $stmtStock = $conn->prepare(
+                    'SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?'
+                );
+                $stmtStock->bind_param('iii', $producto_id, $rango_tallas_id, $tipo_produccion_id);
+            }
+            $stmtStock->execute();
+            $rs = $stmtStock->get_result();
+            if ($rowStock = $rs->fetch_assoc()) {
+                $stockBd = (float) $rowStock['stock_actual'];
+            }
+            $stmtStock->close();
+            $saldoRestante[$claveInv] = $stockBd;
+        }
+
+        $saldoLinea = $saldoRestante[$claveInv];
+
+        if ($cantidad > $saldoLinea) {
+            $falta = $cantidad - $saldoLinea;
+            $txt = sprintf(
+                'Línea %d — %s: saldo disponible %s u.; solicitado en esta línea %s u.; faltan %s u. (subtotal línea $%s).',
+                $numLinea,
+                $nombreProd,
+                number_format($saldoLinea, 2, ',', '.'),
+                number_format($cantidad, 2, ',', '.'),
+                number_format($falta, 2, ',', '.'),
+                number_format($subtotalLinea, 2, ',', '.')
+            );
+            $lineasTexto[] = $txt;
+            $faltantes[] = [
+                'linea' => $numLinea,
+                'producto_id' => $producto_id,
+                'producto_nombre' => $nombreProd,
+                'receta_id' => $receta_id,
+                'rango_tallas_id' => $rango_tallas_id,
+                'tipo_produccion_id' => $tipo_produccion_id,
+                'cantidad_falta' => $falta,
+                'saldo_disponible' => $saldoLinea,
+                'cantidad_solicitada' => $cantidad,
+                'texto' => $txt,
+            ];
+        } else {
+            $saldoRestante[$claveInv] = $saldoLinea - $cantidad;
+        }
+    }
+
+    $ok = $faltantes === [];
+    $mensaje = $ok ? '' : "Stock insuficiente.\n" . implode("\n", $lineasTexto);
+
+    return [
+        'ok' => $ok,
+        'faltantes' => $faltantes,
+        'mensaje' => $mensaje,
+    ];
+}
+
+/**
+ * @param array<int,array<string,mixed>> $faltantes filas devueltas por analizar_stock_venta
+ *
+ * @return list<int> IDs de órdenes creadas
+ */
+function crear_ordenes_produccion_por_faltantes_venta(mysqli $conn, array $faltantes, string $fechaRef): array
+{
+    if ($faltantes === []) {
+        return [];
+    }
+
+    $idsCreados = [];
+    $agregado = [];
+
+    foreach ($faltantes as $f) {
+        $pid = (int) ($f['producto_id'] ?? 0);
+        $rt = (int) ($f['rango_tallas_id'] ?? 0);
+        $tp = (int) ($f['tipo_produccion_id'] ?? 0);
+        $cantFalta = (float) ($f['cantidad_falta'] ?? 0);
+        if ($pid <= 0 || $cantFalta <= 0) {
+            continue;
+        }
+
+        $stRp = $conn->prepare(
+            'SELECT id FROM recetas_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ? LIMIT 1'
+        );
+        $stRp->bind_param('iii', $pid, $rt, $tp);
+        $stRp->execute();
+        $rrp = $stRp->get_result()->fetch_assoc();
+        $stRp->close();
+
+        if (!$rrp) {
+            throw new Exception(
+                'No hay receta de producción (recetas_productos) para '
+                . ($f['producto_nombre'] ?? 'producto') . '. Registre la receta en producción antes de crear la orden.'
+            );
+        }
+        $rpid = (int) $rrp['id'];
+        $k = (string) $rpid;
+        $agregado[$k] = ($agregado[$k] ?? 0) + $cantFalta;
+    }
+
+    $obsBase = 'Orden generada por falta de stock al intentar registrar una venta (fecha ref. ' . $fechaRef . ').';
+
+    foreach ($agregado as $rpidStr => $cant) {
+        $rpid = (int) $rpidStr;
+        if ($cant <= 0) {
+            continue;
+        }
+        $obs = $obsBase . ' Cantidad a cubrir: ' . number_format($cant, 2, ',', '.') . ' u.';
+        $estado = 'pendiente';
+        $stmt = $conn->prepare(
+            'INSERT INTO ordenes_produccion (receta_producto_id, cantidad_a_producir, fecha_inicio, fecha_fin, observaciones, estado)
+             VALUES (?, ?, ?, NULL, ?, ?)'
+        );
+        $stmt->bind_param('idsss', $rpid, $cant, $fechaRef, $obs, $estado);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new Exception('No se pudo crear una orden de producción.');
+        }
+        $idsCreados[] = (int) $conn->insert_id;
+        $stmt->close();
+    }
+
+    return $idsCreados;
+}
+
+/**
+ * @throws Exception
+ */
+function validar_stock_disponible_para_venta(mysqli $conn, array $productos, bool $tieneInventarioNuevo): void
+{
+    $a = analizar_stock_venta($conn, $productos, $tieneInventarioNuevo);
+    if (!$a['ok']) {
+        if ($a['faltantes'] === [] && $a['mensaje'] !== '') {
+            throw new Exception($a['mensaje']);
+        }
+        throw new Exception($a['mensaje'] !== '' ? $a['mensaje'] : 'Stock insuficiente.');
+    }
+}
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
@@ -23,7 +419,12 @@ try {
             exit;
         }
         $sql = "SELECT c.id_cotizacion, c.codigo_cotizacion, c.id_cliente, cl.nombre AS cliente_nombre, c.total,
-                DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha
+                DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha,
+                IF(
+                    CHAR_LENGTH(TRIM(IFNULL(c.comprobante_referencia,''))) > 0
+                    OR CHAR_LENGTH(TRIM(IFNULL(c.comprobante_archivo,''))) > 0,
+                    1, 0
+                ) AS tiene_comprobante
                 FROM cotizaciones c
                 INNER JOIN clientes cl ON cl.id = c.id_cliente
                 WHERE c.id_cliente = ?
@@ -58,7 +459,9 @@ try {
         }
 
         $chk = $conn->prepare(
-            'SELECT id_cliente FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
+            'SELECT id_cliente, comprobante_referencia, comprobante_archivo,
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
+             FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
         );
         $chk->bind_param('i', $cotizacion_id);
         $chk->execute();
@@ -69,6 +472,7 @@ try {
         }
         $cinfo = $cr->fetch_assoc();
         $chk->close();
+        $tiene_comprobante = cotizacion_fila_tiene_comprobante($cinfo);
 
         $id_cliente_req = (int) ($_GET['id_cliente'] ?? 0);
         if ($id_cliente_req > 0 && (int) $cinfo['id_cliente'] !== $id_cliente_req) {
@@ -110,10 +514,19 @@ try {
         }
         $stmt->close();
 
+        $refComp = trim((string) ($cinfo['comprobante_referencia'] ?? ''));
+        $nomArch = trim((string) ($cinfo['comprobante_archivo'] ?? ''));
+        $archivoCorto = $nomArch !== '' ? basename(str_replace('\\', '/', $nomArch)) : '';
+
         echo json_encode([
             'success' => true,
             'id_cliente' => (int) $cinfo['id_cliente'],
             'productos' => $productos,
+            'tiene_comprobante' => $tiene_comprobante,
+            'comprobante_referencia' => $refComp,
+            'tiene_archivo_comprobante' => $nomArch !== '',
+            'comprobante_archivo_nombre' => $archivoCorto,
+            'comprobante_fecha' => trim((string) ($cinfo['comprobante_fecha_fmt'] ?? '')),
         ]);
         $conn->close();
         exit;
@@ -133,6 +546,8 @@ try {
                 v.numero_factura,
                 v.total,
                 v.tasa_cambiaria_id,
+                v.estado,
+                v.comprobante_referencia,
                 tc.tasa AS tasa_venta,
                 c.nombre AS cliente_nombre,
                 cot.codigo_cotizacion
@@ -154,6 +569,10 @@ try {
         
         $venta = $result->fetch_assoc();
         $stmt->close();
+
+        [$estTxt, $estCls] = etiqueta_estado_venta($venta['estado'] ?? null);
+        $venta['estado_texto'] = $estTxt;
+        $venta['estado_badge_class'] = $estCls;
         
         $sqlDetalles = "
             SELECT 
@@ -203,6 +622,7 @@ try {
                 v.total,
                 v.tasa_cambiaria_id,
                 v.cotizacion_id,
+                v.estado,
                 tc.tasa AS tasa_venta,
                 COALESCE(SUM(dv.cantidad), 0) AS cantidad_total,
                 COUNT(dv.id) AS cantidad_items,
@@ -215,10 +635,10 @@ try {
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
             WHERE NOT (
                 v.cotizacion_id IS NOT NULL
-                AND COALESCE(v.estado, 'pendiente') = 'pendiente'
+                AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar')
                 AND v.tasa_cambiaria_id IS NULL
             )
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, tc.tasa, c.nombre, cot.codigo_cotizacion
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion
             ORDER BY v.creado_en DESC, v.fecha DESC
         ";
 
@@ -248,6 +668,8 @@ try {
                 echo '<td>' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
                 echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
+                [$estTxt, $estCls] = etiqueta_estado_venta($v['estado'] ?? null);
+                echo '<td><span class="badge ' . htmlspecialchars($estCls, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt, ENT_QUOTES, 'UTF-8') . '</span></td>';
                 echo '<td style="white-space: nowrap;">';
                 echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
                 echo '<button style = "margin-left: 5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
@@ -255,7 +677,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="9" class="text-center">No se encontraron ventas registradas</td></tr>';
+            echo '<tr><td colspan="10" class="text-center">No se encontraron ventas registradas</td></tr>';
         }
         $conn->close();
         exit;
@@ -355,6 +777,12 @@ try {
         $numero_factura = trim($data['numero_factura'] ?? '');
         $productos = $data['productos'] ?? [];
         $cotizacion_id = !empty($data['cotizacion_id']) ? (int) $data['cotizacion_id'] : null;
+        $comprobante_ref_input = trim((string) ($data['comprobante_referencia'] ?? ''));
+        if ($comprobante_ref_input !== '' && function_exists('mb_substr')) {
+            $comprobante_ref_input = mb_substr($comprobante_ref_input, 0, 120, 'UTF-8');
+        } elseif ($comprobante_ref_input !== '') {
+            $comprobante_ref_input = substr($comprobante_ref_input, 0, 120);
+        }
 
         if (!$cliente_id) {
             throw new Exception("El cliente es obligatorio");
@@ -381,7 +809,9 @@ try {
         }
 
         if ($cotizacion_id) {
-            $stc = $conn->prepare('SELECT id_cliente FROM cotizaciones WHERE id_cotizacion = ? AND status != 3');
+            $stc = $conn->prepare(
+                'SELECT id_cliente, comprobante_referencia, comprobante_archivo FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
+            );
             $stc->bind_param('i', $cotizacion_id);
             $stc->execute();
             $rc = $stc->get_result();
@@ -404,6 +834,9 @@ try {
                 throw new Exception('Esta cotización ya tiene una venta facturada');
             }
             $std->close();
+            if (cotizacion_fila_tiene_comprobante($crow)) {
+                validar_venta_igual_a_cotizacion_con_comprobante($conn, $cotizacion_id, $productos);
+            }
         }
 
         $total = 0;
@@ -419,10 +852,63 @@ try {
             $tasa_cambiaria_id = (int) $row_tasa['id'];
         }
 
+        $flagOp = $data['crear_ordenes_produccion_faltantes'] ?? null;
+        $crearOpFaltantes = $flagOp === true
+            || $flagOp === 1
+            || $flagOp === '1'
+            || (is_string($flagOp) && strcasecmp($flagOp, 'true') === 0);
+
+        $analisisStock = analizar_stock_venta($conn, $productos, $tieneInventarioNuevo);
+        if (!$analisisStock['ok']) {
+            if ($crearOpFaltantes && !empty($analisisStock['faltantes'])) {
+                $conn->begin_transaction();
+                try {
+                    $idsOp = crear_ordenes_produccion_por_faltantes_venta($conn, $analisisStock['faltantes'], (string) $fecha);
+                    Auditoria::registrar(
+                        $conn,
+                        'Órdenes de producción generadas por falta de stock al registrar venta (venta no guardada). IDs: '
+                        . implode(', ', $idsOp),
+                        'Ventas'
+                    );
+                    $conn->commit();
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    throw $e;
+                }
+                header('Content-Type: application/json; charset=utf-8');
+                $n = count($idsOp);
+                $msgOp = $n === 1
+                    ? 'Se creó 1 orden de producción por las cantidades faltantes. La venta no se guardó: aún no hay inventario suficiente. Cuando haya stock, registre la venta nuevamente.'
+                    : "Se crearon {$n} órdenes de producción por las cantidades faltantes. La venta no se guardó: aún no hay inventario suficiente. Cuando haya stock, registre la venta nuevamente.";
+                echo json_encode([
+                    'success' => true,
+                    'code' => 'ORDENES_PRODUCCION_CREADAS_SIN_VENTA',
+                    'message' => $msgOp,
+                    'ordenes_produccion_ids' => $idsOp,
+                ]);
+                $conn->close();
+                exit;
+            }
+
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode([
+                'success' => false,
+                'code' => 'STOCK_INSUFICIENTE',
+                'message' => $analisisStock['mensaje'],
+                'faltantes' => $analisisStock['faltantes'],
+                'puede_crear_ordenes_produccion' => !empty($analisisStock['faltantes']),
+            ]);
+            $conn->close();
+            exit;
+        }
+
         $conn->begin_transaction();
 
         try {
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
+
+            $estado_venta = ($comprobante_ref_input !== '') ? 'aprobado' : 'por_pagar';
 
             if ($cotizacion_id) {
                 $colTasa = $conn->query("SHOW COLUMNS FROM ventas LIKE 'tasa_cambiaria_id'");
@@ -438,16 +924,16 @@ try {
 
             if ($cotizacion_id) {
                 $stmt = $conn->prepare("
-                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, cotizacion_id, estado)
-                    VALUES (?, ?, ?, ?, ?, ?, 'entregado')
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, cotizacion_id, estado, comprobante_referencia)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''))
                 ");
-                $stmt->bind_param("issdii", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $cotizacion_id);
+                $stmt->bind_param('issdiiss', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $cotizacion_id, $estado_venta, $comprobante_ref_input);
             } else {
                 $stmt = $conn->prepare("
-                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, estado)
-                    VALUES (?, ?, ?, ?, ?, 'entregado')
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, estado, comprobante_referencia)
+                    VALUES (?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''))
                 ");
-                $stmt->bind_param("issdi", $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id);
+                $stmt->bind_param('issdiss', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $estado_venta, $comprobante_ref_input);
             }
 
             $stmt->execute();
@@ -514,7 +1000,7 @@ try {
                     $stmtStock->close();
 
                     if ($cantidad > $stockActual) {
-                        throw new Exception("stock insuficiente");
+                        throw new Exception('Inconsistencia de inventario respecto a la validación previa. Reintente la venta.');
                     }
 
                     $nuevoStock = $stockActual - $cantidad;
@@ -599,7 +1085,7 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="9" class="text-center text-danger">Error al cargar ventas</td></tr>';
+        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar ventas</td></tr>';
     }
 }
 
