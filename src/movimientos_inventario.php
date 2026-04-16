@@ -389,39 +389,30 @@ $("#form-crear").on("submit", function(e) {
     const observaciones = $("#observaciones").val();
 
     if (!tipoInventario) {
-        alert('Por favor selecciona un tipo de inventario');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un tipo de inventario' });
         return;
     }
 
     if (tipoInventario === 'materia_prima') {
         if (!insumoId) {
-            alert('Por favor selecciona un insumo');
+            Swal.fire({ icon: 'warning', text: 'Por favor selecciona un insumo' });
             return;
         }
     }
 
     if (tipoInventario === 'productos' && !recetaId) {
-        alert('Por favor selecciona un producto');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un producto' });
         return;
     }
 
     if (!tipo) {
-        alert('Por favor selecciona un tipo de movimiento');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un tipo de movimiento' });
         return;
     }
 
     if (!cantidad || cantidad <= 0) {
-        alert('La cantidad debe ser mayor a 0');
+        Swal.fire({ icon: 'warning', text: 'La cantidad debe ser mayor a 0' });
         return;
-    }
-
-    if (tipo === 'salida') {
-        const stockActual = parseFloat($('#stock-actual').text()) || 0;
-        if (cantidad > stockActual) {
-            if (!confirm('La cantidad a salir es mayor al stock actual. ¿Deseas continuar de todas formas?')) {
-                return;
-            }
-        }
     }
 
     const tipoMovimiento = $("#tipo_movimiento").val();
@@ -444,7 +435,7 @@ $("#form-crear").on("submit", function(e) {
             dataType: "json",
             success: function(resp) {
                 if (resp && resp.success) {
-                    alert(resp.message);
+                    Swal.fire({ icon: 'success', text: resp.message });
                     limpiarFormulario();
                     mostrarVista("listado");
                     if (tabListadoTrasGuardar === 'productos') {
@@ -453,50 +444,77 @@ $("#form-crear").on("submit", function(e) {
                         cambiarTab('materia_prima');
                     }
                 } else {
-                    alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
                 }
             },
             error: function(xhr) {
                 console.error("Error:", xhr.responseText);
-                alert("Error de conexión.");
+                Swal.fire({ icon: 'error', text: "Error de conexión." });
             }
         });
     }
 
-    $.ajax({
-        url: "movimientos_inventario_data.php",
-        type: "POST",
-        data: {
-            action: 'prevalidar_stock_max_movimiento',
-            tipo_inventario: tipoInventario,
-            insumo_id: tipoInventario === 'materia_prima' ? insumoId : '',
-            receta_id: tipoInventario === 'productos' ? recetaId : '',
-            tipo: tipo,
-            cantidad: cantidad
-        },
-        dataType: "json",
-        success: function(pre) {
-            if (!pre || pre.success !== true) {
-                alert(pre && pre.message ? pre.message : 'Error al validar el stock máximo.');
-                return;
-            }
-            if (pre.supera_maximo) {
-                if (!confirm('El stock máximo ha sido superado, ¿estás seguro que deseas continuar?')) {
+    function validarStockMaxYGuardar() {
+        $.ajax({
+            url: "movimientos_inventario_data.php",
+            type: "POST",
+            data: {
+                action: 'prevalidar_stock_max_movimiento',
+                tipo_inventario: tipoInventario,
+                insumo_id: tipoInventario === 'materia_prima' ? insumoId : '',
+                receta_id: tipoInventario === 'productos' ? recetaId : '',
+                tipo: tipo,
+                cantidad: cantidad
+            },
+            dataType: "json",
+            success: function(pre) {
+                if (!pre || pre.success !== true) {
+                    Swal.fire({ icon: 'error', text: pre && pre.message ? pre.message : 'Error al validar el stock máximo.' });
                     return;
                 }
+                if (pre.supera_maximo) {
+                    Swal.fire({
+                        icon: 'warning',
+                        text: 'El stock máximo ha sido superado, ¿estás seguro que deseas continuar?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Continuar',
+                        cancelButtonText: 'Cancelar'
+                    }).then(function(r) {
+                        if (r.isConfirmed) ejecutarGuardadoMovimiento();
+                    });
+                } else {
+                    ejecutarGuardadoMovimiento();
+                }
+            },
+            error: function(xhr) {
+                console.error("Error:", xhr.responseText);
+                try {
+                    var err = JSON.parse(xhr.responseText);
+                    Swal.fire({ icon: 'error', text: "Error: " + (err.message || 'No se pudo validar el movimiento.') });
+                } catch (e) {
+                    Swal.fire({ icon: 'error', text: "Error de conexión." });
+                }
             }
-            ejecutarGuardadoMovimiento();
-        },
-        error: function(xhr) {
-            console.error("Error:", xhr.responseText);
-            try {
-                var err = JSON.parse(xhr.responseText);
-                alert("Error: " + (err.message || 'No se pudo validar el movimiento.'));
-            } catch (e) {
-                alert("Error de conexión.");
-            }
+        });
+    }
+
+    if (tipo === 'salida') {
+        const stockActual = parseFloat($('#stock-actual').text()) || 0;
+        if (cantidad > stockActual) {
+            Swal.fire({
+                icon: 'warning',
+                text: 'La cantidad a salir es mayor al stock actual. ¿Deseas continuar de todas formas?',
+                showCancelButton: true,
+                confirmButtonText: 'Continuar',
+                cancelButtonText: 'Cancelar'
+            }).then(function(r) {
+                if (r.isConfirmed) validarStockMaxYGuardar();
+            });
+            return;
         }
-    });
+    }
+
+    validarStockMaxYGuardar();
 });
 </script>
 

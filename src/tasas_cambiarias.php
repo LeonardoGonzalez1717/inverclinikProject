@@ -82,7 +82,7 @@ require_once __DIR__ . '/../template/header.php';
         var tasa = $('#input-tasa').val().trim().replace(',', '.');
         var fechaHora = $('#input-fecha-hora').val();
         if (!tasa || parseFloat(tasa) <= 0) {
-            alert('Ingrese una tasa válida mayor que 0.');
+            Swal.fire({ icon: 'warning', text: 'Ingrese una tasa válida mayor que 0.' });
             return;
         }
         $.post('tasas_cambiarias_data.php', {
@@ -93,10 +93,10 @@ require_once __DIR__ . '/../template/header.php';
         }, function(res) {
             if (res && res.success) {
                 $('#modal-registrar').modal('hide');
-                alert(res.message);
+                Swal.fire({ icon: 'success', text: res.message });
                 cargarListado();
             } else {
-                alert(res && res.message ? res.message : 'Error al registrar.');
+                Swal.fire({ icon: 'error', text: res && res.message ? res.message : 'Error al registrar.' });
             }
         }, 'json').fail(function(xhr) {
             var msg = 'Error de conexión.';
@@ -108,20 +108,28 @@ require_once __DIR__ . '/../template/header.php';
                     if (o.message) msg = o.message;
                 } catch (e) {}
             }
-            alert(msg);
+            Swal.fire({ icon: 'error', text: msg });
         });
     });
 
     $(document).on('click', '.btn-borrar-tasa', function() {
         var id = $(this).data('id');
-        if (!confirm('¿Eliminar esta tasa?')) return;
-        $.post('tasas_cambiarias_data.php', { action: 'borrar', id: id }, function(res) {
-            if (res && res.success) {
-                cargarListado();
-            } else {
-                alert('Error: ' + (res && res.message ? res.message : ''));
-            }
-        }, 'json').fail(function() { alert('Error de conexión.'); });
+        Swal.fire({
+            icon: 'question',
+            text: '¿Eliminar esta tasa?',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then(function(r) {
+            if (!r.isConfirmed) return;
+            $.post('tasas_cambiarias_data.php', { action: 'borrar', id: id }, function(res) {
+                if (res && res.success) {
+                    cargarListado();
+                } else {
+                    Swal.fire({ icon: 'error', text: 'Error: ' + (res && res.message ? res.message : '') });
+                }
+            }, 'json').fail(function() { Swal.fire({ icon: 'error', text: 'Error de conexión.' }); });
+        });
     });
 
     $(document).ready(function() {

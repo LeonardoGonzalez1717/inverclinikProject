@@ -252,17 +252,17 @@ $("#form-crear").on("submit", function(e) {
     };
 
     if (!datos.nombre || datos.nombre.trim() === '') {
-        alert('El nombre del insumo es obligatorio');
+        Swal.fire({ icon: 'warning', text: 'El nombre del insumo es obligatorio' });
         return;
     }
 
     if (!datos.unidad_medida || datos.unidad_medida.trim() === '') {
-        alert('La unidad de medida es obligatoria');
+        Swal.fire({ icon: 'warning', text: 'La unidad de medida es obligatoria' });
         return;
     }
 
     if (!datos.costo_unitario || parseFloat(datos.costo_unitario) < 0) {
-        alert('El costo unitario debe ser mayor o igual a 0');
+        Swal.fire({ icon: 'warning', text: 'El costo unitario debe ser mayor o igual a 0' });
         return;
     }
 
@@ -272,16 +272,16 @@ $("#form-crear").on("submit", function(e) {
         data: datos,
         success: function(resp) {
             if (resp && resp.success) {
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
-            alert("Error de conexión.");
+            Swal.fire({ icon: 'error', text: "Error de conexión." });
         }
     });
 });

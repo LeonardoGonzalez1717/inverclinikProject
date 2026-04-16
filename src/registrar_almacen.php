@@ -45,8 +45,9 @@ require_once "../connection/connection.php";
                 </div>
 
                 <div id="vista-crear" class="hidden">
-                    <h5 class="subtitle">Registrar nuevo almacén</h5>
+                    <h5 class="subtitle" id="subtitle-form-almacen">Registrar nuevo almacén</h5>
                     <form id="form-almacen">
+                        <input type="hidden" id="editar-almacen-id" value="">
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label class="form-label">Nombre <span style="color:red">*</span></label>
@@ -57,11 +58,20 @@ require_once "../connection/connection.php";
                                 <input type="text" name="codigo" id="codigo" class="form-control" maxlength="20" placeholder="Opcional">
                             </div>
                         </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Estado</label>
+                                <select name="activo" id="activo" class="form-control">
+                                    <option value="1">Activo</option>
+                                    <option value="0">Inactivo</option>
+                                </select>
+                            </div>
+                        </div>
 
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <button type="submit" class="btn btn-primary">Guardar</button>
-                                <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                                <button type="button" class="btn btn-secondary" onclick="limpiarFormulario(); mostrarVista('listado');">Cancelar</button>
                             </div>
                         </div>
                     </form>
@@ -85,17 +95,30 @@ function cargarListado() {
 }
 
 function limpiarFormulario() {
+    $('#editar-almacen-id').val('');
+    $('#subtitle-form-almacen').text('Registrar nuevo almacén');
     $('#form-almacen')[0].reset();
+    $('#activo').val('1');
 }
 
 $('#form-almacen').on('submit', function (e) {
     e.preventDefault();
-    var datos = {
-        action: 'crear',
-        nombre: $('#nombre').val().trim(),
-        codigo: $('#codigo').val().trim(),
-        activo: 1
-    };
+    var idEdit = $('#editar-almacen-id').val();
+    var activo = parseInt($('#activo').val(), 10) === 1 ? 1 : 0;
+    var datos = idEdit
+        ? {
+            action: 'editar',
+            id: parseInt(idEdit, 10),
+            nombre: $('#nombre').val().trim(),
+            codigo: $('#codigo').val().trim(),
+            activo: activo
+        }
+        : {
+            action: 'crear',
+            nombre: $('#nombre').val().trim(),
+            codigo: $('#codigo').val().trim(),
+            activo: activo
+        };
     $.ajax({
         url: 'registrar_almacen_data.php',
         type: 'POST',
@@ -104,94 +127,67 @@ $('#form-almacen').on('submit', function (e) {
         dataType: 'json',
         success: function (resp) {
             if (resp && resp.success) {
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
+                limpiarFormulario();
                 mostrarVista('listado');
                 cargarListado();
             } else {
-                alert('Error: ' + (resp ? resp.message : 'Error desconocido'));
+                Swal.fire({ icon: 'error', text: 'Error: ' + (resp ? resp.message : 'Error desconocido') });
             }
         },
         error: function (xhr) {
             try {
                 var r = JSON.parse(xhr.responseText);
-                alert('Error: ' + (r.message || xhr.responseText));
+                Swal.fire({ icon: 'error', text: 'Error: ' + (r.message || xhr.responseText) });
             } catch (e) {
-                alert('Error de conexión.');
+                Swal.fire({ icon: 'error', text: 'Error de conexión.' });
             }
         }
     });
 });
 
 function editarAlmacen(id, nombre, codigo, activo) {
-    var n = window.prompt('Nombre del almacén:', nombre || '');
-    if (n === null) return;
-    n = n.trim();
-    if (n === '') {
-        alert('El nombre es obligatorio.');
-        return;
-    }
-    var c = window.prompt('Código (opcional):', codigo != null ? String(codigo) : '');
-    if (c === null) return;
-    var actStr = window.prompt('¿Activo? Escriba 1 (sí) o 0 (no):', activo ? '1' : '0');
-    if (actStr === null) return;
-    actStr = actStr.trim();
-    var act = (actStr === '1') ? 1 : 0;
-
-    $.ajax({
-        url: 'registrar_almacen_data.php',
-        type: 'POST',
-        data: JSON.stringify({
-            action: 'editar',
-            id: id,
-            nombre: n,
-            codigo: c.trim(),
-            activo: act
-        }),
-        contentType: 'application/json',
-        dataType: 'json',
-        success: function (resp) {
-            if (resp && resp.success) {
-                alert(resp.message);
-                cargarListado();
-            } else {
-                alert('Error: ' + (resp ? resp.message : 'Error desconocido'));
-            }
-        },
-        error: function (xhr) {
-            try {
-                var r = JSON.parse(xhr.responseText);
-                alert('Error: ' + (r.message || xhr.responseText));
-            } catch (e) {
-                alert('Error de conexión.');
-            }
-        }
-    });
+    $('#editar-almacen-id').val(String(id));
+    $('#nombre').val(nombre || '');
+    $('#codigo').val(codigo != null ? String(codigo) : '');
+    var esActivo = activo === 1 || activo === true || activo === '1';
+    $('#activo').val(esActivo ? '1' : '0');
+    $('#subtitle-form-almacen').text('Editar almacén');
+    mostrarVista('crear');
 }
 
 function eliminarAlmacen(id) {
-    if (!window.confirm('¿Desea eliminar este almacén?')) return;
-    $.ajax({
-        url: 'registrar_almacen_data.php',
-        type: 'POST',
-        data: JSON.stringify({ action: 'eliminar', id: id }),
-        contentType: 'application/json',
-        dataType: 'json',
-        success: function (resp) {
-            if (resp && resp.success) {
-                alert(resp.message);
-                cargarListado();
-            } else {
-                alert('Error: ' + (resp ? resp.message : 'Error desconocido'));
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea eliminar este almacén?',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+    }).then(function (r) {
+        if (!r.isConfirmed) return;
+        $.ajax({
+            url: 'registrar_almacen_data.php',
+            type: 'POST',
+            data: JSON.stringify({ action: 'eliminar', id: id }),
+            contentType: 'application/json',
+            dataType: 'json',
+            success: function (resp) {
+                if (resp && resp.success) {
+                    Swal.fire({ icon: 'success', text: resp.message });
+                    cargarListado();
+                } else {
+                    Swal.fire({ icon: 'error', text: 'Error: ' + (resp ? resp.message : 'Error desconocido') });
+                }
+            },
+            error: function (xhr) {
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    Swal.fire({ icon: 'error', text: 'Error: ' + (r.message || xhr.responseText) });
+                } catch (e) {
+                    Swal.fire({ icon: 'error', text: 'Error de conexión.' });
+                }
             }
-        },
-        error: function (xhr) {
-            try {
-                var r = JSON.parse(xhr.responseText);
-                alert('Error: ' + (r.message || xhr.responseText));
-            } catch (e) {
-                alert('Error de conexión.');
-            }
-        }
+        });
     });
 }
 

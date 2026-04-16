@@ -244,12 +244,12 @@ function agregarInsumo() {
     var costoUnitario = parseFloat($('#nuevo-costo-unitario').val()) || 0;
     
     if (!insumoId || cantidad <= 0) {
-        alert('Por favor selecciona un insumo e ingresa una cantidad válida');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un insumo e ingresa una cantidad válida' });
         return;
     }
     
     if (costoUnitario <= 0) {
-        alert('Por favor ingresa un costo unitario válido');
+        Swal.fire({ icon: 'warning', text: 'Por favor ingresa un costo unitario válido' });
         return;
     }
     
@@ -346,7 +346,7 @@ function verDetalle(compraId) {
                 setTimeout(mostrarModal, 100);
             } else {
                 console.error('Bootstrap modal no está disponible después de varios intentos');
-                alert('Error: No se pudo cargar el modal. Por favor, recarga la página.');
+                Swal.fire({ icon: 'error', text: 'Error: No se pudo cargar el modal. Por favor, recarga la página.' });
             }
         }
     }
@@ -483,7 +483,7 @@ $("#form-compra").on("submit", function(e) {
     e.preventDefault();
 
     if (insumosAgregados.length === 0) {
-        alert('Por favor agrega al menos un insumo a la compra');
+        Swal.fire({ icon: 'warning', text: 'Por favor agrega al menos un insumo a la compra' });
         return;
     }
 
@@ -497,7 +497,7 @@ $("#form-compra").on("submit", function(e) {
     };
 
     if (!datos.proveedor_id || !datos.fecha) {
-        alert('Por favor completa todos los campos obligatorios');
+        Swal.fire({ icon: 'warning', text: 'Por favor completa todos los campos obligatorios' });
         return;
     }
 
@@ -509,20 +509,20 @@ $("#form-compra").on("submit", function(e) {
             contentType: "application/json",
             success: function(resp) {
                 if (resp && resp.success) {
-                    alert(resp.message);
+                    Swal.fire({ icon: 'success', text: resp.message });
                     mostrarVista("listado");
                     cargarListado();
                 } else {
-                    alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
                 }
             },
             error: function(xhr) {
                 console.error("Error:", xhr.responseText);
                 try {
                     var resp = JSON.parse(xhr.responseText);
-                    alert("Error: " + (resp.message || "Error al guardar la compra"));
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp.message || "Error al guardar la compra") });
                 } catch (e) {
-                    alert("Error de conexión.");
+                    Swal.fire({ icon: 'error', text: "Error de conexión." });
                 }
             }
         });
@@ -535,13 +535,20 @@ $("#form-compra").on("submit", function(e) {
         contentType: "application/json",
         success: function(pre) {
             if (!pre || !pre.success) {
-                alert(pre && pre.message ? pre.message : 'Error al validar el stock');
+                Swal.fire({ icon: 'error', text: pre && pre.message ? pre.message : 'Error al validar el stock' });
                 return;
             }
             if (pre.requiere_confirmacion) {
-                if (!confirm('El stock máximo ha sido superado, ¿estás seguro que deseas continuar?')) {
-                    return;
-                }
+                Swal.fire({
+                    icon: 'warning',
+                    text: 'El stock máximo ha sido superado, ¿estás seguro que deseas continuar?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Continuar',
+                    cancelButtonText: 'Cancelar'
+                }).then(function(r) {
+                    if (r.isConfirmed) enviarCompraAlServidor();
+                });
+                return;
             }
             enviarCompraAlServidor();
         },
@@ -549,9 +556,9 @@ $("#form-compra").on("submit", function(e) {
             console.error("Error:", xhr.responseText);
             try {
                 var resp = JSON.parse(xhr.responseText);
-                alert("Error: " + (resp.message || "Error al validar"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp.message || "Error al validar") });
             } catch (e) {
-                alert("Error de conexión.");
+                Swal.fire({ icon: 'error', text: "Error de conexión." });
             }
         }
     });

@@ -132,7 +132,6 @@ require_once('../template/header.php');
     }
 
     // $.post('gestionar_perfiles_data.php', { action: 'eliminar', id: usuarioId }, function(response) {
-    //     alert(response.message);
     //     if (response.success) {
     //         cargarListado();
     //     }
@@ -197,26 +196,31 @@ require_once('../template/header.php');
     }
 
     function eliminarUsuario(id) {
-        if (!confirm('¿Está seguro de eliminar este usuario?')) {
-            return;
-        }
-
-        $.post('gestionar_perfiles_data.php', {
-            action: 'eliminar',
-            id: id
-        }, function(resp) {
-            if (resp.success) {
-                $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
-                setTimeout(function() {
-                    $('#resultadoUsuarios').html('');
-                    cargarListado();
-                }, 1500);
-            } else {
-                $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
-            }
-        }, 'json').fail(function(xhr) {
-            var resp = JSON.parse(xhr.responseText);
-            $('#resultadoUsuarios').html('<div class="alert alert-danger">' + (resp.message || 'Error al eliminar usuario') + '</div>');
+        Swal.fire({
+            icon: 'question',
+            text: '¿Está seguro de eliminar este usuario?',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then(function(r) {
+            if (!r.isConfirmed) return;
+            $.post('gestionar_perfiles_data.php', {
+                action: 'eliminar',
+                id: id
+            }, function(resp) {
+                if (resp.success) {
+                    $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
+                    setTimeout(function() {
+                        $('#resultadoUsuarios').html('');
+                        cargarListado();
+                    }, 1500);
+                } else {
+                    $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
+                }
+            }, 'json').fail(function(xhr) {
+                var resp = JSON.parse(xhr.responseText);
+                $('#resultadoUsuarios').html('<div class="alert alert-danger">' + (resp.message || 'Error al eliminar usuario') + '</div>');
+            });
         });
     }
     </script>

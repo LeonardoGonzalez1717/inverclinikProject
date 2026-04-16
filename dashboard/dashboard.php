@@ -30,6 +30,17 @@ $row = mysqli_fetch_assoc($result);
             padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         canvas { width: 100% !important; height: auto !important; }
+        .dashboard-filtro {
+            display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 16px;
+            margin-bottom: 24px; padding: 16px 18px;
+            background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+            border-left: 4px solid #005bbe;
+        }
+        .dashboard-filtro label { font-weight: 600; color: #333; margin-bottom: 4px; display: block; font-size: 0.9rem; }
+        .dashboard-filtro .form-group { margin-bottom: 0; min-width: 160px; }
+        .dashboard-filtro .btn-aplicar { background: #005bbe; border: none; color: #fff; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+        .dashboard-filtro .btn-aplicar:hover { filter: brightness(1.05); }
+        .dashboard-filtro .periodo-texto { width: 100%; font-size: 0.85rem; color: #666; margin: 0; }
     </style>
 </head>
 <body>
@@ -37,6 +48,20 @@ $row = mysqli_fetch_assoc($result);
         <h3>Bienvenido, <?php echo $row['username']; ?></h3>
         
         <div class="main-panel">
+            <form class="dashboard-filtro" id="formFiltroDashboard" action="#" method="get" autocomplete="off">
+                <div class="form-group">
+                    <label for="fecha_desde">Desde</label>
+                    <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" />
+                </div>
+                <div class="form-group">
+                    <label for="fecha_hasta">Hasta</label>
+                    <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" />
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn-aplicar">Aplicar</button>
+                </div>
+            </form>
+
             <section class="alertas">
                 <div class="alert-card produccion" id="card-prod">
                     <h3> Producción</h3>
@@ -56,7 +81,8 @@ $row = mysqli_fetch_assoc($result);
             </section>
 
             <section class="estadisticas">
-                <h2>Análisis de Rendimiento Mensual</h2>
+                <h2 id="tituloEstadisticas">Análisis de rendimiento</h2>
+                <p id="subtituloPeriodo" class="text-muted" style="margin-top:-8px;"></p>
                 <div class="graficos-container" style="display: flex; gap: 20px; align-items: flex-start;">
                     <div class="chart-box" style="flex: 1;">
                         <canvas id="graficoDonaProductos"></canvas>
@@ -69,10 +95,51 @@ $row = mysqli_fetch_assoc($result);
     </div>
 
 <script>
+let chartDona = null;
+let chartBar = null;
+
+function tituloDonaProductos(filtro) {
+    if (!filtro || !filtro.aplicar_filtro_fecha) return 'Top 5 productos (todas las cotizaciones)';
+    if (filtro.modo_fecha === 'desde') return 'Top 5 productos (cotizaciones desde ' + filtro.fecha_desde + ')';
+    if (filtro.modo_fecha === 'hasta') return 'Top 5 productos (cotizaciones hasta ' + filtro.fecha_hasta + ')';
+    return 'Top 5 productos (cotizaciones en el período)';
+}
+
+function tituloBarrasPresupuestos(filtro) {
+    if (!filtro || !filtro.aplicar_filtro_fecha) return 'Presupuestos por mes — histórico completo ($)';
+    if (filtro.modo_fecha === 'desde') return 'Presupuestos por mes desde ' + filtro.fecha_desde + ' ($)';
+    if (filtro.modo_fecha === 'hasta') return 'Presupuestos por mes hasta ' + filtro.fecha_hasta + ' ($)';
+    return 'Presupuestos por mes en el período ($)';
+}
+
+function urlDashboardDatos() {
+    const fd = document.getElementById('fecha_desde').value;
+    const fh = document.getElementById('fecha_hasta').value;
+    const params = new URLSearchParams();
+    if (fd) params.set('fecha_desde', fd);
+    if (fh) params.set('fecha_hasta', fh);
+    const q = params.toString();
+    return 'dashboard_datos.php' + (q ? '?' + q : '');
+}
+
 async function cargarDashboard() {
     try {
-        const response = await fetch('dashboard_datos.php');
+        const response = await fetch(urlDashboardDatos());
         const data = await response.json();
+
+        const filtro = data.filtro || {};
+        document.getElementById('fecha_desde').value = filtro.fecha_desde || '';
+        document.getElementById('fecha_hasta').value = filtro.fecha_hasta || '';
+        const sub = document.getElementById('subtituloPeriodo');
+        if (!filtro.aplicar_filtro_fecha) {
+            sub.textContent = 'Sin filtro de fechas: totales históricos en finanzas y gráficos.';
+        } else if (filtro.modo_fecha === 'desde') {
+            sub.textContent = 'Filtro: desde ' + filtro.fecha_desde + ' (hacia adelante, sin límite superior).';
+        } else if (filtro.modo_fecha === 'hasta') {
+            sub.textContent = 'Filtro: hasta ' + filtro.fecha_hasta + ' (desde el inicio de los registros).';
+        } else {
+            sub.textContent = 'Período filtrado: ' + filtro.fecha_desde + ' — ' + filtro.fecha_hasta;
+        }
 
         // 1. Llenar KPIs
         document.getElementById('ordenesActivas').textContent = data.kpis.activas;
@@ -88,7 +155,8 @@ async function cargarDashboard() {
 
         // 2. Gráfico de Dona (Productos Top)
         const ctxDona = document.getElementById('graficoDonaProductos').getContext('2d');
-        new Chart(ctxDona, {
+        if (chartDona) chartDona.destroy();
+        chartDona = new Chart(ctxDona, {
             type: 'doughnut',
             data: {
                 labels: data.productos_top.map(item => item.nombre),
@@ -100,20 +168,21 @@ async function cargarDashboard() {
             options: {
                 responsive: true,
                 plugins: {
-                    title: { display: true, text: 'Top 5 Productos Más Vendidos' },
+                    title: { display: true, text: tituloDonaProductos(data.filtro) },
                     legend: { position: 'bottom' }
                 }
             }
         });
 
-        // 3. Gráfico de Barras (Ventas Mensuales)
+        // 3. Gráfico de Barras (Presupuestos por mes en el período)
         const ctxBar = document.getElementById('graficoVentasBarras').getContext('2d');
-        new Chart(ctxBar, {
+        if (chartBar) chartBar.destroy();
+        chartBar = new Chart(ctxBar, {
             type: 'bar',
             data: {
                 labels: data.ventas_mes.map(item => item.mes),
                 datasets: [{
-                    label: 'Ventas Totales ($)',
+                    label: 'Total presupuestos ($)',
                     data: data.ventas_mes.map(item => item.monto_total),
                     backgroundColor: '#4a90e2',
                 }]
@@ -122,7 +191,7 @@ async function cargarDashboard() {
                 indexAxis: 'y', // <--- ¡ESTO vuelve las barras horizontales!
                 responsive: true,
                 plugins: {
-                    title: { display: true, text: 'Rendimiento por Mes' }
+                    title: { display: true, text: tituloBarrasPresupuestos(data.filtro) }
                 }
             }
         });
@@ -132,7 +201,14 @@ async function cargarDashboard() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', cargarDashboard);
+document.addEventListener('DOMContentLoaded', function () {
+    cargarDashboard();
+
+    document.getElementById('formFiltroDashboard').addEventListener('submit', function (e) {
+        e.preventDefault();
+        cargarDashboard();
+    });
+});
 </script>
 </body>
 </html>

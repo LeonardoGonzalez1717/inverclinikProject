@@ -389,7 +389,7 @@ function hayProductosDuplicadosPorId(lista) {
 
 function agregarProducto() {
     if (ventaCotizacionComprobanteBloqueo) {
-        alert('Esta cotización tiene comprobante de pago registrado: no puede agregar artículos que no estén en la cotización.');
+        Swal.fire({ icon: 'warning', text: 'Esta cotización tiene comprobante de pago registrado: no puede agregar artículos que no estén en la cotización.' });
         return;
     }
     var productoId = $('#nuevo-producto-id').val();
@@ -397,17 +397,17 @@ function agregarProducto() {
     var precioUnitario = parseFloat($('#nuevo-precio-unitario').val()) || 0;
     
     if (!productoId || cantidad <= 0) {
-        alert('Por favor selecciona un producto e ingresa una cantidad válida');
+        Swal.fire({ icon: 'warning', text: 'Por favor selecciona un producto e ingresa una cantidad válida' });
         return;
     }
     
     if (precioUnitario <= 0) {
-        alert('Por favor ingresa un precio unitario válido');
+        Swal.fire({ icon: 'warning', text: 'Por favor ingresa un precio unitario válido' });
         return;
     }
 
     if (productosAgregados.some(function(p) { return String(p.producto_id) === String(productoId); })) {
-        alert('Este artículo ya está en la venta. Elimine la línea existente o modifique la cantidad en esa línea.');
+        Swal.fire({ icon: 'warning', text: 'Este artículo ya está en la venta. Elimine la línea existente o modifique la cantidad en esa línea.' });
         return;
     }
     
@@ -429,7 +429,7 @@ function agregarProducto() {
 
 function eliminarProducto(index) {
     if (ventaCotizacionComprobanteBloqueo) {
-        alert('Esta cotización tiene comprobante de pago registrado: no puede quitar artículos del detalle.');
+        Swal.fire({ icon: 'warning', text: 'Esta cotización tiene comprobante de pago registrado: no puede quitar artículos del detalle.' });
         return;
     }
     productosAgregados.splice(index, 1);
@@ -508,7 +508,7 @@ function verDetalle(ventaId) {
                 setTimeout(mostrarModal, 100);
             } else {
                 console.error('Bootstrap modal no está disponible después de varios intentos');
-                alert('Error: No se pudo cargar el modal. Por favor, recarga la página.');
+                Swal.fire({ icon: 'error', text: 'Error: No se pudo cargar el modal. Por favor, recarga la página.' });
             }
         }
     }
@@ -595,7 +595,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         if (!idCliente) {
-            alert('Seleccione primero un cliente.');
+            Swal.fire({ icon: 'warning', text: 'Seleccione primero un cliente.' });
             $(this).val('');
             return;
         }
@@ -608,7 +608,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!resp || !resp.success) {
                     ventaCotizacionComprobanteBloqueo = false;
                     aplicarEstadoBloqueoComprobanteCotizacion();
-                    alert((resp && resp.message) ? resp.message : 'No se pudieron cargar los productos de la cotización');
+                    Swal.fire({ icon: 'error', text: (resp && resp.message) ? resp.message : 'No se pudieron cargar los productos de la cotización' });
                     return;
                 }
                 productosAgregados = (resp.productos || []).map(function(p) {
@@ -621,7 +621,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                 });
                 if (hayProductosDuplicadosPorId(productosAgregados)) {
-                    alert('La cotización incluye el mismo artículo más de una vez. Unifique las cantidades en la cotización o elimine líneas duplicadas antes de facturar.');
+                    Swal.fire({ icon: 'warning', text: 'La cotización incluye el mismo artículo más de una vez. Unifique las cantidades en la cotización o elimine líneas duplicadas antes de facturar.' });
                     productosAgregados = [];
                     $('#cotizacion_id').val('');
                     ventaCotizacionComprobanteBloqueo = false;
@@ -638,9 +638,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 aplicarEstadoBloqueoComprobanteCotizacion();
                 try {
                     var r = JSON.parse(xhr.responseText);
-                    alert(r.message || 'Error al cargar la cotización');
+                    Swal.fire({ icon: 'error', text: r.message || 'Error al cargar la cotización' });
                 } catch (e) {
-                    alert('Error de conexión.');
+                    Swal.fire({ icon: 'error', text: 'Error de conexión.' });
                 }
             });
     });
@@ -672,15 +672,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     $('#nuevo-precio-unitario').val('');
                     $('#stock-info-producto').hide();
                     if (resp && resp.message) {
-                        alert(resp.message);
+                        Swal.fire({ icon: 'warning', text: resp.message });
                     } else {
-                        alert('No se pudo obtener el precio del producto');
+                        Swal.fire({ icon: 'error', text: 'No se pudo obtener el precio del producto' });
                     }
                 }
             }, 'json').fail(function() {
                 $('#nuevo-precio-unitario').val('');
                 $('#stock-info-producto').hide();
-                alert('Error al obtener el precio del producto');
+                Swal.fire({ icon: 'error', text: 'Error al obtener el precio del producto' });
             });
         } else {
             $('#nuevo-precio-unitario').val('');
@@ -752,7 +752,7 @@ function mostrarModalStockInsuficiente(resp) {
 function enviarRegistroVenta(crearOrdenesFaltantes) {
     var datos = construirPayloadVenta(!!crearOrdenesFaltantes);
     if (!datos.cliente_id || !datos.fecha) {
-        alert('Por favor completa todos los campos obligatorios');
+        Swal.fire({ icon: 'warning', text: 'Por favor completa todos los campos obligatorios' });
         return;
     }
     $.ajax({
@@ -764,14 +764,14 @@ function enviarRegistroVenta(crearOrdenesFaltantes) {
         success: function(resp) {
             if (resp && resp.success) {
                 if (resp.code === 'ORDENES_PRODUCCION_CREADAS_SIN_VENTA') {
-                    alert(resp.message || 'Órdenes de producción registradas.');
+                    Swal.fire({ icon: 'success', text: resp.message || 'Órdenes de producción registradas.' });
                     return;
                 }
-                alert(resp.message || 'Venta registrada.');
+                Swal.fire({ icon: 'success', text: resp.message || 'Venta registrada.' });
                 mostrarVista("listado");
                 cargarListado();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function(xhr) {
@@ -782,9 +782,9 @@ function enviarRegistroVenta(crearOrdenesFaltantes) {
                     mostrarModalStockInsuficiente(resp);
                     return;
                 }
-                alert("Error: " + (resp.message || "Error al guardar la venta"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp.message || "Error al guardar la venta") });
             } catch (err) {
-                alert("Error de conexión.");
+                Swal.fire({ icon: 'error', text: "Error de conexión." });
             }
         }
     });
@@ -794,12 +794,12 @@ $("#form-venta").on("submit", function(e) {
     e.preventDefault();
 
     if (productosAgregados.length === 0) {
-        alert('Por favor agrega al menos un producto a la venta');
+        Swal.fire({ icon: 'warning', text: 'Por favor agrega al menos un producto a la venta' });
         return;
     }
 
     if (hayProductosDuplicadosPorId(productosAgregados)) {
-        alert('No se puede guardar la venta: hay el mismo artículo más de una vez. Deje una sola línea por producto.');
+        Swal.fire({ icon: 'warning', text: 'No se puede guardar la venta: hay el mismo artículo más de una vez. Deje una sola línea por producto.' });
         return;
     }
 
@@ -814,7 +814,7 @@ $('#btn-modal-crear-ordenes').on('click', function() {
 $('#btn-modal-stock-cancelar').on('click', function() {
     var msg = $('#modalStockInsuficiente').data('mensajeCompleto');
     if (msg) {
-        setTimeout(function() { alert(msg); }, 300);
+        setTimeout(function() { Swal.fire({ icon: 'info', text: msg }); }, 300);
     }
 });
 </script>

@@ -26,9 +26,12 @@ include '../modales_cliente.php';
     <meta charset="UTF-8" />
     <title>INVERCLINIK - Catálogo por Tallas</title>
     <script src="../../assets/js/jquery-3.7.1.min.js"></script>
+    <script src="../../assets/js/sweetalert2.all.min.js"></script>
+    <script>window.Swal = Swal.mixin({ confirmButtonText: 'Aceptar' });</script>
     <link rel="stylesheet" href="../../assets/css/select2.min.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="../../css/catalogo_cliente.css">
+    <link rel="stylesheet" href="../../css/sweetalert-overrides.css">
     <link rel="stylesheet" href="../../assets/css/all.min.css">
 </head>
 <body>
@@ -134,7 +137,7 @@ include '../modales_cliente.php';
         if(modal) {
             modal.style.display = 'block';
         } else {
-            alert("Por favor, inicie sesión o regístrese para continuar.");
+            Swal.fire({ icon: 'info', text: "Por favor, inicie sesión o regístrese para continuar." });
             window.location.href = "../../index.php";
         }
     }
@@ -214,7 +217,7 @@ include '../modales_cliente.php';
     }
 
     function enviarPedido() {
-        if(pedido.length === 0) return alert("Carrito vacío");
+        if(pedido.length === 0) { Swal.fire({ icon: 'warning', text: "Carrito vacío" }); return; }
         const totalCalculado = pedido.reduce((acc, item) => acc + item.subtotal, 0);
 
         $.ajax({
@@ -227,12 +230,12 @@ include '../modales_cliente.php';
             dataType: 'json',
             success: function(res) {
                 if(res.status === 'success') {
-                    alert("Presupuesto " + res.correlativo + " generado con éxito.");
+                    Swal.fire({ icon: 'success', text: "Presupuesto " + res.correlativo + " generado con éxito." });
                     enviarWhatsApp(res.correlativo);
                     pedido = [];
                     actualizarVista();
                 } else {
-                    alert("Error: " + res.message);
+                    Swal.fire({ icon: 'error', text: "Error: " + res.message });
                 }
             }
         });

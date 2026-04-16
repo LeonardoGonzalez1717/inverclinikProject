@@ -32,9 +32,23 @@ function restringirEscritura() {
             echo json_encode(['status' => 'error', 'message' => 'Acceso denegado: El rol Lector no puede realizar cambios.']);
         } else {
             // Si es una petición normal, mostramos alerta y regresamos
+            $docRoot = str_replace('\\', '/', rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/\\'));
+            $projRoot = str_replace('\\', '/', dirname(__DIR__));
+            $swalJsUrl = (strpos($projRoot, $docRoot) === 0)
+                ? str_replace($docRoot, '', $projRoot) . '/assets/js/sweetalert2.all.min.js'
+                : '/assets/js/sweetalert2.all.min.js';
+            $swalJsUrl = htmlspecialchars($swalJsUrl, ENT_QUOTES, 'UTF-8');
             echo "<script>
-                alert('Acceso Denegado: Su usuario es de Solo Lectura.');
-                window.history.back();
+                (function(){
+                    function mostrar() {
+                        Swal.fire({ icon: 'warning', text: 'Acceso Denegado: Su usuario es de Solo Lectura.' }).then(function(){ window.history.back(); });
+                    }
+                    if (typeof Swal !== 'undefined') { mostrar(); return; }
+                    var s = document.createElement('script');
+                    s.src = '{$swalJsUrl}';
+                    s.onload = function(){ window.Swal = Swal.mixin({ confirmButtonText: 'Aceptar' }); mostrar(); };
+                    document.head.appendChild(s);
+                })();
             </script>";
         }
         exit;

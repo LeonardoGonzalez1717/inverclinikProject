@@ -42,6 +42,9 @@ if ($result) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Catálogo de Productos - INVERCLINIK</title>
     <link rel="stylesheet" href="css/catalogo_cliente.css">
+    <link rel="stylesheet" href="css/sweetalert-overrides.css">
+    <script src="assets/js/sweetalert2.all.min.js"></script>
+    <script>window.Swal = Swal.mixin({ confirmButtonText: 'Aceptar' });</script>
 </head>
 <body>
     <div class="container">
@@ -306,21 +309,28 @@ if ($result) {
             
             // Vaciar carrito
             document.getElementById('clear-cart').addEventListener('click', function() {
-                if (confirm('¿Estás seguro de vaciar el carrito?')) {
+                Swal.fire({
+                    icon: 'question',
+                    text: '¿Estás seguro de vaciar el carrito?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, vaciar',
+                    cancelButtonText: 'Cancelar'
+                }).then(function(r) {
+                    if (!r.isConfirmed) return;
                     cart = [];
                     localStorage.setItem('cart', JSON.stringify(cart));
                     updateCartCount();
                     renderCart();
-                }
+                });
             });
             
             // Finalizar compra
             document.getElementById('checkout').addEventListener('click', function() {
                 if (cart.length === 0) {
-                    alert('Tu carrito está vacío');
+                    Swal.fire({ icon: 'warning', text: 'Tu carrito está vacío' });
                     return;
                 }
-                alert('Funcionalidad de compra en desarrollo. Productos en el carrito: ' + cart.length);
+                Swal.fire({ icon: 'info', text: 'Funcionalidad de compra en desarrollo. Productos en el carrito: ' + cart.length });
             });
 
             // Vista previa de imagen

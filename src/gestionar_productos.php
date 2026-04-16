@@ -211,7 +211,7 @@ $("#form-crear").on("submit", function(e) {
     }
 
     if (!$("#nombre").val() || $("#nombre").val().trim() === '') {
-        alert('El nombre del producto es obligatorio');
+        Swal.fire({ icon: 'warning', text: 'El nombre del producto es obligatorio' });
         return;
     }
 
@@ -223,18 +223,18 @@ $("#form-crear").on("submit", function(e) {
         contentType: false,
         success: function(resp) {
             if (resp && resp.success) {
-                alert(resp.message);
+                Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
                 limpiarFormulario();
             } else {
-                alert("Error: " + (resp ? resp.message : "Respuesta inválida"));
+                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
         error: function(xhr) {
             console.error("Error:", xhr.responseText);
             var resp = JSON.parse(xhr.responseText);
-            alert("Error: " + (resp ? resp.message : "Error de conexión."));
+            Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error de conexión.") });
         }
     });
 });

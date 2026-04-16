@@ -32,10 +32,15 @@ try {
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($row['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($row['descripcion']) . '</td>';
-                echo '<td>
-                        <button class="btn btn-sm btn-primary" onclick="editarCategoria(' . $row['id'] . ')">Editar</button>
-                        <button class="btn btn-sm btn-danger" onclick="eliminarCategoria(' . $row['id'] . ')">Eliminar</button>
-                      </td>';
+                $onclickEdit = 'editarCategoria('
+                    . (int) $row['id'] . ', '
+                    . json_encode($row['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ', '
+                    . json_encode($row['descripcion'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE)
+                    . ')';
+                echo '<td>'
+                    . '<button type="button" class="btn btn-sm btn-primary" onclick=\'' . $onclickEdit . '\'>Editar</button> '
+                    . '<button type="button" class="btn btn-sm btn-danger" onclick="eliminarCategoria(' . (int) $row['id'] . ')">Eliminar</button>'
+                    . '</td>';
                 echo '</tr>';
             }
         } else {
