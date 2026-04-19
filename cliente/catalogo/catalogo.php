@@ -72,6 +72,18 @@ include '../modales_cliente.php';
             $result = mysqli_query($conn, $sql);
             while($p = mysqli_fetch_assoc($result)):
                 $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
+                $rawImg = trim((string)($p['imagen'] ?? ''));
+                if ($rawImg === '') {
+                    $imgSrc = '../../assets/img/inverclinik_3.png';
+                } elseif (preg_match('#\Ahttps?://#i', $rawImg)) {
+                    $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                } elseif ($rawImg[0] === '/') {
+                    $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                } elseif (preg_match('#\Aassets/#i', $rawImg)) {
+                    $imgSrc = '../../' . htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                } else {
+                    $imgSrc = '../../assets/img/productos/' . htmlspecialchars(basename($rawImg), ENT_QUOTES, 'UTF-8');
+                }
             ?>
             <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>" style="position: relative;">
                 <?php if($isAdmin): ?>
@@ -81,7 +93,7 @@ include '../modales_cliente.php';
                 <?php endif; ?>
 
                 <div class="product-image">
-                    <img src="<?php echo $p['imagen']; ?>" alt="<?php echo $p['nombre']; ?>">
+                    <img src="<?php echo $imgSrc; ?>" alt="<?php echo htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8'); ?>" onerror="this.onerror=null;this.src='../../assets/img/inverclinik_3.png';">
                 </div>
                 
                 <h3><?php echo $p['nombre']; ?></h3>
