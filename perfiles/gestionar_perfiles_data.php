@@ -53,8 +53,8 @@ try {
             throw new Exception("Todos los campos son obligatorios");
         }
 
-        if (!in_array($role_id, [1, 2])) {
-            throw new Exception("Rol no válido (1=admin, 2=supervisor)");
+        if (!in_array($role_id, [1, 2, 4, 5, 6], true)) {
+            throw new Exception("Rol no válido para usuario interno");
         }
 
         // Validar duplicados
@@ -99,8 +99,8 @@ try {
             throw new Exception("ID de usuario requerido");
         }
 
-        if (!in_array($role_id, [1, 2])) {
-            throw new Exception("Rol no válido (1=admin, 2=supervisor)");
+        if (!in_array($role_id, [1, 2, 4, 5, 6], true)) {
+            throw new Exception("Rol no válido para usuario interno");
         }
 
         // Solo actualizamos el rol

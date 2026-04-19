@@ -17,6 +17,8 @@ if (file_exists(__DIR__ . '/connection/connection.php')) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="assets/js/jquery-3.7.1.min.js"></script>
   <link rel="stylesheet" href="css/login.css" />
+  <link rel="stylesheet" href="assets/css/password-toggle.css" />
+  <script src="assets/js/password-toggle.js" defer></script>
 </head>
 <?php include 'cliente/modales_cliente.php'; ?>
 <body>

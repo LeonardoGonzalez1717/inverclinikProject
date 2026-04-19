@@ -351,7 +351,10 @@ CREATE TABLE IF NOT EXISTS `users` (
 INSERT IGNORE INTO `roles` (`id`, `nombre`) VALUES 
 (1, 'admin'),
 (2, 'supervisor'),
-(3, 'cliente');
+(3, 'cliente'),
+(4, 'Gerencia de producción'),
+(5, 'Gerencia comercial'),
+(6, 'Gerencia administrativa');
 
 -- --------------------------------------------------------
 

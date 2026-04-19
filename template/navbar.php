@@ -1,13 +1,21 @@
-<?php $role_id = isset($_SESSION['role_id']) ? (int)$_SESSION['role_id'] : 0; ?>
+<?php
+$role_id = isset($_SESSION['role_id']) ? (int) $_SESSION['role_id'] : 0;
+$isCliente = ($role_id === 3);
+$menuCompleto = in_array($role_id, [1, 2], true);
+$gerProd = ($role_id === 4);
+$gerCom = ($role_id === 5);
+$gerAdm = ($role_id === 6);
+$tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
+?>
 <link rel="stylesheet" href="../css/navbar.css" />
 <aside class="sidebar">
     <div class="logo">
-        <a href="<?php echo ($_SESSION['role_id'] === 3) ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio"> 
+        <a href="<?php echo $isCliente ? '../dashboard/dashboard_cliente.php' : '../dashboard/dashboard.php'; ?>" title="Inicio">
             INVERCLINIK
         </a>
     </div>
     <nav>
-        <?php if ($_SESSION['role_id'] === 1 || $_SESSION['role_id'] === 2) { ?>
+        <?php if ($menuCompleto) { ?>
             <ul>
                 <li class="collapsible">
                 <button class="collapsible-toggle">Procesos</button>
@@ -50,8 +58,68 @@
                 </ul>
             </li>
             </ul>
+        <?php } elseif ($tieneMenuGerencia) { ?>
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle">Procesos</button>
+                    <ul class="collapsible-content">
+                        <?php if ($gerCom) { ?>
+                            <li><a href="../cliente/cotizacion.php">Cotización</a></li>
+                        <?php } ?>
+                        <?php if ($gerProd) { ?>
+                            <li><a href="../src/orden_produccion.php">Orden de Producción</a></li>
+                            <li><a href="../src/movimientos_inventario.php">Movimientos de Inventario</a></li>
+                            <li><a href="../src/historial_movimientos.php">Historial de movimientos</a></li>
+                        <?php } ?>
+                        <?php if ($gerCom) { ?>
+                            <li><a href="../src/registrar_venta.php">Registrar Venta</a></li>
+                        <?php } ?>
+                        <?php if ($gerAdm) { ?>
+                            <li><a href="../src/registrar_compra.php">Registrar Compra</a></li>
+                        <?php } ?>
+                    </ul>
+                </li>
+            </ul>
+            <?php if ($gerCom || $gerAdm) { ?>
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle">Registros</button>
+                    <ul class="collapsible-content">
+                        <?php if ($gerCom) { ?>
+                            <li><a href="../src/gestionar_clientes.php">Clientes</a></li>
+                        <?php } ?>
+                        <?php if ($gerAdm) { ?>
+                            <li><a href="../src/gestionar_proveedores.php">Proveedores</a></li>
+                            <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
+                        <?php } ?>
+                    </ul>
+                </li>
+            </ul>
+            <?php } ?>
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle">Reportes</button>
+                    <ul class="collapsible-content">
+                        <?php if ($gerProd) { ?>
+                            <li><a href="../reportes/ordenes_form.php">Reporte de Ordenes</a></li>
+                            <li><a href="../reportes/ordenes_produccion_form.php">Reporte de Ordenes P.</a></li>
+                            <li><a href="../reportes/inventario_materia_prima_form_v2.php">Reporte de Materia Prima</a></li>
+                            <li><a href="../reportes/inventario_productos_form_v2.php">Reporte de Stock</a></li>
+                        <?php } ?>
+                        <?php if ($gerCom) { ?>
+                            <li><a href="../reportes/ventas_form.php">Reporte de Ventas</a></li>
+                            <li><a href="../reportes/productos_form.php">Reporte de Productos</a></li>
+                        <?php } ?>
+                        <?php if ($gerAdm) { ?>
+                            <li><a href="../reportes/compras_form.php">Reporte de Compras</a></li>
+                            <li><a href="../reportes/insumos_form.php">Reporte de Insumos</a></li>
+                            <li><a href="../reportes/inventario_materia_prima_form_v2.php">Reporte de Materia Prima</a></li>
+                        <?php } ?>
+                    </ul>
+                </li>
+            </ul>
         <?php } ?>
-        <?php if ($_SESSION['role_id'] === 3) { ?>
+        <?php if ($isCliente) { ?>
             <ul>
                 <li class="collapsible"> <button class="collapsible-toggle">Mis Servicios</button>
                   <ul class="collapsible-content">
@@ -62,7 +130,7 @@
                 </li>
             </ul>
         <?php } ?>
-        
+
     </nav>
     <div class="perfil">
         <ul>

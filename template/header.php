@@ -48,4 +48,6 @@ require_once ROOT_PATH . '/connection/connection.php';
         window.Swal = Swal.mixin({ confirmButtonText: 'Aceptar' });
     </script>
     <link rel="stylesheet" href="../assets/css/select2.min.css">
+    <link rel="stylesheet" href="../assets/css/password-toggle.css">
+    <script src="../assets/js/password-toggle.js" defer></script>
 </head>
