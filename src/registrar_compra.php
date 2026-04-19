@@ -124,7 +124,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
                                 <div class="col-md-1 mb-2 d-flex align-items-end" style="position: relative; top: 22px;">
                                     <button type="button" class="btn btn-success" id="btn-agregar-insumo" style="width: fit-content; margin-bottom: 0;">
-                                        <i class="fa fa-plus"></i> Agregar
+                                        <i class="fa fa-plus"></i> 
                                     </button>
                                 </div>
                             </div>
