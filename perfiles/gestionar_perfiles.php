@@ -51,15 +51,15 @@ require_once('../template/header.php');
                                        maxlength="255" placeholder="Ej: leonardo">
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
+                                <input type="email" name="correo" id="correo" class="form-control" required 
+                                maxlength="255" placeholder="Ej: usuario@ejemplo.com">
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Contraseña <span style="color: red;">*</span></label>
                                 <input type="password" name="password" id="password" class="form-control" 
                                        placeholder="Dejar vacío para mantener la actual (solo al editar)">
                                 <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
-                                <input type="email" name="correo" id="correo" class="form-control" required 
-                                       maxlength="255" placeholder="Ej: usuario@ejemplo.com">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Rol <span style="color: red;">*</span></label>
@@ -67,6 +67,9 @@ require_once('../template/header.php');
                                     <option value="">Seleccione un rol</option>
                                     <option value="1">Admin</option>
                                     <option value="2">Supervisor</option>
+                                    <option value="4">Gerencia de producción</option>
+                                    <option value="5">Gerencia comercial</option>
+                                    <option value="6">Gerencia administrativa</option>
                                 </select>
                             </div>
                             <button type="submit" class="btn btn-primary">Guardar Usuario</button>

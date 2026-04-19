@@ -33,6 +33,8 @@ include '../modales_cliente.php';
     <link rel="stylesheet" href="../../css/catalogo_cliente.css">
     <link rel="stylesheet" href="../../css/sweetalert-overrides.css">
     <link rel="stylesheet" href="../../assets/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/css/password-toggle.css" />
+    <script src="../../assets/js/password-toggle.js" defer></script>
 </head>
 <body>
 
