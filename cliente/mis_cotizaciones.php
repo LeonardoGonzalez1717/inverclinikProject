@@ -82,11 +82,11 @@ require_once '../template/header.php';
                             <label for="comp-referencia">Número o referencia del pago</label>
                             <input type="text" class="form-control" id="comp-referencia" name="comprobante_referencia" maxlength="120" placeholder="Ej. referencia del banco, últimos dígitos, etc." autocomplete="off">
                         </div>
-                        <div class="form-group mb-0">
+                        <!-- <div class="form-group mb-0">
                             <label for="comp-archivo">Archivo del comprobante (opcional si ya indicó referencia)</label>
                             <input type="file" class="form-control-file" id="comp-archivo" name="archivo_comprobante" accept=".pdf,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf">
                             <small class="form-text text-muted">PDF, JPG, PNG o WEBP.</small>
-                        </div>
+                        </div> -->
                     </form>
                     <div id="comp-mensaje" class="mt-2 small" style="display:none;"></div>
                 </div>

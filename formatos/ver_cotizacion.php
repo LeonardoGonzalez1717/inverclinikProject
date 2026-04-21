@@ -6,7 +6,12 @@ if ($id_cotizacion <= 0) {
     die("Cotización no encontrada.");
 }
 
-$sql = "SELECT c.*, cl.nombre AS cliente, cl.telefono, cl.direccion,
+$sql = "SELECT c.*,
+        cl.nombre AS cliente,
+        cl.tipo_documento AS cliente_tipo_documento,
+        cl.numero_documento AS cliente_numero_documento,
+        cl.telefono AS cliente_telefono,
+        cl.direccion AS cliente_direccion,
         COALESCE(cl.email, '') AS correo
         FROM cotizaciones c
         INNER JOIN clientes cl ON c.id_cliente = cl.id
@@ -21,6 +26,16 @@ $stmt->close();
 if (!$c) {
     die("Cotización no encontrada.");
 }
+
+$docCliente = trim(
+    ($c['cliente_tipo_documento'] ?? '') !== ''
+        ? trim((string) ($c['cliente_tipo_documento'] ?? '')) . '-' . trim((string) ($c['cliente_numero_documento'] ?? ''))
+        : (string) ($c['cliente_numero_documento'] ?? '')
+);
+$docCliente = $docCliente !== '' && $docCliente !== '-' ? $docCliente : 'S/N';
+
+$telCliente = trim((string) ($c['cliente_telefono'] ?? ''));
+$telCliente = $telCliente !== '' ? $telCliente : 'S/N';
 
 $fechaCab = !empty($c['fecha_registro']) ? $c['fecha_registro'] : date('Y-m-d');
 
@@ -95,14 +110,14 @@ $res_det = $stmtDet->get_result();
                 <td><?php echo htmlspecialchars($c['cliente']); ?></td>
 
                 <td><b>RIF/Cedula: </b></td>
-                <td><?php echo $c['numero_documento'] ?? 'S/N'; ?></td>
+                <td><?php echo htmlspecialchars($docCliente); ?></td>
             </tr>
             <tr>
                 <td><b>Direccion: </b></td>
-                <td><?php echo htmlspecialchars($c['direccion']); ?></td>
+                <td><?php echo htmlspecialchars($c['cliente_direccion'] ?? ''); ?></td>
 
                 <td><b>Telefono: </b></td>
-                <td><?php echo $c['telefono'] ?? 'S/N'; ?></td>
+                <td><?php echo htmlspecialchars($telCliente); ?></td>
             </tr>
         </table>
         <table>
