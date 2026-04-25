@@ -19,7 +19,11 @@ $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 try {
     if ($action === 'listar') {
-        $rows = RespaldoBdService::listarRegistros($conn);
+        if (RespaldoBdService::tablaRespaldosExiste($conn)) {
+            $rows = RespaldoBdService::listarRegistros($conn);
+        } else {
+            $rows = RespaldoBdService::listarDesdeDisco();
+        }
         echo json_encode(['success' => true, 'files' => $rows]);
         $conn->close();
         exit;
@@ -31,6 +35,19 @@ try {
             $uid = null;
         }
         $result = RespaldoBdService::crearRespaldo($conn, $host, $user, $pass, $db, 'manual', $uid);
+        echo json_encode($result);
+        $conn->close();
+        exit;
+    }
+
+    if ($action === 'restaurar') {
+        $respaldoId = isset($_POST['respaldo_id']) ? (int) $_POST['respaldo_id'] : 0;
+        $respaldoFile = isset($_POST['respaldo_file']) ? (string) $_POST['respaldo_file'] : '';
+        if ($respaldoId > 0 && RespaldoBdService::tablaRespaldosExiste($conn)) {
+            $result = RespaldoBdService::restaurarDesdeRegistro($conn, $host, $user, $pass, $db, $respaldoId);
+        } else {
+            $result = RespaldoBdService::restaurarDesdeArchivo($host, $user, $pass, $db, $respaldoFile);
+        }
         echo json_encode($result);
         $conn->close();
         exit;
