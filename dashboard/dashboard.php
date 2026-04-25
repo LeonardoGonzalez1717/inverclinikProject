@@ -36,7 +36,7 @@ $row = mysqli_fetch_assoc($result);
             background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.08);
             border-left: 4px solid #005bbe;
         }
-        .dashboard-filtro label { font-weight: 600; color: #333; margin-bottom: 4px; display: block; font-size: 0.9rem; }
+        .dashboard-filtro label { font-weight: 600; color: #333; margin-bottom: 4px; display: block; }
         .dashboard-filtro .form-group { margin-bottom: 0; min-width: 160px; }
         .dashboard-filtro .btn-aplicar { background: #005bbe; border: none; color: #fff; padding: 8px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; }
         .dashboard-filtro .btn-aplicar:hover { filter: brightness(1.05); }
