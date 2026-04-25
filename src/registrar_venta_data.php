@@ -63,6 +63,84 @@ function asegurar_enum_estado_ventas(mysqli $conn): void
 
 asegurar_enum_estado_ventas($conn);
 
+function asegurar_formas_pago_y_relacion_ventas(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS formas_pago (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nombre VARCHAR(60) NOT NULL UNIQUE,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    );
+
+    $base = ['pago movil', 'transferencia bancaria', 'efectivo', 'divisa'];
+    foreach ($base as $nombre) {
+        $st = $conn->prepare(
+            "INSERT INTO formas_pago (nombre, activo)
+             SELECT ?, 1
+             WHERE NOT EXISTS (
+                SELECT 1 FROM formas_pago WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?))
+             )"
+        );
+        if ($st) {
+            $st->bind_param('ss', $nombre, $nombre);
+            $st->execute();
+            $st->close();
+        }
+    }
+
+    $chkCol = $conn->query("SHOW COLUMNS FROM ventas LIKE 'forma_pago_id'");
+    if ($chkCol && $chkCol->num_rows === 0) {
+        $conn->query("ALTER TABLE ventas ADD COLUMN forma_pago_id INT NULL AFTER comprobante_referencia");
+    }
+
+    $chkFk = $conn->query("
+        SELECT CONSTRAINT_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'ventas'
+          AND COLUMN_NAME = 'forma_pago_id'
+          AND REFERENCED_TABLE_NAME = 'formas_pago'
+        LIMIT 1
+    ");
+    $tieneFk = $chkFk && $chkFk->num_rows > 0;
+    if (!$tieneFk) {
+        @ $conn->query(
+            "ALTER TABLE ventas
+             ADD CONSTRAINT fk_ventas_forma_pago
+             FOREIGN KEY (forma_pago_id) REFERENCES formas_pago(id)
+             ON UPDATE CASCADE ON DELETE SET NULL"
+        );
+    }
+}
+
+asegurar_formas_pago_y_relacion_ventas($conn);
+
+function normalizar_forma_pago(string $txt): string
+{
+    $txt = strtolower(trim($txt));
+    $txt = strtr($txt, [
+        'á' => 'a',
+        'é' => 'e',
+        'í' => 'i',
+        'ó' => 'o',
+        'ú' => 'u',
+        'Á' => 'a',
+        'É' => 'e',
+        'Í' => 'i',
+        'Ó' => 'o',
+        'Ú' => 'u',
+    ]);
+    return preg_replace('/\s+/', ' ', $txt) ?? $txt;
+}
+
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
 /**
@@ -548,12 +626,14 @@ try {
                 v.tasa_cambiaria_id,
                 v.estado,
                 v.comprobante_referencia,
+                fp.nombre AS forma_pago_nombre,
                 tc.tasa AS tasa_venta,
                 c.nombre AS cliente_nombre,
                 cot.codigo_cotizacion
             FROM ventas v
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
+            LEFT JOIN formas_pago fp ON fp.id = v.forma_pago_id
             LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             WHERE v.id = ?
         ";
@@ -778,6 +858,7 @@ try {
         $productos = $data['productos'] ?? [];
         $cotizacion_id = !empty($data['cotizacion_id']) ? (int) $data['cotizacion_id'] : null;
         $comprobante_ref_input = trim((string) ($data['comprobante_referencia'] ?? ''));
+        $forma_pago_id = (int) ($data['forma_pago_id'] ?? 0);
         if ($comprobante_ref_input !== '' && function_exists('mb_substr')) {
             $comprobante_ref_input = mb_substr($comprobante_ref_input, 0, 120, 'UTF-8');
         } elseif ($comprobante_ref_input !== '') {
@@ -794,6 +875,29 @@ try {
 
         if (empty($productos) || !is_array($productos)) {
             throw new Exception("Debe agregar al menos un producto a la venta");
+        }
+
+        if ($forma_pago_id <= 0) {
+            throw new Exception('La forma de pago es obligatoria.');
+        }
+
+        $stForma = $conn->prepare('SELECT id, LOWER(TRIM(nombre)) AS nombre_norm FROM formas_pago WHERE id = ? AND activo = 1 LIMIT 1');
+        $stForma->bind_param('i', $forma_pago_id);
+        $stForma->execute();
+        $rf = $stForma->get_result();
+        $forma = $rf ? $rf->fetch_assoc() : null;
+        $stForma->close();
+        if (!$forma) {
+            throw new Exception('La forma de pago seleccionada no es válida.');
+        }
+
+        $formaNorm = normalizar_forma_pago((string) ($forma['nombre_norm'] ?? ''));
+        $requiereComprobante = in_array($formaNorm, ['pago movil', 'transferencia bancaria'], true);
+        if ($requiereComprobante && $comprobante_ref_input === '') {
+            throw new Exception('Debe indicar el número o referencia del comprobante para esta forma de pago.');
+        }
+        if (!$requiereComprobante) {
+            $comprobante_ref_input = '';
         }
 
         $idsLinea = [];
@@ -924,16 +1028,16 @@ try {
 
             if ($cotizacion_id) {
                 $stmt = $conn->prepare("
-                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, cotizacion_id, estado, comprobante_referencia)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''))
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, cotizacion_id, estado, comprobante_referencia, forma_pago_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''), ?)
                 ");
-                $stmt->bind_param('issdiiss', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $cotizacion_id, $estado_venta, $comprobante_ref_input);
+                $stmt->bind_param('issdiissi', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $cotizacion_id, $estado_venta, $comprobante_ref_input, $forma_pago_id);
             } else {
                 $stmt = $conn->prepare("
-                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, estado, comprobante_referencia)
-                    VALUES (?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''))
+                    INSERT INTO ventas (cliente_id, fecha, numero_factura, total, tasa_cambiaria_id, estado, comprobante_referencia, forma_pago_id)
+                    VALUES (?, ?, ?, ?, ?, ?, NULLIF(TRIM(?), ''), ?)
                 ");
-                $stmt->bind_param('issdiss', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $estado_venta, $comprobante_ref_input);
+                $stmt->bind_param('issdissi', $cliente_id, $fecha, $numero_factura, $total, $tasa_cambiaria_id, $estado_venta, $comprobante_ref_input, $forma_pago_id);
             }
 
             $stmt->execute();

@@ -14,6 +14,9 @@ require_once __DIR__ . '/../template/header.php';
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Respaldos y restauración de la base de datos</h2>
+                <div class="mb-3">
+                    <a href="restauracion_bd.php" class="btn btn-outline-danger">Ir a restauración</a>
+                </div>
                 <h5 class="subtitle">Respaldos guardados</h5>
                 <div class="table-container">
                     <table class="recipe-table">
