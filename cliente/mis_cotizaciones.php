@@ -9,6 +9,7 @@ if (empty($_SESSION['id_cliente'])) {
 require_once '../template/header.php';
 ?>
 <body>
+    <script src="../assets/js/libs/tesseract/tesseract.min.js"></script>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
@@ -64,35 +65,50 @@ require_once '../template/header.php';
         </div>
     </div>
 
-    <div class="modal fade" id="modalComprobanteCot" tabindex="-1" role="dialog" aria-labelledby="modalComprobanteTitulo">
-        <div class="modal-dialog" role="document">
+    <div class="modal fade" id="modalComprobanteCot" tabindex="-1" role="dialog" aria-labelledby="modalComprobanteTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document"> 
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalComprobanteTitulo">Comprobante de pago <span id="modal-comp-cod" class="badge badge-secondary"></span></h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar" style="outline: none;">
                         <span aria-hidden="true">&times;</span>
                     </button>
+                    <h5 class="modal-title" id="modalComprobanteTitulo">
+                        Comprobante de Pago <span id="modal-comp-cod"></span>
+                    </h5>
                 </div>
+
                 <div class="modal-body">
-                    <p class="text-muted small mb-3">Puede indicar el <strong>número de referencia</strong> del pago y/o <strong>adjuntar</strong> una imagen o PDF del comprobante (máx. 8&nbsp;MB).</p>
                     <div id="comp-estado-previo" class="alert alert-light border small mb-3" style="display:none;"></div>
+                    
                     <form id="form-comprobante-cot" enctype="multipart/form-data">
                         <input type="hidden" name="id_cotizacion" id="form-comp-id" value="">
-                        <div class="form-group">
-                            <label for="comp-referencia">Número o referencia del pago</label>
-                            <input type="text" class="form-control" id="comp-referencia" name="comprobante_referencia" maxlength="120" placeholder="Ej. referencia del banco, últimos dígitos, etc." autocomplete="off">
+                        
+                        <div class="form-group mb-4">
+                            <label for="comp-archivo" class="font-weight-bold">Adjuntar Comprobante</label>
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="comp-archivo" name="archivo_comprobante" accept="image/*">
+                                <small class="form-text text-muted">Seleccionar imagen...</small>
+                            </div>
+                            <small id="ocr-status" class="form-text text-info mt-2" style="display:none;">
+                                <i class="fas fa-sync-alt fa-spin"></i> Procesando datos...
+                            </small>
                         </div>
-                        <!-- <div class="form-group mb-0">
-                            <label for="comp-archivo">Archivo del comprobante (opcional si ya indicó referencia)</label>
-                            <input type="file" class="form-control-file" id="comp-archivo" name="archivo_comprobante" accept=".pdf,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf">
-                            <small class="form-text text-muted">PDF, JPG, PNG o WEBP.</small>
-                        </div> -->
+
+                        <div class="form-group">
+                            <label for="comp-referencia" class="font-weight-bold">Número de Referencia</label>
+                            <input type="text" class="form-control form-control-lg" id="comp-referencia" name="comprobante_referencia" maxlength="120"autocomplete="off">
+                            <small class="form-text text-muted">Confirme que el número sea el correcto.</small>
+                        </div>
                     </form>
-                    <div id="comp-mensaje" class="mt-2 small" style="display:none;"></div>
+                    
+                    <div id="comp-mensaje" class="mt-3 alert" style="display:none;"></div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" id="btn-guardar-comprobante">Guardar</button>
+
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" style="margin-bottom: 0px;" data-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" id="btn-guardar-comprobante">
+                        <i class="fas fa-save"></i> Guardar Pago
+                    </button>
                 </div>
             </div>
         </div>
@@ -156,6 +172,87 @@ require_once '../template/header.php';
         });
     });
 
+    document.getElementById('comp-archivo').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const statusMsg = document.getElementById('ocr-status');
+        const inputRef = document.getElementById('comp-referencia');
+
+        statusMsg.style.display = 'block';
+        inputRef.placeholder = "Procesando imagen...";
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            const img = new Image();
+            img.onload = async function() {
+                // --- Configuración del Canvas (Mantenemos tu lógica de optimización) ---
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const MAX_WIDTH = 1200; 
+                let width = img.width;
+                let height = img.height;
+
+                if (width > MAX_WIDTH) {
+                    height *= MAX_WIDTH / width;
+                    width = MAX_WIDTH;
+                }
+                canvas.width = width;
+                canvas.height = height;
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Procesamiento a escala de grises para mejorar lectura
+                const imageData = ctx.getImageData(0, 0, width, height);
+                const data = imageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    data[i] = data[i + 1] = data[i + 2] = avg;
+                }
+                ctx.putImageData(imageData, 0, 0);
+
+                // --- Lógica de Tesseract ---
+                try {
+                    // Verificamos si la librería cargó antes de usarla
+                    if (typeof Tesseract === 'undefined') {
+                        throw new Error("La librería Tesseract no se cargó correctamente.");
+                    }
+
+                    const worker = await Tesseract.createWorker('spa', 1, {
+                        workerPath: '../assets/js/libs/tesseract/worker.min.js',
+                        langPath: '../assets/js/libs/tesseract/lang-data',
+                        // corePath: '../assets/tesseract/tesseract-core-simd.wasm.js',
+                        gzip: true 
+                    });
+
+                    const { data: { text } } = await worker.recognize(canvas);
+                    await worker.terminate();
+
+                    const cleanText = text.replace(/\n/g, ' ');
+                    // Regex mejorada para capturar números de referencia comunes (6 a 20 dígitos)
+                    const refRegex = /\b\d{6,20}\b/g;
+                    const coincidencias = cleanText.match(refRegex);
+
+                    if (coincidencias && coincidencias.length > 0) {
+                        // Tomamos la coincidencia más larga (suele ser el nro de operación)
+                        const mejorRef = coincidencias.reduce((a, b) => a.length > b.length ? a : b);
+                        inputRef.value = mejorRef;
+                        inputRef.placeholder = "Referencia detectada";
+                    } else {
+                        inputRef.placeholder = "No se detectó el número. Ingrese manual.";
+                    }
+
+                } catch (err) {
+                    console.error("Error detallado:", err);
+                    inputRef.placeholder = "Error al procesar. Ingrese manual.";
+                    alert("Error de OCR: " + err.message);
+                } finally {
+                    statusMsg.style.display = 'none';
+                }
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
     function abrirModalComprobante(id, codigo) {
         $('#modal-comp-cod').text(codigo);
         $('#form-comp-id').val(id);
