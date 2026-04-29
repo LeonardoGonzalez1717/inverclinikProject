@@ -21,9 +21,8 @@ try {
         $fecha = $_POST['fecha'] ?? '';
         $hora = $_POST['hora'] ?? '';
 
-        $sql = "SELECT t.id, t.tasa, t.fecha_hora, t.origen, u.username 
+        $sql = "SELECT t.id, t.tasa, t.fecha_hora, t.origen 
                 FROM tasas_cambiarias t 
-                LEFT JOIN users u ON t.usuario_id = u.id 
                 WHERE 1=1";
         $params = [];
         $types = '';
@@ -60,18 +59,16 @@ try {
         foreach ($rows as $r) {
             $fh = date('d/m/Y H:i', strtotime($r['fecha_hora']));
             $origen = $r['origen'] === 'bcv' ? 'BCV' : 'Manual';
-            $user = htmlspecialchars($r['username'] ?? '-');
             echo '<tr>';
             echo '<td>' . htmlspecialchars($fh) . '</td>';
             echo '<td>' . number_format((float)$r['tasa'], 4, ',', '.') . '</td>';
             echo '<td>' . $origen . '</td>';
-            echo '<td>' . $user . '</td>';
             echo '<td><button type="button" class="btn btn-sm btn-danger btn-borrar-tasa" data-id="' . (int)$r['id'] . '">Borrar</button></td>';
             echo '</tr>';
         }
 
         if (empty($rows)) {
-            echo '<tr><td colspan="5" class="text-center">No hay tasas registradas para el filtro seleccionado.</td></tr>';
+            echo '<tr><td colspan="4" class="text-center">No hay tasas registradas para el filtro seleccionado.</td></tr>';
         }
 
         if (isset($stmt)) $stmt->close();

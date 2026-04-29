@@ -13,7 +13,6 @@ require_once __DIR__ . '/../template/header.php';
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Tasas cambiarias</h2>
-                <p class="text-muted">Las tasas se registran automaticamente desde BCV por tarea programada, y tambien puedes cargar una tasa manual.</p>
                 <div class="row mb-3">
                     <div class="col-md-12">
                         <button type="button" class="btn btn-primary" id="btn-registrar-manual">Registrar tasa manual</button>
@@ -27,7 +26,6 @@ require_once __DIR__ . '/../template/header.php';
                                 <th>Fecha y hora</th>
                                 <th>Tasa (BS/USD)</th>
                                 <th>Origen</th>
-                                <th>Usuario</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>

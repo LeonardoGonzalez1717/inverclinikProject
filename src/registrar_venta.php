@@ -145,11 +145,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-12">
-                            <small class="form-text text-muted">El comprobante solo aplica para pago móvil y transferencia bancaria.</small>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
                         <div class="col-md-6">
                             <label class="form-label">Fecha <span style="color: red;">*</span></label>
                             <input type="date" name="fecha" id="fecha" class="form-control" required
@@ -708,6 +703,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     aplicarEstadoBloqueoComprobanteCotizacion();
                     return;
                 }
+                var fpid = parseInt(resp.forma_pago_id, 10) || 0;
+                if (fpid > 0) {
+                    $('#forma_pago_id').val(String(fpid));
+                }
+                actualizarVisibilidadComprobantePorFormaPago();
                 rellenarCamposComprobanteDesdeResp(resp);
                 ventaCotizacionComprobanteBloqueo = !!(resp.tiene_comprobante);
                 aplicarEstadoBloqueoComprobanteCotizacion();

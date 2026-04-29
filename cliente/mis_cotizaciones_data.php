@@ -24,6 +24,64 @@ function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
 
 asegurar_columnas_comprobante_cotizaciones($conn);
 
+/** Crea tabla formas_pago y columna cotizaciones.forma_pago_id si faltan. */
+function asegurar_formas_y_forma_pago_cotizaciones(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $conn->query(
+        'CREATE TABLE IF NOT EXISTS formas_pago (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nombre VARCHAR(60) NOT NULL UNIQUE,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
+    );
+    $base = ['pago movil', 'transferencia bancaria', 'efectivo', 'divisa'];
+    foreach ($base as $nombre) {
+        $st = $conn->prepare(
+            'INSERT INTO formas_pago (nombre, activo)
+             SELECT ?, 1
+             WHERE NOT EXISTS (
+                SELECT 1 FROM formas_pago WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?))
+             )'
+        );
+        if ($st) {
+            $st->bind_param('ss', $nombre, $nombre);
+            $st->execute();
+            $st->close();
+        }
+    }
+
+    $chkCol = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'forma_pago_id'");
+    if ($chkCol && $chkCol->num_rows === 0) {
+        @ $conn->query(
+            'ALTER TABLE cotizaciones ADD COLUMN forma_pago_id INT NULL DEFAULT NULL
+             COMMENT \'Forma de pago declarada al cargar comprobante\' AFTER comprobante_fecha'
+        );
+    }
+    $chkFk = $conn->query(
+        "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cotizaciones'
+           AND COLUMN_NAME = 'forma_pago_id' AND REFERENCED_TABLE_NAME = 'formas_pago'
+         LIMIT 1"
+    );
+    if ((!$chkFk || $chkFk->num_rows === 0)) {
+        @ $conn->query(
+            'ALTER TABLE cotizaciones
+             ADD CONSTRAINT fk_cotizaciones_forma_pago
+             FOREIGN KEY (forma_pago_id) REFERENCES formas_pago(id)
+             ON UPDATE CASCADE ON DELETE SET NULL'
+        );
+    }
+}
+
+asegurar_formas_y_forma_pago_cotizaciones($conn);
+
 $action = $_REQUEST['action'] ?? '';
 $id_cliente = isset($_SESSION['id_cliente']) ? (int) $_SESSION['id_cliente'] : 0;
 
@@ -32,6 +90,7 @@ $acciones_cliente = [
     'ver_detalle_cotizacion_cliente',
     'datos_comprobante_cotizacion',
     'guardar_comprobante_cotizacion',
+    'listar_formas_pago',
 ];
 
 if ($id_cliente <= 0 && in_array($action, $acciones_cliente, true)) {
@@ -89,6 +148,7 @@ switch ($action) {
                 $refComp = trim((string) ($row['comprobante_referencia'] ?? ''));
                 $archComp = trim((string) ($row['comprobante_archivo'] ?? ''));
                 $tieneComp = ($refComp !== '' || $archComp !== '');
+                $mostrarBtnCargarComprobante = ($refComp === '' || $archComp === '');
                 if ($tieneComp) {
                     $compBits = [];
                     if ($refComp !== '') {
@@ -111,8 +171,10 @@ switch ($action) {
                     . '<td class="small">' . $compHtml . '</td>'
                     . '<td style="white-space:nowrap">'
                     . '<button type="button" class="btn btn-sm btn-primary" onclick=\'verDetalleCotizacion(' . $idCot . ', ' . $jsonCod . ')\'>Ver</button> '
-                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a> '
-                    . '<button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'>Cargar comprobante</button>'
+                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a>'
+                    . (!$compHtml
+                        ? ' <button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'>Cargar comprobante</button>'
+                        : '')
                     . '</td>'
                     . '</tr>';
             }
@@ -188,6 +250,23 @@ switch ($action) {
         echo json_encode(['cabecera' => $cabecera, 'items' => $items]);
         break;
 
+    case 'listar_formas_pago':
+        header('Content-Type: application/json; charset=utf-8');
+        $rows = [];
+        $rf = $conn->query('SELECT id, nombre FROM formas_pago WHERE activo = 1 ORDER BY nombre ASC');
+        if ($rf) {
+            while ($fr = $rf->fetch_assoc()) {
+                $nom = (string) ($fr['nombre'] ?? '');
+                $rows[] = [
+                    'id' => (int) $fr['id'],
+                    'nombre' => $nom,
+                    'nombre_norm' => strtolower(trim($nom)),
+                ];
+            }
+        }
+        echo json_encode(['success' => true, 'formas' => $rows]);
+        break;
+
     case 'datos_comprobante_cotizacion':
         header('Content-Type: application/json; charset=utf-8');
         $id_cot = (int) ($_GET['id'] ?? 0);
@@ -197,6 +276,7 @@ switch ($action) {
         }
         $stmt = $conn->prepare(
             'SELECT codigo_cotizacion, comprobante_referencia, comprobante_archivo,
+             forma_pago_id,
              DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
@@ -210,12 +290,14 @@ switch ($action) {
         }
         $row = $r->fetch_assoc();
         $stmt->close();
+        $fp = isset($row['forma_pago_id']) ? (int) $row['forma_pago_id'] : 0;
         echo json_encode([
             'id_cotizacion' => $id_cot,
             'codigo_cotizacion' => (string) ($row['codigo_cotizacion'] ?? ''),
             'comprobante_referencia' => (string) ($row['comprobante_referencia'] ?? ''),
             'comprobante_archivo' => (string) ($row['comprobante_archivo'] ?? ''),
             'comprobante_fecha' => (string) ($row['comprobante_fecha'] ?? ''),
+            'forma_pago_id' => $fp > 0 ? $fp : null,
             'tiene_archivo' => trim((string) ($row['comprobante_archivo'] ?? '')) !== '',
         ]);
         break;
@@ -228,11 +310,27 @@ switch ($action) {
         }
         $id_cot = (int) ($_POST['id_cotizacion'] ?? 0);
         $refNueva = trim((string) ($_POST['comprobante_referencia'] ?? ''));
+        $forma_id = (int) ($_POST['forma_pago_id'] ?? 0);
 
         if ($id_cot <= 0) {
             echo json_encode(['error' => 'Cotización no válida']);
             exit;
         }
+
+        if ($forma_id <= 0) {
+            echo json_encode(['error' => 'Seleccione la forma de pago.']);
+            exit;
+        }
+        $vf = $conn->prepare('SELECT id FROM formas_pago WHERE id = ? AND activo = 1 LIMIT 1');
+        $vf->bind_param('i', $forma_id);
+        $vf->execute();
+        $rf = $vf->get_result();
+        if (!$rf || $rf->num_rows === 0) {
+            $vf->close();
+            echo json_encode(['error' => 'Forma de pago no válida.']);
+            exit;
+        }
+        $vf->close();
 
         $stmt0 = $conn->prepare(
             'SELECT comprobante_archivo FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
@@ -321,10 +419,11 @@ switch ($action) {
             'UPDATE cotizaciones SET
                 comprobante_referencia = NULLIF(TRIM(?), \'\'),
                 comprobante_archivo = NULLIF(TRIM(?), \'\'),
-                comprobante_fecha = NOW()
+                comprobante_fecha = NOW(),
+                forma_pago_id = ?
              WHERE id_cotizacion = ? AND id_cliente = ?'
         );
-        $stmtUp->bind_param('ssii', $refSql, $archSql, $id_cot, $id_cliente);
+        $stmtUp->bind_param('ssiii', $refSql, $archSql, $forma_id, $id_cot, $id_cliente);
         if (!$stmtUp->execute()) {
             $stmtUp->close();
             echo json_encode(['error' => 'No se pudo guardar los datos.']);

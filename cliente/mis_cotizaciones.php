@@ -78,25 +78,20 @@ require_once '../template/header.php';
                 </div>
 
                 <div class="modal-body">
-                    <div id="comp-estado-previo" class="alert alert-light border small mb-3" style="display:none;"></div>
                     
                     <form id="form-comprobante-cot" enctype="multipart/form-data">
                         <input type="hidden" name="id_cotizacion" id="form-comp-id" value="">
                         
-                        <div class="form-group mb-4">
-                            <label for="comp-archivo" class="font-weight-bold">Adjuntar Comprobante</label>
-                            <div class="custom-file">
-                                <input type="file" class="custom-file-input" id="comp-archivo" name="archivo_comprobante" accept="image/*">
-                                <small class="form-text text-muted">Seleccionar imagen...</small>
-                            </div>
-                            <small id="ocr-status" class="form-text text-info mt-2" style="display:none;">
-                                <i class="fas fa-sync-alt fa-spin"></i> Procesando datos...
-                            </small>
-                        </div>
-
                         <div class="form-group">
-                            <label for="comp-referencia" class="font-weight-bold">Número de Referencia</label>
-                            <input type="text" class="form-control form-control-lg" id="comp-referencia" name="comprobante_referencia" maxlength="120"autocomplete="off">
+                            <label for="comp-forma-pago" class="font-weight-bold">Forma de pago <span class="text-danger">*</span></label>
+                            <select id="comp-forma-pago" name="forma_pago_id" class="form-control" required>
+                                <option value="">— Cargando… —</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group" id="grupo-comp-referencia" style="display:none;">
+                            <label for="comp-referencia" class="font-weight-bold">Número de Referencia <span class="text-danger comp-ref-requerido" style="display:none;">*</span></label>
+                            <input type="text" class="form-control form-control-lg" id="comp-referencia" name="comprobante_referencia" maxlength="120" autocomplete="off">
                             <small class="form-text text-muted">Confirme que el número sea el correcto.</small>
                         </div>
                     </form>
@@ -115,7 +110,57 @@ require_once '../template/header.php';
     </div>
 
 <script>
+    function compFormaRequiereReferencia() {
+        var forma = (($('#comp-forma-pago option:selected').attr('data-forma') || '') + '').trim().toLowerCase();
+        if (typeof forma.normalize === 'function') {
+            forma = forma.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        return forma === 'pago movil' || forma === 'transferencia bancaria';
+    }
+
+    function actualizarVisibilidadReferenciaComprobanteCot() {
+        var req = compFormaRequiereReferencia();
+        var $grupo = $('#grupo-comp-referencia');
+        if (req) {
+            $grupo.show();
+            $('.comp-ref-requerido').show();
+            $('#comp-referencia').prop('required', true);
+        } else {
+            $grupo.hide();
+            $('.comp-ref-requerido').hide();
+            $('#comp-referencia').prop('required', false).val('');
+        }
+    }
+
+    function poblarSelectFormasPagoCliente(cb) {
+        $.getJSON('mis_cotizaciones_data.php', { action: 'listar_formas_pago' }, function(resp) {
+            var $sel = $('#comp-forma-pago');
+            var prev = $sel.val();
+            $sel.empty().append($('<option/>').attr('value', '').text('— Seleccione —'));
+            if (resp && resp.success && resp.formas && resp.formas.length) {
+                resp.formas.forEach(function(f) {
+                    var norm = (f.nombre_norm != null ? String(f.nombre_norm) : '') || '';
+                    $sel.append($('<option/>').attr('value', f.id).attr('data-forma', norm).text(f.nombre));
+                });
+            }
+            if (prev) {
+                $sel.val(prev);
+            }
+            actualizarVisibilidadReferenciaComprobanteCot();
+            if (typeof cb === 'function') {
+                cb();
+            }
+        }).fail(function() {
+            $('#comp-forma-pago').empty().append($('<option/>').attr('value', '').text('— Error al cargar —'));
+            actualizarVisibilidadReferenciaComprobanteCot();
+            if (typeof cb === 'function') {
+                cb();
+            }
+        });
+    }
+
     $(document).ready(function() {
+        poblarSelectFormasPagoCliente();
         cargarLista();
         function cargarLista() {
             $.ajax({
@@ -129,18 +174,23 @@ require_once '../template/header.php';
         }
         window.cargarListaMisCotizaciones = cargarLista;
 
+        $('#comp-forma-pago').on('change', function() {
+            actualizarVisibilidadReferenciaComprobanteCot();
+        });
+
         $('#btn-guardar-comprobante').on('click', function() {
             var id = $('#form-comp-id').val();
             var $msg = $('#comp-mensaje');
             $msg.hide().removeClass('text-danger text-success').text('');
+            if (compFormaRequiereReferencia() && !($('#comp-referencia').val() || '').trim()) {
+                $msg.removeClass('text-success').addClass('text-danger').text('Indique el número de referencia para esta forma de pago.').show();
+                return;
+            }
             var fd = new FormData();
             fd.append('action', 'guardar_comprobante_cotizacion');
             fd.append('id_cotizacion', id);
+            fd.append('forma_pago_id', $('#comp-forma-pago').val() || '');
             fd.append('comprobante_referencia', $('#comp-referencia').val() || '');
-            var fileInput = document.getElementById('comp-archivo');
-            if (fileInput && fileInput.files && fileInput.files.length) {
-                fd.append('archivo_comprobante', fileInput.files[0]);
-            }
             $.ajax({
                 url: 'mis_cotizaciones_data.php',
                 type: 'POST',
@@ -172,124 +222,49 @@ require_once '../template/header.php';
         });
     });
 
-    document.getElementById('comp-archivo').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const statusMsg = document.getElementById('ocr-status');
-        const inputRef = document.getElementById('comp-referencia');
-
-        statusMsg.style.display = 'block';
-        inputRef.placeholder = "Procesando imagen...";
-
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const img = new Image();
-            img.onload = async function() {
-                // --- Configuración del Canvas (Mantenemos tu lógica de optimización) ---
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const MAX_WIDTH = 1200; 
-                let width = img.width;
-                let height = img.height;
-
-                if (width > MAX_WIDTH) {
-                    height *= MAX_WIDTH / width;
-                    width = MAX_WIDTH;
-                }
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // Procesamiento a escala de grises para mejorar lectura
-                const imageData = ctx.getImageData(0, 0, width, height);
-                const data = imageData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                    data[i] = data[i + 1] = data[i + 2] = avg;
-                }
-                ctx.putImageData(imageData, 0, 0);
-
-                // --- Lógica de Tesseract ---
-                try {
-                    // Verificamos si la librería cargó antes de usarla
-                    if (typeof Tesseract === 'undefined') {
-                        throw new Error("La librería Tesseract no se cargó correctamente.");
-                    }
-
-                    const worker = await Tesseract.createWorker('spa', 1, {
-                        workerPath: '../assets/js/libs/tesseract/worker.min.js',
-                        langPath: '../assets/js/libs/tesseract/lang-data',
-                        // corePath: '../assets/tesseract/tesseract-core-simd.wasm.js',
-                        gzip: true 
-                    });
-
-                    const { data: { text } } = await worker.recognize(canvas);
-                    await worker.terminate();
-
-                    const cleanText = text.replace(/\n/g, ' ');
-                    // Regex mejorada para capturar números de referencia comunes (6 a 20 dígitos)
-                    const refRegex = /\b\d{6,20}\b/g;
-                    const coincidencias = cleanText.match(refRegex);
-
-                    if (coincidencias && coincidencias.length > 0) {
-                        // Tomamos la coincidencia más larga (suele ser el nro de operación)
-                        const mejorRef = coincidencias.reduce((a, b) => a.length > b.length ? a : b);
-                        inputRef.value = mejorRef;
-                        inputRef.placeholder = "Referencia detectada";
-                    } else {
-                        inputRef.placeholder = "No se detectó el número. Ingrese manual.";
-                    }
-
-                } catch (err) {
-                    console.error("Error detallado:", err);
-                    inputRef.placeholder = "Error al procesar. Ingrese manual.";
-                    alert("Error de OCR: " + err.message);
-                } finally {
-                    statusMsg.style.display = 'none';
-                }
-            };
-            img.src = event.target.result;
-        };
-        reader.readAsDataURL(file);
-    });
     function abrirModalComprobante(id, codigo) {
         $('#modal-comp-cod').text(codigo);
         $('#form-comp-id').val(id);
         $('#comp-referencia').val('');
-        $('#comp-archivo').val('');
         $('#comp-mensaje').hide().text('');
         $('#comp-estado-previo').hide().empty();
-        $.ajax({
-            url: 'mis_cotizaciones_data.php',
-            type: 'GET',
-            data: { action: 'datos_comprobante_cotizacion', id: id },
-            dataType: 'json',
-            success: function(d) {
-                if (d && d.error) {
-                    $('#comp-estado-previo').removeClass('alert-warning').addClass('alert-danger').html($('<div>').text(d.error).html()).show();
+        poblarSelectFormasPagoCliente(function() {
+            $.ajax({
+                url: 'mis_cotizaciones_data.php',
+                type: 'GET',
+                data: { action: 'datos_comprobante_cotizacion', id: id },
+                dataType: 'json',
+                success: function(d) {
+                    if (d && d.error) {
+                        $('#comp-estado-previo').removeClass('alert-warning').addClass('alert-danger').html($('<div>').text(d.error).html()).show();
+                        $('#modalComprobanteCot').modal('show');
+                        return;
+                    }
+                    if (d) {
+                        var fp = d.forma_pago_id != null && parseInt(d.forma_pago_id, 10) > 0 ? String(parseInt(d.forma_pago_id, 10)) : '';
+                        $('#comp-forma-pago').val(fp);
+                        actualizarVisibilidadReferenciaComprobanteCot();
+                        if (compFormaRequiereReferencia()) {
+                            $('#comp-referencia').val(d.comprobante_referencia != null ? d.comprobante_referencia : '');
+                        }
+                    }
+                    var prev = '';
+                    if (d && d.comprobante_fecha) {
+                        prev += '<div>Última actualización: ' + $('<div>').text(d.comprobante_fecha).html() + '</div>';
+                    }
+                    if (d && d.tiene_archivo) {
+                        prev += '<div class="mt-1"><a target="_blank" href="descargar_comprobante_cotizacion.php?id=' + parseInt(id, 10) + '">Ver archivo actual</a></div>';
+                    }
+                    if (prev) {
+                        $('#comp-estado-previo').removeClass('alert-danger').addClass('alert-light border').html(prev).show();
+                    }
                     $('#modalComprobanteCot').modal('show');
-                    return;
+                },
+                error: function() {
+                    $('#comp-estado-previo').removeClass('alert-light').addClass('alert-danger').html('No se pudieron cargar los datos.').show();
+                    $('#modalComprobanteCot').modal('show');
                 }
-                if (d) {
-                    $('#comp-referencia').val(d.comprobante_referencia != null ? d.comprobante_referencia : '');
-                }
-                var prev = '';
-                if (d.comprobante_fecha) {
-                    prev += '<div>Última actualización: ' + $('<div>').text(d.comprobante_fecha).html() + '</div>';
-                }
-                if (d.tiene_archivo) {
-                    prev += '<div class="mt-1"><a target="_blank" href="descargar_comprobante_cotizacion.php?id=' + parseInt(id, 10) + '">Ver archivo actual</a></div>';
-                }
-                if (prev) {
-                    $('#comp-estado-previo').removeClass('alert-danger').addClass('alert-light border').html(prev).show();
-                }
-                $('#modalComprobanteCot').modal('show');
-            },
-            error: function() {
-                $('#comp-estado-previo').removeClass('alert-light').addClass('alert-danger').html('No se pudieron cargar los datos.').show();
-                $('#modalComprobanteCot').modal('show');
-            }
+            });
         });
     }
 

@@ -356,6 +356,12 @@ INSERT IGNORE INTO `roles` (`id`, `nombre`) VALUES
 (5, 'Gerencia comercial'),
 (6, 'Gerencia administrativa');
 
+INSERT INTO `users` (`username`, `password`, `correo`, `role_id`)
+SELECT 'Administrador', '12345', 'admin@admin.com', 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `users` WHERE `correo` = 'admin@admin.com'
+);
+
 -- --------------------------------------------------------
 
 --
@@ -443,6 +449,7 @@ CREATE TABLE IF NOT EXISTS `cotizaciones` (
   `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Número de referencia del pago indicado por el cliente',
   `comprobante_archivo` varchar(255) DEFAULT NULL COMMENT 'Nombre de archivo en uploads/comprobantes_cotizaciones/',
   `comprobante_fecha` datetime DEFAULT NULL COMMENT 'Última carga o actualización del comprobante',
+  `forma_pago_id` int(11) DEFAULT NULL COMMENT 'Forma de pago declarada al cargar comprobante',
   PRIMARY KEY (`id_cotizacion`),
   KEY `id_cliente` (`id_cliente`),
   CONSTRAINT `fk_cotizaciones_cliente` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -692,6 +699,603 @@ INSERT IGNORE INTO `rangos_tallas` (`nombre_rango`, `tallas_desde`, `tallas_hast
 INSERT IGNORE INTO `tipos_produccion` (`nombre`, `descripcion`) VALUES
 ('Detal', 'Producción minorista'),
 ('Mayor', 'Producción mayorista');
+
+--
+-- Datos de prueba (mínimos y realistas)
+--
+
+INSERT INTO `almacenes` (`nombre`, `codigo`, `activo`)
+SELECT 'Almacén Principal', 'ALM-001', 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `almacenes` WHERE `codigo` = 'ALM-001'
+);
+
+INSERT INTO `tasas_cambiarias` (`tasa`, `origen`)
+SELECT 97.50000000, 'manual'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `tasas_cambiarias` WHERE `tasa` = 97.50000000 AND `origen` = 'manual'
+);
+
+INSERT INTO `proveedores` (`nombre`, `cedrif`, `telefono`, `email`, `direccion`)
+SELECT 'Textiles Andinos C.A.', 'J-41234567-8', '0412-5557788', 'ventas@textilesandinos.com', 'Av. Principal, Caracas'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-41234567-8'
+);
+
+INSERT INTO `proveedores` (`nombre`, `cedrif`, `telefono`, `email`, `direccion`)
+SELECT 'Hilos del Centro, C.A.', 'J-40999888-1', '0414-2223344', 'contacto@hiloscentro.com', 'Zona Industrial, Valencia'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-40999888-1'
+);
+
+INSERT INTO `proveedores` (`nombre`, `cedrif`, `telefono`, `email`, `direccion`)
+SELECT 'Botonería La Aguja, C.A.', 'J-40111222-3', '0416-7779900', 'pedidos@laagujabotones.com', 'Av. Bolívar, Maracay'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-40111222-3'
+);
+
+INSERT INTO `proveedores` (`nombre`, `cedrif`, `telefono`, `email`, `direccion`)
+SELECT 'Cierres y Accesorios Lara, C.A.', 'J-42333444-5', '0412-6677889', 'ventas@cierreslara.com', 'Zona Centro, Barquisimeto'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-42333444-5'
+);
+
+INSERT INTO `proveedores` (`nombre`, `cedrif`, `telefono`, `email`, `direccion`)
+SELECT 'Empaques Industriales del Norte, C.A.', 'J-43777666-9', '0414-5566778', 'comercial@empaquesnorte.com', 'Av. Intercomunal, Valencia'
+WHERE NOT EXISTS (
+  SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-43777666-9'
+);
+
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+SELECT
+  'Tela Drill Azul Marino',
+  'metro',
+  4.80,
+  20.00,
+  200.00,
+  a.id,
+  p.id,
+  1,
+  0
+FROM `almacenes` a
+JOIN `proveedores` p ON p.`cedrif` = 'J-41234567-8'
+WHERE a.`codigo` = 'ALM-001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `insumos` WHERE `nombre` = 'Tela Drill Azul Marino'
+  );
+
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+SELECT
+  'Hilo Poliéster Blanco',
+  'cono',
+  2.40,
+  10.00,
+  100.00,
+  a.id,
+  p.id,
+  1,
+  0
+FROM `almacenes` a
+JOIN `proveedores` p ON p.`cedrif` = 'J-40999888-1'
+WHERE a.`codigo` = 'ALM-001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `insumos` WHERE `nombre` = 'Hilo Poliéster Blanco'
+  );
+
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+SELECT
+  'Botón Blanco 4 Huecos',
+  'paquete',
+  1.80,
+  15.00,
+  120.00,
+  a.id,
+  p.id,
+  1,
+  0
+FROM `almacenes` a
+JOIN `proveedores` p ON p.`cedrif` = 'J-40111222-3'
+WHERE a.`codigo` = 'ALM-001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `insumos` WHERE `nombre` = 'Botón Blanco 4 Huecos'
+  );
+
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+SELECT
+  'Cierre Nylon 60cm',
+  'unidad',
+  0.95,
+  30.00,
+  250.00,
+  a.id,
+  p.id,
+  1,
+  0
+FROM `almacenes` a
+JOIN `proveedores` p ON p.`cedrif` = 'J-42333444-5'
+WHERE a.`codigo` = 'ALM-001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `insumos` WHERE `nombre` = 'Cierre Nylon 60cm'
+  );
+
+INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+SELECT
+  'Bolsa Plástica Transparente',
+  'paquete',
+  2.10,
+  20.00,
+  180.00,
+  a.id,
+  p.id,
+  1,
+  1
+FROM `almacenes` a
+JOIN `proveedores` p ON p.`cedrif` = 'J-43777666-9'
+WHERE a.`codigo` = 'ALM-001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `insumos` WHERE `nombre` = 'Bolsa Plástica Transparente'
+  );
+
+INSERT INTO `productos` (`nombre`, `categoria`, `tipo_genero`, `descripcion`, `precio_unitario`, `activo`)
+SELECT 'Camisa Médica Unisex', 'Uniformes', 'Unisex', 'Camisa médica manga corta', 12.50, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `productos` WHERE `nombre` = 'Camisa Médica Unisex'
+);
+
+INSERT INTO `productos` (`nombre`, `categoria`, `tipo_genero`, `descripcion`, `precio_unitario`, `activo`)
+SELECT 'Pantalón Quirúrgico Unisex', 'Uniformes', 'Unisex', 'Pantalón quirúrgico con elástico', 14.00, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `productos` WHERE `nombre` = 'Pantalón Quirúrgico Unisex'
+);
+
+INSERT INTO `productos` (`nombre`, `categoria`, `tipo_genero`, `descripcion`, `precio_unitario`, `activo`)
+SELECT 'Bata de Laboratorio', 'Uniformes', 'Unisex', 'Bata manga larga de laboratorio', 18.00, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `productos` WHERE `nombre` = 'Bata de Laboratorio'
+);
+
+INSERT INTO `productos` (`nombre`, `categoria`, `tipo_genero`, `descripcion`, `precio_unitario`, `activo`)
+SELECT 'Gorro Quirúrgico', 'Accesorios médicos', 'Unisex', 'Gorro quirúrgico ajustable', 4.50, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `productos` WHERE `nombre` = 'Gorro Quirúrgico'
+);
+
+INSERT INTO `productos` (`nombre`, `categoria`, `tipo_genero`, `descripcion`, `precio_unitario`, `activo`)
+SELECT 'Tapabocas Reutilizable', 'Accesorios médicos', 'Unisex', 'Tapabocas de tela lavable', 3.20, 1
+WHERE NOT EXISTS (
+  SELECT 1 FROM `productos` WHERE `nombre` = 'Tapabocas Reutilizable'
+);
+
+INSERT INTO `recetas` (
+  `producto_id`,
+  `rango_tallas_id`,
+  `tipo_produccion_id`,
+  `almacen_id`,
+  `stock_minimo`,
+  `stock_maximo`,
+  `observaciones`,
+  `precio_total`,
+  `precio_mayor`,
+  `precio_detal`,
+  `porcentaje_ganancia`
+)
+SELECT
+  pr.id,
+  rt.id,
+  tp.id,
+  a.id,
+  10.00,
+  120.00,
+  'Receta base para pruebas',
+  9.00,
+  10.50,
+  12.50,
+  25.00
+FROM `productos` pr
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
+WHERE pr.`nombre` = 'Camisa Médica Unisex'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `recetas` r
+    WHERE r.`producto_id` = pr.id
+      AND r.`rango_tallas_id` = rt.id
+      AND r.`tipo_produccion_id` = tp.id
+  );
+
+INSERT INTO `recetas` (
+  `producto_id`,
+  `rango_tallas_id`,
+  `tipo_produccion_id`,
+  `almacen_id`,
+  `stock_minimo`,
+  `stock_maximo`,
+  `observaciones`,
+  `precio_total`,
+  `precio_mayor`,
+  `precio_detal`,
+  `porcentaje_ganancia`
+)
+SELECT
+  pr.id,
+  rt.id,
+  tp.id,
+  a.id,
+  8.00,
+  100.00,
+  'Receta base para pruebas',
+  10.50,
+  12.00,
+  14.00,
+  24.00
+FROM `productos` pr
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
+WHERE pr.`nombre` = 'Pantalón Quirúrgico Unisex'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `recetas` r
+    WHERE r.`producto_id` = pr.id
+      AND r.`rango_tallas_id` = rt.id
+      AND r.`tipo_produccion_id` = tp.id
+  );
+
+INSERT INTO `recetas` (
+  `producto_id`,
+  `rango_tallas_id`,
+  `tipo_produccion_id`,
+  `almacen_id`,
+  `stock_minimo`,
+  `stock_maximo`,
+  `observaciones`,
+  `precio_total`,
+  `precio_mayor`,
+  `precio_detal`,
+  `porcentaje_ganancia`
+)
+SELECT
+  pr.id,
+  rt.id,
+  tp.id,
+  a.id,
+  6.00,
+  80.00,
+  'Receta base para pruebas',
+  13.80,
+  15.50,
+  18.00,
+  26.00
+FROM `productos` pr
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
+WHERE pr.`nombre` = 'Bata de Laboratorio'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `recetas` r
+    WHERE r.`producto_id` = pr.id
+      AND r.`rango_tallas_id` = rt.id
+      AND r.`tipo_produccion_id` = tp.id
+  );
+
+INSERT INTO `recetas` (
+  `producto_id`,
+  `rango_tallas_id`,
+  `tipo_produccion_id`,
+  `almacen_id`,
+  `stock_minimo`,
+  `stock_maximo`,
+  `observaciones`,
+  `precio_total`,
+  `precio_mayor`,
+  `precio_detal`,
+  `porcentaje_ganancia`
+)
+SELECT
+  pr.id,
+  rt.id,
+  tp.id,
+  a.id,
+  15.00,
+  200.00,
+  'Receta base para pruebas',
+  3.30,
+  3.90,
+  4.50,
+  22.00
+FROM `productos` pr
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
+WHERE pr.`nombre` = 'Gorro Quirúrgico'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `recetas` r
+    WHERE r.`producto_id` = pr.id
+      AND r.`rango_tallas_id` = rt.id
+      AND r.`tipo_produccion_id` = tp.id
+  );
+
+INSERT INTO `recetas` (
+  `producto_id`,
+  `rango_tallas_id`,
+  `tipo_produccion_id`,
+  `almacen_id`,
+  `stock_minimo`,
+  `stock_maximo`,
+  `observaciones`,
+  `precio_total`,
+  `precio_mayor`,
+  `precio_detal`,
+  `porcentaje_ganancia`
+)
+SELECT
+  pr.id,
+  rt.id,
+  tp.id,
+  a.id,
+  20.00,
+  250.00,
+  'Receta base para pruebas',
+  2.40,
+  2.80,
+  3.20,
+  20.00
+FROM `productos` pr
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
+WHERE pr.`nombre` = 'Tapabocas Reutilizable'
+  AND NOT EXISTS (
+    SELECT 1
+    FROM `recetas` r
+    WHERE r.`producto_id` = pr.id
+      AND r.`rango_tallas_id` = rt.id
+      AND r.`tipo_produccion_id` = tp.id
+  );
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 1.70, 4.80, 8.16, 'Tela principal camisa'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Camisa Médica Unisex'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.20, 2.40, 0.48, 'Costura camisa'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Camisa Médica Unisex'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 1.90, 4.80, 9.12, 'Tela principal pantalón'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Pantalón Quirúrgico Unisex'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 1.00, 0.95, 0.95, 'Cierre delantero'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Cierre Nylon 60cm'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Pantalón Quirúrgico Unisex'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 2.40, 4.80, 11.52, 'Tela principal bata'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Bata de Laboratorio'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.25, 1.80, 0.45, 'Botonería frontal'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Botón Blanco 4 Huecos'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Bata de Laboratorio'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.35, 4.80, 1.68, 'Tela para gorro'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Gorro Quirúrgico'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.05, 2.40, 0.12, 'Costura gorro'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Gorro Quirúrgico'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.22, 4.80, 1.06, 'Tela para tapabocas'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Tapabocas Reutilizable'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, `tipo_produccion_id`, `cantidad_por_unidad`, `precio_unitario`, `costo_por_unidad`, `observaciones`)
+SELECT p.id, i.id, rt.id, tp.id, 0.05, 2.40, 0.12, 'Costura tapabocas'
+FROM `productos` p
+JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
+WHERE p.`nombre` = 'Tapabocas Reutilizable'
+ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'insumo', i.id, 80.00, 'manual'
+FROM `insumos` i
+WHERE i.`nombre` = 'Tela Drill Azul Marino'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'insumo', i.id, 60.00, 'manual'
+FROM `insumos` i
+WHERE i.`nombre` = 'Hilo Poliéster Blanco'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'insumo', i.id, 90.00, 'manual'
+FROM `insumos` i
+WHERE i.`nombre` = 'Botón Blanco 4 Huecos'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'insumo', i.id, 120.00, 'manual'
+FROM `insumos` i
+WHERE i.`nombre` = 'Cierre Nylon 60cm'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'insumo', i.id, 70.00, 'manual'
+FROM `insumos` i
+WHERE i.`nombre` = 'Bolsa Plástica Transparente'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'producto', r.id, 35.00, 'manual'
+FROM `recetas` r
+JOIN `productos` pr ON pr.id = r.`producto_id`
+JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
+JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
+WHERE pr.`nombre` = 'Camisa Médica Unisex'
+  AND rt.`nombre_rango` = 'M'
+  AND tp.`nombre` = 'Detal'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'producto', r.id, 28.00, 'manual'
+FROM `recetas` r
+JOIN `productos` pr ON pr.id = r.`producto_id`
+JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
+JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
+WHERE pr.`nombre` = 'Pantalón Quirúrgico Unisex'
+  AND rt.`nombre_rango` = 'M'
+  AND tp.`nombre` = 'Detal'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'producto', r.id, 20.00, 'manual'
+FROM `recetas` r
+JOIN `productos` pr ON pr.id = r.`producto_id`
+JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
+JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
+WHERE pr.`nombre` = 'Bata de Laboratorio'
+  AND rt.`nombre_rango` = 'M'
+  AND tp.`nombre` = 'Detal'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'producto', r.id, 55.00, 'manual'
+FROM `recetas` r
+JOIN `productos` pr ON pr.id = r.`producto_id`
+JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
+JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
+WHERE pr.`nombre` = 'Gorro Quirúrgico'
+  AND rt.`nombre_rango` = 'Talla Única'
+  AND tp.`nombre` = 'Detal'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `inventario` (`tipo_item`, `tipo_item_id`, `stock_actual`, `tipo_movimiento`)
+SELECT 'producto', r.id, 75.00, 'manual'
+FROM `recetas` r
+JOIN `productos` pr ON pr.id = r.`producto_id`
+JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
+JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
+WHERE pr.`nombre` = 'Tapabocas Reutilizable'
+  AND rt.`nombre_rango` = 'Talla Única'
+  AND tp.`nombre` = 'Detal'
+ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
+
+INSERT INTO `clientes` (`nombre`, `tipo_documento`, `numero_documento`, `telefono`, `email`, `direccion`, `role_id`)
+SELECT 'Clínica Santa María', 'J', 'J-50123456-1', '0212-5552233', 'compras@clinicasantamaria.com', 'Chacao, Caracas', 3
+WHERE NOT EXISTS (
+  SELECT 1 FROM `clientes` WHERE `numero_documento` = 'J-50123456-1'
+);
+
+INSERT INTO `clientes` (`nombre`, `tipo_documento`, `numero_documento`, `telefono`, `email`, `direccion`, `role_id`)
+SELECT 'Centro Médico Los Olivos', 'J', 'J-50987654-2', '0212-5558899', 'abastecimiento@cmlosolivos.com', 'Baruta, Caracas', 3
+WHERE NOT EXISTS (
+  SELECT 1 FROM `clientes` WHERE `numero_documento` = 'J-50987654-2'
+);
+
+INSERT INTO `clientes` (`nombre`, `tipo_documento`, `numero_documento`, `telefono`, `email`, `direccion`, `role_id`)
+SELECT 'Dra. Ana Pérez', 'V', 'V-18345678', '0412-9987766', 'anaperez@correo.com', 'El Paraíso, Caracas', 3
+WHERE NOT EXISTS (
+  SELECT 1 FROM `clientes` WHERE `numero_documento` = 'V-18345678'
+);
+
+INSERT INTO `clientes` (`nombre`, `tipo_documento`, `numero_documento`, `telefono`, `email`, `direccion`, `role_id`)
+SELECT 'Hospital San Rafael', 'J', 'J-50765432-0', '0212-4445566', 'administracion@hospitalsanrafael.com', 'La California, Caracas', 3
+WHERE NOT EXISTS (
+  SELECT 1 FROM `clientes` WHERE `numero_documento` = 'J-50765432-0'
+);
+
+INSERT INTO `clientes` (`nombre`, `tipo_documento`, `numero_documento`, `telefono`, `email`, `direccion`, `role_id`)
+SELECT 'Lic. Carlos Mendoza', 'V', 'V-20567891', '0414-2233445', 'carlosmendoza@correo.com', 'Naguanagua, Carabobo', 3
+WHERE NOT EXISTS (
+  SELECT 1 FROM `clientes` WHERE `numero_documento` = 'V-20567891'
+);
+
+INSERT INTO `cotizaciones` (`id_cliente`, `codigo_cotizacion`, `total`, `status`)
+SELECT c.id, 'COT-0001', 125.00, 1
+FROM `clientes` c
+WHERE c.`numero_documento` = 'J-50123456-1'
+  AND NOT EXISTS (
+    SELECT 1 FROM `cotizaciones` WHERE `codigo_cotizacion` = 'COT-0001'
+  );
+
+INSERT INTO `cotizacion_detalles` (`id_cotizacion`, `id_receta`, `id_talla`, `cantidad`, `precio_unitario`, `subtotal`, `notas`)
+SELECT
+  cot.id_cotizacion,
+  r.id,
+  r.rango_tallas_id,
+  10,
+  12.50,
+  125.00,
+  'Pedido de muestra para validación'
+FROM `cotizaciones` cot
+JOIN `recetas` r ON r.id = (
+  SELECT r2.id
+  FROM `recetas` r2
+  JOIN `productos` p2 ON p2.id = r2.producto_id
+  JOIN `rangos_tallas` rt2 ON rt2.id = r2.rango_tallas_id
+  JOIN `tipos_produccion` tp2 ON tp2.id = r2.tipo_produccion_id
+  WHERE p2.nombre = 'Camisa Médica Unisex'
+    AND rt2.nombre_rango = 'M'
+    AND tp2.nombre = 'Detal'
+  LIMIT 1
+)
+WHERE cot.`codigo_cotizacion` = 'COT-0001'
+  AND NOT EXISTS (
+    SELECT 1 FROM `cotizacion_detalles` cd
+    WHERE cd.`id_cotizacion` = cot.id_cotizacion
+      AND cd.`id_receta` = r.id
+  );
 
 COMMIT;
 
