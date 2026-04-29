@@ -172,7 +172,7 @@ switch ($action) {
                     . '<td style="white-space:nowrap">'
                     . '<button type="button" class="btn btn-sm btn-primary" onclick=\'verDetalleCotizacion(' . $idCot . ', ' . $jsonCod . ')\'>Ver</button> '
                     . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a>'
-                    . (!$compHtml
+                    . (true
                         ? ' <button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'>Cargar comprobante</button>'
                         : '')
                     . '</td>'
@@ -253,7 +253,12 @@ switch ($action) {
     case 'listar_formas_pago':
         header('Content-Type: application/json; charset=utf-8');
         $rows = [];
-        $rf = $conn->query('SELECT id, nombre FROM formas_pago WHERE activo = 1 ORDER BY nombre ASC');
+        $rf = $conn->query(
+            "SELECT id, nombre FROM formas_pago
+             WHERE activo = 1
+             AND LOWER(TRIM(nombre)) NOT IN ('divisa', 'efectivo')
+             ORDER BY nombre ASC"
+        );
         if ($rf) {
             while ($fr = $rf->fetch_assoc()) {
                 $nom = (string) ($fr['nombre'] ?? '');
