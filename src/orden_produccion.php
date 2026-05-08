@@ -165,6 +165,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Costo Total</th>
                                         <th>Inicio</th>
                                         <th>Fin</th>
+                                        <th>Estatus</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -386,6 +387,47 @@ function editarOrden(data) {
     $('#editar-orden-id').val(data.orden_id);
     calcularCostoTotal();
     mostrarVista('crear');
+}
+
+function aceptarFinalizacionOrden(ordenId) {
+    if (!ordenId) return;
+
+    Swal.fire({
+        title: 'Confirmar finalización',
+        text: 'Esta acción cambiará el estado a finalizado y generará el movimiento de inventario. ¿Desea continuar?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, aceptar',
+        cancelButtonText: 'Cancelar'
+    }).then(function(result) {
+        if (!result.isConfirmed) return;
+
+        $.ajax({
+            url: "orden_produccion_data.php",
+            type: "POST",
+            dataType: "json",
+            data: {
+                action: "aceptar_finalizacion",
+                orden_id: ordenId
+            },
+            success: function(resp) {
+                if (resp && resp.success) {
+                    Swal.fire({ icon: 'success', text: resp.message || 'Orden finalizada correctamente.' });
+                    cargarListado();
+                } else {
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
+                }
+            },
+            error: function(xhr) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    Swal.fire({ icon: 'error', text: "Error: " + (resp.message || 'No se pudo finalizar la orden.') });
+                } catch (e) {
+                    Swal.fire({ icon: 'error', text: "Error de conexión al finalizar la orden." });
+                }
+            }
+        });
+    });
 }
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');

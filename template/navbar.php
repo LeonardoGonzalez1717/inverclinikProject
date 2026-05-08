@@ -142,7 +142,8 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <li><a href="../src/auditoria.php">Auditoría</a></li>
                     <li><a href="../cliente/catalogo/catalogo.php">Catálogo</a></li>
                     <li><a href="../src/tasas_cambiarias.php">Tasas cambiarias</a></li>
-                    <li><a href="../src/respaldos_bd.php">Respaldos y restauración</a></li>
+                    <li><a href="../src/respaldos_bd.php">Respaldos BD</a></li>
+                    <li><a href="../src/restauracion_bd.php">Restauración BD</a></li>
                 <?php } ?>
                 <li><a href="../src">Manuales</a></li>
               </ul>

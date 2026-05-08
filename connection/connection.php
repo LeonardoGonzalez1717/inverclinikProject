@@ -6,10 +6,20 @@ $user = "root";
 $pass = ""; 
 $db   = "db_inverclinik";
 
-$conn = new mysqli($host, $user, $pass, $db);
+$conn = @new mysqli($host, $user, $pass, $db);
+$db_disponible = true;
 
 if ($conn->connect_error) {
-    die("Conexión fallida: " . $conn->connect_error);
+    // Si la BD no existe, permitimos conexión al servidor para recuperar respaldos/restaurar.
+    if ((int) $conn->connect_errno === 1049) {
+        $conn = @new mysqli($host, $user, $pass);
+        if ($conn->connect_error) {
+            die("Conexión fallida: " . $conn->connect_error);
+        }
+        $db_disponible = false;
+    } else {
+        die("Conexión fallida: " . $conn->connect_error);
+    }
 }
 
 // --- SISTEMA DE SEGURIDAD GLOBAL ---

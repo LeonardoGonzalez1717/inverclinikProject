@@ -20,6 +20,38 @@ if ($resultProductos) {
     }
 }
 
+$conn->query(
+    "CREATE TABLE IF NOT EXISTS formas_pago (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(60) NOT NULL UNIQUE,
+        activo TINYINT(1) NOT NULL DEFAULT 1,
+        creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+);
+$formasBase = ['pago movil', 'transferencia bancaria', 'efectivo', 'divisa'];
+foreach ($formasBase as $nombreForma) {
+    $stf = $conn->prepare(
+        "INSERT INTO formas_pago (nombre, activo)
+         SELECT ?, 1
+         WHERE NOT EXISTS (
+            SELECT 1 FROM formas_pago WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?))
+         )"
+    );
+    if ($stf) {
+        $stf->bind_param('ss', $nombreForma, $nombreForma);
+        $stf->execute();
+        $stf->close();
+    }
+}
+
+$formasPago = [];
+$rfp = $conn->query("SELECT id, nombre FROM formas_pago WHERE activo = 1 ORDER BY nombre ASC");
+if ($rfp) {
+    while ($rowFp = $rfp->fetch_assoc()) {
+        $formasPago[] = $rowFp;
+    }
+}
+
 $tasa_actual = null;
 $rt = $conn->query("SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
 if ($rt && $row_tasa = $rt->fetch_assoc()) {
@@ -94,10 +126,27 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-12">
-                            <label class="form-label" for="venta_comprobante_referencia">Número o referencia del comprobante de pago</label>
-                            <input type="text" class="form-control" id="venta_comprobante_referencia" name="comprobante_referencia" maxlength="120" placeholder="Opcional — referencia bancaria, operación, últimos dígitos, etc." autocomplete="off">
+                        <div class="col-md-6">
+                            <label class="form-label">Forma de pago <span style="color: red;">*</span></label>
+                            <select name="forma_pago_id" id="forma_pago_id" class="form-control" required>
+                                <option value="">-- Seleccione una forma de pago --</option>
+                                <?php foreach ($formasPago as $fp): ?>
+                                    <?php $nombreNorm = strtolower(trim((string) ($fp['nombre'] ?? ''))); ?>
+                                    <option value="<?php echo (int) $fp['id']; ?>" data-forma="<?php echo htmlspecialchars($nombreNorm, ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars((string) $fp['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6" id="grupo-comprobante-venta" style="display: none;">
+                            <label class="form-label" for="venta_comprobante_referencia">Número o referencia del comprobante de pago <span style="color: red;">*</span></label>
+                            <input type="text" class="form-control" id="venta_comprobante_referencia" name="comprobante_referencia" maxlength="120" placeholder="Ej: referencia bancaria u operación" autocomplete="off">
                             <small class="form-text text-muted" id="venta_nota_comprobante_cot" style="display: none;"></small>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <small class="form-text text-muted">El comprobante solo aplica para pago móvil y transferencia bancaria.</small>
                         </div>
                     </div>
                     <div class="row mb-3">
@@ -260,6 +309,26 @@ function limpiarComprobanteVentaYNotaCot() {
     $('#venta_nota_comprobante_cot').hide().text('');
 }
 
+function formaPagoRequiereComprobante() {
+    var forma = (($('#forma_pago_id option:selected').attr('data-forma') || '') + '').trim().toLowerCase();
+    if (typeof forma.normalize === 'function') {
+        forma = forma.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    return forma === 'pago movil' || forma === 'transferencia bancaria';
+}
+
+function actualizarVisibilidadComprobantePorFormaPago() {
+    var requiere = formaPagoRequiereComprobante();
+    if (requiere) {
+        $('#grupo-comprobante-venta').show();
+        $('#venta_comprobante_referencia').prop('required', true);
+    } else {
+        $('#grupo-comprobante-venta').hide();
+        $('#venta_comprobante_referencia').prop('required', false).val('');
+        $('#venta_nota_comprobante_cot').hide().text('');
+    }
+}
+
 function rellenarCamposComprobanteDesdeResp(resp) {
     if (resp && resp.tiene_comprobante) {
         $('#venta_comprobante_referencia').val((resp.comprobante_referencia || '').trim());
@@ -357,11 +426,13 @@ function limpiarFormulario() {
     $('#fecha').val('<?php echo date('Y-m-d'); ?>');
     $('#cliente_id').val('');
     $('#cotizacion_id').val('');
+    $('#forma_pago_id').val('');
     productosAgregados = [];
     ventaCotizacionComprobanteBloqueo = false;
     limpiarComprobanteVentaYNotaCot();
     limpiarFormularioProducto();
     rellenarSelectCotizaciones('');
+    actualizarVisibilidadComprobantePorFormaPago();
     aplicarEstadoBloqueoComprobanteCotizacion();
     // Cargar siguiente número de factura según la última registrada
     $.post('registrar_venta_data.php', { action: 'obtener_siguiente_numero_factura' }, function(resp) {
@@ -529,6 +600,10 @@ function verDetalle(ventaId) {
             html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
             html += '<div class="col-md-6"><strong>Cotización:</strong> ' + (resp.venta.codigo_cotizacion ? $('<div>').text(resp.venta.codigo_cotizacion).html() : '—') + '</div>';
             html += '</div>';
+            html += '<div class="row mb-3">';
+            html += '<div class="col-md-6"><strong>Forma de pago:</strong> ' + (resp.venta.forma_pago_nombre ? $('<div>').text(resp.venta.forma_pago_nombre).html() : '<span class="text-muted">—</span>') + '</div>';
+            html += '<div class="col-md-6"></div>';
+            html += '</div>';
             var estTxt = resp.venta.estado_texto || resp.venta.estado || '—';
             var estCls = resp.venta.estado_badge_class || 'badge-secondary';
             html += '<div class="row mb-3">';
@@ -581,6 +656,10 @@ document.addEventListener('DOMContentLoaded', function() {
         limpiarComprobanteVentaYNotaCot();
         rellenarSelectCotizaciones(idc);
         aplicarEstadoBloqueoComprobanteCotizacion();
+    });
+    
+    $('#forma_pago_id').on('change', function() {
+        actualizarVisibilidadComprobantePorFormaPago();
     });
 
     $('#cotizacion_id').on('change', function() {
@@ -719,6 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     $('#btn-guardar-venta').prop('disabled', true);
+    actualizarVisibilidadComprobantePorFormaPago();
 });
 
 function construirPayloadVenta(crearOrdenesFaltantes) {
@@ -730,7 +810,8 @@ function construirPayloadVenta(crearOrdenesFaltantes) {
         numero_factura: $("#numero_factura").val() || "",
         productos: productosAgregados,
         cotizacion_id: cotSel ? parseInt(cotSel, 10) : null,
-        comprobante_referencia: ($("#venta_comprobante_referencia").val() || "").trim()
+        comprobante_referencia: ($("#venta_comprobante_referencia").val() || "").trim(),
+        forma_pago_id: parseInt($("#forma_pago_id").val(), 10) || 0
     };
     if (crearOrdenesFaltantes) {
         datos.crear_ordenes_produccion_faltantes = true;
@@ -753,6 +834,14 @@ function enviarRegistroVenta(crearOrdenesFaltantes) {
     var datos = construirPayloadVenta(!!crearOrdenesFaltantes);
     if (!datos.cliente_id || !datos.fecha) {
         Swal.fire({ icon: 'warning', text: 'Por favor completa todos los campos obligatorios' });
+        return;
+    }
+    if (!datos.forma_pago_id || datos.forma_pago_id <= 0) {
+        Swal.fire({ icon: 'warning', text: 'Seleccione una forma de pago.' });
+        return;
+    }
+    if (formaPagoRequiereComprobante() && !datos.comprobante_referencia) {
+        Swal.fire({ icon: 'warning', text: 'Debe ingresar el comprobante para pago móvil o transferencia bancaria.' });
         return;
     }
     $.ajax({
