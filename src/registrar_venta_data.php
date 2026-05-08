@@ -119,6 +119,29 @@ function asegurar_formas_pago_y_relacion_ventas(mysqli $conn): void
              ON UPDATE CASCADE ON DELETE SET NULL"
         );
     }
+
+    $chkCotFp = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'forma_pago_id'");
+    if ($chkCotFp && $chkCotFp->num_rows === 0) {
+        @ $conn->query(
+            "ALTER TABLE cotizaciones ADD COLUMN forma_pago_id INT NULL DEFAULT NULL
+             COMMENT 'Forma de pago declarada al cargar comprobante' AFTER comprobante_fecha"
+        );
+    }
+    $chkFkCot = $conn->query(
+        "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cotizaciones'
+           AND COLUMN_NAME = 'forma_pago_id' AND REFERENCED_TABLE_NAME = 'formas_pago'
+         LIMIT 1"
+    );
+    $tieneFkCot = $chkFkCot && $chkFkCot->num_rows > 0;
+    if (!$tieneFkCot) {
+        @ $conn->query(
+            "ALTER TABLE cotizaciones
+             ADD CONSTRAINT fk_cotizaciones_forma_pago
+             FOREIGN KEY (forma_pago_id) REFERENCES formas_pago(id)
+             ON UPDATE CASCADE ON DELETE SET NULL"
+        );
+    }
 }
 
 asegurar_formas_pago_y_relacion_ventas($conn);
@@ -538,6 +561,7 @@ try {
 
         $chk = $conn->prepare(
             'SELECT id_cliente, comprobante_referencia, comprobante_archivo,
+             forma_pago_id,
              DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
         );
@@ -596,11 +620,14 @@ try {
         $nomArch = trim((string) ($cinfo['comprobante_archivo'] ?? ''));
         $archivoCorto = $nomArch !== '' ? basename(str_replace('\\', '/', $nomArch)) : '';
 
+        $fpId = isset($cinfo['forma_pago_id']) ? (int) $cinfo['forma_pago_id'] : 0;
+
         echo json_encode([
             'success' => true,
             'id_cliente' => (int) $cinfo['id_cliente'],
             'productos' => $productos,
             'tiene_comprobante' => $tiene_comprobante,
+            'forma_pago_id' => $fpId > 0 ? $fpId : null,
             'comprobante_referencia' => $refComp,
             'tiene_archivo_comprobante' => $nomArch !== '',
             'comprobante_archivo_nombre' => $archivoCorto,

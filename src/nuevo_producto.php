@@ -593,14 +593,20 @@ $("#form-crear").on("submit", function(e) {
     
     var producto_id = $("#producto_id").val();
     var rango_tallas_id = $("#rango_tallas_id").val();
-    var tipo_produccion_id = $("#tipo_produccion_id").val();
     var precio_total = parseFloat($("#precio_total").val()) || 0;
     var detal = parseFloat($("#precio_detal").val()) || 0;
     var mayor = parseFloat($("#precio_mayor").val()) || 0;
     var observaciones = $("#observaciones").val() || "";
     
-    if (!producto_id || !rango_tallas_id || !tipo_produccion_id) {
-        Swal.fire({ icon: 'warning', text: 'Por favor completa todos los campos requeridos' });
+    if (!producto_id || !rango_tallas_id) {
+        var camposFaltantes = [];
+        if (!producto_id) camposFaltantes.push('Producto');
+        if (!rango_tallas_id) camposFaltantes.push('Rango de tallas');
+
+        Swal.fire({
+            icon: 'warning',
+            text: 'Faltan campos por completar: ' + camposFaltantes.join(', ')
+        });
         return;
     }
     
@@ -617,7 +623,6 @@ $("#form-crear").on("submit", function(e) {
         action: "crear_receta_completa",
         producto_id: producto_id,
         rango_tallas_id: rango_tallas_id,
-        tipo_produccion_id: tipo_produccion_id,
         almacen_id: almacen_id,
         precio_total: precio_total,
         porcentaje_ganancia: porcentaje_ganancia,
