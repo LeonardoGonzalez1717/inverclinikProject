@@ -32,6 +32,12 @@
                     <input type="text" name="nro_doc" maxlength="9" id="nro_doc" placeholder="Documento" class="form-control"/>
                 </div>
                 <small class="text-muted">Cédula: 8 dígitos. RIF: 9.</small>
+                <label class="small font-weight-bold text-muted d-block mb-1">Teléfono *</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" name="telefono_codigo" id="telefono_codigo" class="form-control" maxlength="4" placeholder="Código" required style="width: 32%;" inputmode="numeric" autocomplete="tel-country-code" />
+                    <input type="tel" name="telefono_numero" id="telefono_numero" class="form-control" maxlength="14" placeholder="Número" required inputmode="numeric" autocomplete="tel-national" />
+                </div>
+                <small class="text-muted">Ej.: código <strong>0414</strong> y número sin repetir el código.</small>
                 <input type="email" name="email_reg"  class="form-control" placeholder="Correo Electrónico *" required/>
                 
                 <input type="password" id="pass_reg" name="pass_reg" placeholder="Crear Contraseña *" required/>

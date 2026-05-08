@@ -25,12 +25,12 @@ $res_det = $conn->query($sql_det);
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Factura_<?php echo $v['numero_factura'] ?? $v['id']; ?></title>
+    <title>Nota de entrega_<?php echo $v['numero_factura'] ?? $v['id']; ?></title>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; margin: 0; padding: 20px; background-color: #f9f9f9; }
         
         /* Contenedor principal ajustado a 700px como tu modelo */
-        .factura-box { width: 700px; margin: auto; background: white; padding: 20px; }
+        .nota-entrega-box { width: 700px; margin: auto; background: white; padding: 20px; }
 
         table { width: 100%; border-collapse: collapse; margin-top: 20px; border: 1px solid #000000; }
         table th { padding: 12px; text-align: left; border: 1px solid #000000;  }
@@ -54,13 +54,13 @@ $res_det = $conn->query($sql_det);
 
         @media print {
             body { background: white; padding: 0; }
-            .factura-box { width: 100%; border: none; }
+            .nota-entrega-box { width: 100%; border: none; }
         }
     </style>
 </head>
 <body>
 
-    <div class="factura-box">
+    <div class="nota-entrega-box">
         <div style="text-align: center;">
             <img src="../assets/img/brand.png" alt="brand" width="100%" height="120px">
             <p style="margin:0; text-align: left; font-size: 10px;">RIF J-41173381-4</p>
@@ -68,7 +68,7 @@ $res_det = $conn->query($sql_det);
 
         <div style="margin-top: 10px;">
             <div style="text-align: right;">
-                <strong style="font-size: 16px;">FACTURA <?php echo $v['numero_factura'] ?? 'N/A'; ?></strong>
+                <strong style="font-size: 16px;">NOTA DE ENTREGA <?php echo $v['numero_factura'] ?? 'N/A'; ?></strong>
                 <p style="margin:0; text-align: left;"><strong>Fecha:</strong> <?php echo date('d/m/Y', strtotime($v['fecha'])); ?></p>
             </div>
         </div>
