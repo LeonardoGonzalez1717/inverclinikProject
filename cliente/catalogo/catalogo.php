@@ -19,6 +19,57 @@ if ($tipoUsuario === 'cliente' || $role_id === 3) {
     $urlInicio = '../../index.php';
 }
 include '../modales_cliente.php';
+
+$sqlRangos = "SELECT id, nombre_rango FROM rangos_tallas ORDER BY nombre_rango";
+$resultRangos = $conn->query($sqlRangos);
+$rangos = [];
+if ($resultRangos) {
+    while ($row = $resultRangos->fetch_assoc()) {
+        $rangos[] = $row;
+    }
+}
+
+$sqlNombres = "SELECT DISTINCT nombre FROM productos WHERE activo = 1 ORDER BY nombre ASC";
+$resNombres = mysqli_query($conn, $sqlNombres);
+$lista_nombres = [];
+while ($nom = mysqli_fetch_assoc($resNombres)) {
+    $lista_nombres[] = $nom['nombre'];
+}
+
+$f_producto = isset($_GET['producto']) ? mysqli_real_escape_string($conn, $_GET['producto']) : '';
+$f_genero   = isset($_GET['genero'])   ? mysqli_real_escape_string($conn, $_GET['genero'])   : '';
+$f_talla    = isset($_GET['rango_tallas_id']) ? mysqli_real_escape_string($conn, $_GET['rango_tallas_id']) : '';
+
+$sql = "SELECT
+    r.id AS id_receta,
+    p.nombre,
+    p.imagen,
+    p.descripcion,
+    t.nombre_rango AS nombre_talla,
+    r.precio_detal,
+    r.precio_mayor  
+FROM recetas r
+INNER JOIN productos p ON r.producto_id = p.id
+INNER JOIN rangos_tallas t ON r.rango_tallas_id = t.id
+WHERE p.activo = 1";
+
+if ($f_producto !== '') {
+    $sql .= " AND p.nombre = '$f_producto'";
+}
+
+if ($f_genero !== '') {
+    $sql .= " AND p.tipo_genero = '$f_genero'";
+}
+
+if ($f_talla !== '') {
+    $sql .= " AND r.rango_tallas_id = '$f_talla'";
+}
+$sql .= " ORDER BY p.nombre ASC";
+
+$result = mysqli_query($conn, $sql);
+
+$total_filas = mysqli_num_rows($result);
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -34,88 +85,101 @@ include '../modales_cliente.php';
     <link rel="stylesheet" href="../../css/sweetalert-overrides.css">
     <link rel="stylesheet" href="../../assets/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/password-toggle.css" />
-    <script src="../../assets/js/password-toggle.js" defer></script>
+    <!-- <link rel="stylesheet" href="../../assets/css/bootstrap.css"> -->
 </head>
 <body>
-
-<div class="container">
+    <div class="container">
     <header class="header">
         <div class="logo">
            <a href="<?php echo $urlInicio; ?>"> <h1>INVERCLINIK</h1></a>
         </div>
+        <h2 class="catalog-title">Catálogo de Productos</h2>
         <div class="user-info">
-            <p>Bienvenido, <strong><?php echo $nombreUsuario; ?></strong></p>
+            Bienvenido, <strong><?php echo $nombreUsuario; ?></strong>
             <?php if($isLoggedIn): ?>
                 <a href="../../logout.php" class="btn-logout">Cerrar Sesión</a>
             <?php endif; ?>
         </div>
     </header>
-
-    <h2 class="catalog-title">Catálogo de Productos</h2>
-
-    <div class="main-layout">
-        <div class="products-grid">
-            <?php
-            $sql = "SELECT 
-                        r.id AS id_receta, 
-                        p.nombre, 
-                        p.imagen, 
-                        p.descripcion, 
-                        t.nombre_rango AS nombre_talla, 
-                        r.precio_detal, 
-                        r.precio_mayor  
-                    FROM recetas r
-                    INNER JOIN productos p ON r.producto_id = p.id
-                    INNER JOIN rangos_tallas t ON r.rango_tallas_id = t.id
-                    WHERE p.activo = 1";
-            
-            $result = mysqli_query($conn, $sql);
-            while($p = mysqli_fetch_assoc($result)):
-                $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
-                $rawImg = trim((string)($p['imagen'] ?? ''));
-                if ($rawImg === '') {
-                    $imgSrc = '../../assets/img/inverclinik_3.png';
-                } elseif (preg_match('#\Ahttps?://#i', $rawImg)) {
-                    $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
-                } elseif ($rawImg[0] === '/') {
-                    $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
-                } elseif (preg_match('#\Aassets/#i', $rawImg)) {
-                    $imgSrc = '../../' . htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
-                } else {
-                    $imgSrc = '../../assets/img/productos/' . htmlspecialchars(basename($rawImg), ENT_QUOTES, 'UTF-8');
-                }
-            ?>
-            <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>" style="position: relative;">
-                <?php if($isAdmin): ?>
-                <div class="admin-actions" style="position: absolute; top: 10px; right: 10px; z-index: 5;">
-                    <button class="btn-delete" onclick="eliminarReceta(<?php echo $p['id_receta']; ?>)" title="Quitar del catálogo" style="background:#dc3545; border:none; padding:5px 10px; border-radius:4px; color:white; cursor:pointer;"><i class="fas fa-trash"></i></button>
-                </div>
-                <?php endif; ?>
-
-                <div class="product-image">
-                    <img src="<?php echo $imgSrc; ?>" alt="<?php echo htmlspecialchars($p['nombre'], ENT_QUOTES, 'UTF-8'); ?>" onerror="this.onerror=null;this.src='../../assets/img/inverclinik_3.png';">
-                </div>
-                
-                <h3><?php echo $p['nombre']; ?></h3>
-                <p style="color: #005bbe; font-weight: bold; margin: 5px 0;">Talla: <?php echo $p['nombre_talla']; ?></p>
-                
-                <div class="product-info"><strong>$<?php echo number_format($p['precio_detal'], 2); ?></strong></div>
-                <p class="product-description"><?php echo $p['descripcion']; ?></p>
-                
-                <div class="product-controls">
-                    <label>Cant:</label>
-                    <input type="number" id="cant-<?php echo $p['id_receta']; ?>" class="quantity-input" value="1" min="1">
-                </div>
-                
-                <button class="btn-add-cart" 
-                    onclick="agregarAlPedido('<?php echo $nombreCompleto; ?>', <?php echo $p['precio_detal']; ?>, <?php echo $p['precio_mayor']; ?>, 'cant-<?php echo $p['id_receta']; ?>', <?php echo $p['id_receta']; ?>)">
-                    <i class="fas fa-cart-plus"></i> Añadir
-                </button>
+    <form class="dashboard-filtro" id="formFiltroDashboard" action="#" method="get" autocomplete="off">
+            <div class="filter-group">
+                <label class="form-label">Producto</label>
+                <select class="form-control" name="producto" id="producto">
+                    <option value=""></option>
+                    <?php foreach($lista_nombres as $nombre): ?>
+                        <option value="<?php echo $nombre; ?>" <?php echo ($f_producto == $nombre) ? 'selected' : ''; ?>>
+                            <?php echo $nombre; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
-            <?php endwhile; ?>
-        </div>
 
-        <?php if(!$isAdmin): ?>
+            <div class="filter-group">
+                <label class="form-label">Género</label>
+                <select class="form-control" name="genero"> <option value=""></option>
+                    <option value="Masculino" <?php echo ($f_genero == 'Masculino') ? 'selected' : ''; ?>>Masculino</option>
+                    <option value="Femenino" <?php echo ($f_genero == 'Femenino') ? 'selected' : ''; ?>>Femenino</option>
+                    <option value="Unisex" <?php echo ($f_genero == 'Unisex') ? 'selected' : ''; ?>>Unisex</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="form-label">Talla</label>
+                <select name="rango_tallas_id" class="form-control">
+                    <option value=""></option>
+                    <?php foreach ($rangos as $r): ?>
+                        <option value="<?php echo $r['id']; ?>" <?php echo ($f_talla == $r['id']) ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($r['nombre_rango']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="btn-aplicar">Aplicar</button>
+        </form>
+
+    <div class="main-panel">
+        <div class="main-layout">
+            <div class="products-grid"> <?php
+                if($total_filas > 0): 
+                    while($p = mysqli_fetch_assoc($result)):
+                        $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")";
+                        $rawImg = trim((string)($p['imagen'] ?? ''));
+                        if ($rawImg === '') {
+                            $imgSrc = '../../assets/img/inverclinik_3.png';
+                        } elseif (preg_match('#\Ahttps?://#i', $rawImg)) {
+                            $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                        } elseif ($rawImg[0] === '/') {
+                            $imgSrc = htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                        } elseif (preg_match('#\Aassets/#i', $rawImg)) {
+                            $imgSrc = '../../' . htmlspecialchars($rawImg, ENT_QUOTES, 'UTF-8');
+                        } else {
+                            $imgSrc = '../../assets/img/productos/' . htmlspecialchars(basename($rawImg), ENT_QUOTES, 'UTF-8');
+                        }
+                        $nombreCompleto = $p['nombre'] . " (Talla: " . $p['nombre_talla'] . ")"; ?>
+                        <div class="product-card" id="card-receta-<?php echo $p['id_receta']; ?>">
+                            <div class="product-image">
+                                <img src="<?php echo $imgSrc; ?>" alt="Producto">
+                            </div>
+                            <h3><?php echo $p['nombre']; ?></h3>
+                            <p style="color: #005bbe; font-weight: bold; margin: 5px 0;">Talla: <?php echo $p['nombre_talla']; ?></p>
+                            <div class="product-info"><strong>$<?php echo number_format($p['precio_detal'], 2); ?></strong></div>
+                            <p class="product-description"><?php echo $p['descripcion']; ?></p>
+
+                            <div class="product-controls-row"> 
+                                <input type="number" id="cant-<?php echo $p['id_receta']; ?>" class="quantity-input" value="1" min="1">
+                                <button class="btn-add-cart" onclick="agregarAlPedido('<?php echo htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8'); ?>', <?php echo $p['precio_detal']; ?>, <?php echo $p['precio_mayor']; ?>, 'cant-<?php echo $p['id_receta']; ?>', <?php echo $p['id_receta']; ?>)">
+                                    <i class="fas fa-cart-plus"></i> Añadir
+                                </button>
+                            </div>
+                        </div>
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <div style="grid-column: span 4; text-align: center; padding: 50px;">
+                        <p>No se encontraron productos con esos filtros.</p>
+                    </div>
+                <?php endif; ?>
+            </div>    
+            <?php if(!$isAdmin): ?>
             <aside class="sidebar-pedido">
                 <h3>Mi Pedido</h3>
                 <div id="lista-pedido">
@@ -137,9 +201,10 @@ include '../modales_cliente.php';
                     <?php endif; ?>
                 </div>
             </aside>
-        <?php endif; ?>
+        <?php endif; ?>    
+        </div>
     </div>
-</div>
+
 
 <div id="notificacion" class="notification">¡Producto añadido!</div>
 
@@ -260,8 +325,8 @@ include '../modales_cliente.php';
         const nombreParaMensaje = "<?php echo $nombreUsuario; ?>";
         
         let mensaje = "¡Hola! Soy *" + nombreParaMensaje + "*.\n";
-        mensaje += "📝 *PRESUPUESTO:* `" + correlativo + "`\n\n";
-        mensaje += "✅ *DETALLE DEL PEDIDO*\n";
+        mensaje += "*PRESUPUESTO:* `" + correlativo + "`\n\n";
+        mensaje += "*DETALLE DEL PEDIDO*\n";
         mensaje += "-----------------------------\n";
 
         pedido.forEach(item => {
@@ -272,7 +337,7 @@ include '../modales_cliente.php';
 
         const totalText = document.getElementById('total-pedido').innerText;
         mensaje += "-----------------------------\n";
-        mensaje += "💰 *TOTAL ESTIMADO: " + totalText + "*\n\n";
+        mensaje += "*TOTAL ESTIMADO: " + totalText + "*\n\n";
         mensaje += "Referencia: " + correlativo;
 
         const urlWhatsapp = "https://api.whatsapp.com/send?phone=" + telefonoAdmin + "&text=" + encodeURIComponent(mensaje);
