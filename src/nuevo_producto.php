@@ -77,15 +77,24 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Guia de Corte</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Guia de Corte</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Guias de Cortes</h5>
+                        <div class="row form-group">
+                            <div class="col-sm-4">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Guia de Corte
+                                </button>
+                            </div>
+                            <!-- <div class="col-sm-8">
+                                <span class="subtitle"><b>Lista de Guias de Cortes</b></span>
+                            </div> -->
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -110,32 +119,45 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear Nueva Guia de Corte</h5>
+                        <div class="row form-group">
+                            <div class="col-sm-4">
+                               <button class="btn-volver" id="btn-volver-listado">
+                                    <i class="fas fa-arrow-left"></i> Volver al Listado
+                                </button>
+                            </div>
+                            <!-- <div class="col-sm-8">
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Crear Nueva Guia de Corte</h5>
+
+                            </div> -->
+                        </div>
                         <input type="text" class="hidden" id="precio_total" name="precio_total" value="">
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Producto</label>
-                                <select name="producto_id" id="producto_id" class="form-control" required>
-                                    <option value="">-- Seleccione un producto --</option>
-                                    <?php foreach ($productos as $p): ?>
-                                        <option value="<?php echo htmlspecialchars($p['id']); ?>">
-                                            <?php echo htmlspecialchars($p['nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Producto</label>
+                                    <select name="producto_id" id="producto_id" class="form-control" required>
+                                        <option value="">Seleccione un producto</option>
+                                        <?php foreach ($productos as $p): ?>
+                                            <option value="<?php echo htmlspecialchars($p['id']); ?>">
+                                                <?php echo htmlspecialchars($p['nombre']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Rango de Tallas</label>
+                                    <select name="rango_tallas_id" id="rango_tallas_id" class="form-control" required>
+                                        <option value="">Seleccione una Talla</option>
+                                        <?php foreach ($rangos as $r): ?>
+                                            <option value="<?php echo htmlspecialchars($r['id']); ?>">
+                                                <?php echo htmlspecialchars($r['nombre_rango']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Rango de Tallas</label>
-                                <select name="rango_tallas_id" id="rango_tallas_id" class="form-control" required>
-                                    <option value="">-- Seleccione un rango --</option>
-                                    <?php foreach ($rangos as $r): ?>
-                                        <option value="<?php echo htmlspecialchars($r['id']); ?>">
-                                            <?php echo htmlspecialchars($r['nombre_rango']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <!-- <div class="mb-3">
+
+                            <!-- <div class="col-sm-6">
                                 <label class="form-label">Tipo de Producción</label>
                                 <select name="tipo_produccion_id" id="tipo_produccion_id" class="form-control" required>
                                     <option value="">-- Seleccione un tipo --</option>
@@ -146,39 +168,46 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <?php endforeach; ?>
                                 </select>
                             </div> -->
-                            <div class="mb-3">
-                                <label class="form-label">Almacén</label>
-                                <select name="almacen_id" id="almacen_id" class="form-control">
-                                    <option value="">-- Seleccione un almacén --</option>
-                                    <?php foreach ($almacenes as $a): ?>
-                                        <option value="<?php echo htmlspecialchars($a['id']); ?>">
-                                            <?php echo htmlspecialchars($a['nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="form-text text-muted">Almacén al que pertenece esta receta en el inventario</small>
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Almacén</label>
+                                    <select name="almacen_id" id="almacen_id" class="form-control">
+                                        <option value="">Seleccione un almacén</option>
+                                        <?php foreach ($almacenes as $a): ?>
+                                            <option value="<?php echo htmlspecialchars($a['id']); ?>">
+                                                <?php echo htmlspecialchars($a['nombre']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="form-text text-muted">Almacén al que pertenece esta receta en el inventario</small>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Stock mínimo (producto terminado)</label>
-                                <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="0">
-                                <small class="form-text text-muted">Límite mínimo en inventario</small>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Stock mínimo (producto terminado)</label>
+                                    <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="Ej: 10">
+                                    <small class="form-text text-muted">Límite mínimo en inventario</small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Stock máximo (producto terminado)</label>
+                                    <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="Ej: 100">
+                                    <small class="form-text text-muted">Límite máximo en inventario</small>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Stock máximo (producto terminado)</label>
-                                <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="0">
-                                <small class="form-text text-muted">Límite máximo en inventario</small>
+                            
 
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
 
-                            <div class="mb-3">
-                                <h5 style="color: #0056b3; margin-bottom: 15px;">Insumos de la Receta</h5>
+                            <div class="col-sm-12">
+                                <h5 style="color: #0056b3; margin-bottom: 15px; ">Insumos de la Guia de Corte</h5>
                                 
                                 <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
                                     <div class="row">
                                         <div class="col-md-4 mb-2">
                                             <label class="form-label">Insumo</label>
                                             <select id="nuevo-insumo-id" class="form-control">
-                                                <option value="">-- Seleccione un insumo --</option>
+                                                <option value="">Seleccione un insumo</option>
                                                 <?php foreach ($insumos as $i): ?>
                                                     <option value="<?php echo htmlspecialchars($i['id']); ?>" 
                                                             data-costo="<?php echo htmlspecialchars($i['costo_unitario']); ?>"
@@ -210,7 +239,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
 
                                 <div id="lista-insumos" style="margin-top: 15px;">
-                                    <table class="table table-bordered" id="tabla-insumos" style="display: none;">
+                                    <table class="table " id="tabla-insumos" style="display: none;">
                                         <thead style="background-color: #0056b3; color: white;">
                                             <tr>
                                                 <th style="color: black;">Insumo</th>
@@ -240,40 +269,36 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
+                            <div class="row form-group">
+                                <div class="col-sm-3">
                                     <label class="form-label" style="font-weight: bold;">Porcentaje de Ganancia</label>
-                                    <div class="input-group">
                                         <input type="number" id="porcentaje_ganancia" class="form-control" value="30" placeholder="Por defecto 30" step="0.01" min="0">
-                                    </div>
                                 </div>
 
-                                <div class="col-md-6 mb-3">
+                                <div class="col-sm-3">
+                                    <label class="form-label">Precio Final Detal ($)</label>
+                                    <input type="number" step="0.01" name="precio_detal" id="precio_detal" class="form-control" style="background-color: #e9ecef; font-weight: bold;" readonly>
+                                </div>
+
+                                <div class="col-sm-3">
                                     <label class="form-label" style="font-weight: bold;">Porcentaje de Descuento</label>
                                     <div class="input-group">
                                         <input type="number" id="porcentaje_descuento" class="form-control" placeholder="Ej: 10">
                                         <small class="form-text text-muted">Valor tomado en cuenta para el calculo del precio al mayor</small>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <label class="form-label">Precio Final Detal ($)</label>
-                                    <input type="number" step="0.01" name="precio_detal" id="precio_detal" class="form-control" style="background-color: #e9ecef; font-weight: bold;" readonly>
-                                </div>
-
-                                <div class="col-md-6 mb-3">
+                                <div class="col-sm-3">
                                     <label class="form-label">Precio Final Mayor ($)</label>
                                     <input type="number" step="0.01" name="precio_mayor" id="precio_mayor" class="form-control" style="background-color: #e9ecef; font-weight: bold;" readonly>
                                 </div>
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label">Observaciones Generales</label>
+                                <label class="form-label">Observaciones</label>
                                 <textarea name="observaciones" id="observaciones" class="form-control" rows="3"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary" id="btn-guardar-receta" disabled>Guardar Receta Completa</button>
+                            <button type="submit" class="btn btn-primary" id="btn-guardar-receta" disabled>Guardar Guia de Corte</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-receta-id" name="id" value="">
                             <input type="hidden" id="action" value="">
@@ -289,6 +314,29 @@ var insumosAgregados = [];
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteReceta = tasaCambiariaActual;
 var PORCENTAJE_GANANCIA_DEFECTO = 30;
+
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
+
 
 function getPorcentajeGananciaFormulario() {
     var raw = $('#porcentaje_ganancia').val();
@@ -438,13 +486,8 @@ function limpiarFormularioInsumo() {
 }
 
 function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 function cargarListado() {

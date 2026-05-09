@@ -17,15 +17,22 @@ require_once "../connection/connection.php";
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Proveedores</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Proveedor</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Proveedores</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Insumo
+                                </button>
+                            </div>
+                        </div>
+                        <!-- <h5 class="subtitle">Lista de Proveedores</h5> -->
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -44,7 +51,10 @@ require_once "../connection/connection.php";
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear/Editar Proveedor</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+                        <!-- <h5 class="subtitle">Crear/Editar Proveedor</h5> -->
                         <form id="form-crear">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -116,10 +126,28 @@ require_once "../connection/connection.php";
 
 <script>
 // --- LOGICA DE INTERFAZ ---
-function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => el.classList.add('hidden'));
-    document.getElementById('vista-' + vista).classList.remove('hidden');
-}
+
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
 
 function cargarListado() {
     $.post('gestionar_proveedores_data.php', { action: 'listar_html' }, function(html) {
@@ -133,19 +161,48 @@ function limpiarFormulario() {
 }
 
 function editarProveedor(data) {
-    if(data.documento) {
-        $('#tipo_doc').val(data.documento.charAt(0));
-        $('#documento').val(data.documento.substring(1));
+
+    let doc = data.cedrif; 
+
+    if (doc) {
+        let tipo = doc.charAt(0); 
+        let numero = doc.substring(1); 
+
+        $("#tipo_doc").val(tipo);
+        $("#nro_doc").val(numero);
     }
+    
+    // if(data.documento) {
+    //     $('#tipo_doc').val(data.documento.charAt(0));
+    //     $('#nro_doc').val(data.documento.substring(1));
+    // }
     if(data.telefono && data.telefono.length >= 11) {
         $('#prefijo_tel').val(data.telefono.substring(0, 4));
-        $('#telefono_num').val(data.telefono.substring(4));
+        $('#nro_tel').val(data.telefono.substring(4));
     }
     $('#nombre').val(data.nombre || '');
     $('#email').val(data.email || '');
     $('#direccion').val(data.direccion || '');
     $('#editar-proveedor-id').val(data.id);
-    mostrarVista('crear');
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+    });
+}
+$('#nro_doc, #nro_tel').on('keypress', function(e) {
+    // Permitir solo códigos de teclas entre 48 y 57 (números del 0 al 9)
+    if (e.which < 48 || e.which > 57) {
+        return false;
+    }
+});
+
+// Por si el usuario intenta pegar texto con el mouse (clic derecho -> pegar)
+$('#nro_doc, #nro_tel').on('input', function() {
+    this.value = this.value.replace(/\D/g, '');
+});
+
+function mostrarVista(vista) {
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 // --- SUBMIT CON VALIDACIÓN ---

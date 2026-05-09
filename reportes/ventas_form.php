@@ -23,51 +23,54 @@ if ($r) {
 ?>
 
 <div class="main-content">
-  <div class="container-wrapper">
-    <div class="container-inner">
-      <h1 class="main-title">Reporte de Ventas</h1>
+    <div class="container-wrapper">
+        <div class="container-inner">
+            <h1 class="main-title">Reporte de Ventas</h1>
 
-      <form method="GET" action="ventas_view.php" target="_blank">
+            <form method="GET" action="ventas_view.php" target="_blank">
+                <div class="row form-group">
+                    <div class="col-sm-8">
+                        <label class="form-label">Cliente</label>
+                        <select name="cliente_id" class="form-control">
+                            <option value="">Todos los clientes</option>
+                            <?php foreach ($clientes as $cl): ?>
+                            <option value="<?php echo (int) $cl['id']; ?>"><?php echo htmlspecialchars($cl['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-sm-4">
+                        <label class="form-label">Estado</label>
+                        <select name="estado" class="form-control">
+                            <option value=""></option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="por_pagar">Por pagar</option>
+                            <option value="aprobado">Aprobado</option>
+                            <option value="entregado">Entregado</option>
+                            <option value="cancelado">Cancelado</option>
+                        </select>
+                    </div>
+                </div>
 
-        <div class="mb-3">
-          <label class="form-label">Cliente</label>
-          <select name="cliente_id" class="form-control">
-            <option value="">Todos los clientes</option>
-            <?php foreach ($clientes as $cl): ?>
-              <option value="<?php echo (int) $cl['id']; ?>"><?php echo htmlspecialchars($cl['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
-            <?php endforeach; ?>
-          </select>
+                <div class="row form-group">
+
+                    <div class="col-sm-6">
+                        <label class="form-label">Fecha Inicio</label>
+                        <input type="date" name="fecha_inicio" class="form-control">
+                    </div>
+
+                    <div class="col-sm-6">
+                        <label class="form-label">Fecha Fin</label>
+                        <input type="date" name="fecha_fin" class="form-control">
+                    </div>
+                </div>
+
+                <div class="text-center">
+                <button type="submit" class="btn btn-primary">Generar Reporte</button>
+                </div>
+
+            </form>
         </div>
-
-        <div class="mb-3">
-          <label class="form-label">Fecha Inicio</label>
-          <input type="date" name="fecha_inicio" class="form-control">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Fecha Fin</label>
-          <input type="date" name="fecha_fin" class="form-control">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Estado</label>
-          <select name="estado" class="form-control">
-            <option value=""></option>
-            <option value="pendiente">Pendiente</option>
-            <option value="por_pagar">Por pagar</option>
-            <option value="aprobado">Aprobado</option>
-            <option value="entregado">Entregado</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </div>
-
-        <div class="text-center">
-          <button type="submit" class="btn btn-primary">Generar Reporte</button>
-        </div>
-
-      </form>
     </div>
-  </div>
 </div>
 
 <?php require_once('../template/footer.php'); ?>

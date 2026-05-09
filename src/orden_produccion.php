@@ -136,23 +136,43 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         .hidden {
             display: none;
         }
+
+        .btn-volver { 
+            background: #6c757d; 
+            color: white; 
+            border: none; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin-bottom: 15px; 
+        }
+
     </style>
 </head>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Órdenes de Producción</h2>
+                <h2 class="main-title">Órden de Producción</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Orden</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Listado de Órdenes</h5>
+                        <div class="row form-group">
+                            <div class="col-sm-4">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Orden de Producción
+                                </button>
+                            </div>
+                            <!-- <div class="col-sm-8">
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Lista de Órdenes de Produccion</h5>
+                            </div> -->
+                        </div>
                         <div class="table-container">
                             <table class="orders-table">
                                 <thead>
@@ -176,55 +196,73 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h4 class="subtitle">Crear Nueva Orden</h4>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+
+                        <!-- <h4 class="subtitle">Crear Nueva Orden</h4> -->
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Receta</label>
-                                <select name="receta_id" id="receta_id" class="form-control" required>
-                                    <option value=""></option>
-                                    <?php foreach ($recetas as $r): ?>
-                                        <option value="<?php echo htmlspecialchars($r['id']); ?>" 
-                                                data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>">
-                                            <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Cantidad a Producir</label>
-                                <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Costo por Unidad ($)</label>
-                                <input type="text" id="costo_por_unidad" class="form-control" readonly style="background-color: #e9ecef;">
-                                <small class="text-muted">Costo de la receta por unidad de producto</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Costo Total de Producción ($)</label>
-                                <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
-                                <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
-                            </div>
-                            <div class="mb-3" id="contenedor-equivalente-bs" style="display: none;">
-                                <label class="form-label">Equivalente en Bs.</label>
-                                <input type="text" id="equivalente_bs" class="form-control" readonly style="background-color: #e9ecef;">
-                                <small class="text-muted" id="texto-tasa-informativa"></small>
-                            </div>
-                            <div class="mb-3" id="stock-insumos-container" style="display: none;">
-                                <label class="form-label">Stock Actual de Insumos</label>
-                                <div id="stock-insumos-list" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;">
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Receta</label>
+                                    <select name="receta_id" id="receta_id" class="form-control" required>
+                                        <option value=""></option>
+                                        <?php foreach ($recetas as $r): ?>
+                                            <option value="<?php echo htmlspecialchars($r['id']); ?>" 
+                                                    data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>">
+                                                <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Cantidad a Producir</label>
+                                    <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Fecha Inicio</label>
-                                <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control">
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Costo por Unidad ($)</label>
+                                    <input type="text" id="costo_por_unidad" class="form-control" readonly style="background-color: #e9ecef;">
+                                    <small class="text-muted">Costo de la receta por unidad de producto</small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Costo Total de Producción ($)</label>
+                                    <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
+                                    <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Fecha Fin</label>
-                                <input type="date" name="fecha_fin" id="fecha_fin" class="form-control">
+                           
+                            <div class="row form-group">
+                                <div class="col-sm-6" id="contenedor-equivalente-bs" style="display: none;">
+                                    <label class="form-label">Equivalente en Bs.</label>
+                                    <input type="text" id="equivalente_bs" class="form-control" readonly style="background-color: #e9ecef;">
+                                    <small class="text-muted" id="texto-tasa-informativa"></small>
+                                </div>
+                                <div class="col-sm-6" id="stock-insumos-container" style="display: none;">
+                                    <label class="form-label">Stock Actual de Insumos</label>
+                                    <div id="stock-insumos-list" style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; max-height: 200px; overflow-y: auto;">
+                                    </div>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Observaciones</label>
-                                <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Fecha Inicio</label>
+                                    <input type="date" name="fecha_inicio" id="fecha_inicio" class="form-control">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Fecha Fin</label>
+                                    <input type="date" name="fecha_fin" id="fecha_fin" class="form-control">
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <div class="mb-3">
+                                    <label class="form-label">Observaciones</label>
+                                    <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
+                                </div>
                             </div>
                             <button type="submit" class="btn btn-primary">Crear Orden</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
@@ -240,6 +278,29 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 <script>
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteOrden = tasaCambiariaActual;
+
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+        cargarStockInsumos(); 
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
 
 function actualizarEquivalenteBs() {
     var costoTotalDolares = parseFloat($('#costo_total_produccion').val().replace(/[^0-9.-]/g, '')) || 0;
@@ -260,13 +321,8 @@ function actualizarEquivalenteBs() {
 }
 
 function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 function cargarListado() {
     $.post('orden_produccion_data.php', { action: 'listar_html' }, function(html) {

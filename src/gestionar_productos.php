@@ -33,6 +33,13 @@ if ($resCat) {
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Insumo
+                                </button>
+                            </div>
+                        </div>
                         <h5 class="subtitle">Lista de Productos</h5>
                         <div class="table-container">
                             <table class="recipe-table">
@@ -54,24 +61,30 @@ if ($resCat) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear/Editar Producto</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+                        
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Nombre del Producto <span style="color: red;">*</span></label>
-                                <input type="text" name="nombre" id="nombre" class="form-control" required 
-                                       maxlength="255" placeholder="Ej: Jean Triple Costura de Caballero">
+                            <div class="row form-group">
+                                <div class="mb-3">
+                                    <label class="form-label">Nombre del Producto <span style="color: red;">*</span></label>
+                                    <input type="text" name="nombre" id="nombre" class="form-control" required 
+                                        maxlength="255">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Categoría</label>
+                                    <select name="categoria" id="categoria" class="form-control">
+                                        <option value=""></option>
+                                        <?php foreach ($categorias as $cat): ?>
+                                            <option value="<?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Categoría</label>
-                                <select name="categoria" id="categoria" class="form-control">
-                                    <option value="">-- Seleccione una categoría --</option>
-                                    <?php foreach ($categorias as $cat): ?>
-                                        <option value="<?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>">
-                                            <?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+
                             <div class="mb-3">
                                 <label class="form-label">Tipo/Género</label>
                                 <select name="tipo_genero" id="tipo_genero" class="form-control">

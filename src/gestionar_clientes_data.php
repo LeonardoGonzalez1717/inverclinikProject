@@ -132,7 +132,7 @@ try {
             $telefono = empty($telefono) ? null : $telefono;
             $email = empty($email) ? null : $email;
             $direccion = empty($direccion) ? null : $direccion;
-            $doc= $tipo_tipo_documentodoc . $numero_documento;
+            $doc= $tipo_documento. $numero_documento;
 
             $stmt->bind_param("sssssi", $nombre, $doc, $telefono, $email, $direccion, $id);
             $stmt->execute();

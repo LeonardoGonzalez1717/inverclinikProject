@@ -64,6 +64,17 @@ if ($resultRecetas) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Movimientos de Inventario</title>
     <link rel="stylesheet" href="../css/movimientos_inventario.css">
+    <style>
+        .btn-volver { 
+            background: #6c757d; 
+            color: white; 
+            border: none; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin-bottom: 15px; 
+        }
+    </style>
 </head>
 <body>
     <div class="main-content">
@@ -71,22 +82,30 @@ if ($resultRecetas) {
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Inventario</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12" style="display: flex; gap: 10px;">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Registrar Movimiento</button>
-                        <!-- <button class="btn btn-info" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima');">Ver Inventario</button> -->
+                        <button class="btn btn-info" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima');">Ver Inventario</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <ul class="nav nav-tabs mb-3" id="inventario-tabs" role="tablist">
-                            <li class="nav-item" role="presentation">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Movimiento de Inventario
+                                </button>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs" id="inventario-tabs">
+                            <li class="nav-item" >
                                 <button class="nav-link active" id="materia-prima-tab" type="button" onclick="cambiarTab('materia_prima');">
                                     Materia Prima (Insumos)
                                 </button>
                             </li>
-                            <li class="nav-item" role="presentation">
+                            <li class="nav-item">
                                 <button class="nav-link" id="productos-tab" type="button" onclick="cambiarTab('productos');">
                                     Productos Terminados
                                 </button>
@@ -142,91 +161,101 @@ if ($resultRecetas) {
 
                     <!-- Vista de Crear Movimiento -->
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Registrar Nuevo Movimiento</h5>
-                        
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Inventario <span style="color: red;">*</span></label>
-                                <select name="tipo_inventario" id="tipo_inventario" class="form-control" required onchange="cambiarTipoInventario();">
-                                    <option value=""></option>
-                                    <option value="materia_prima">Materia Prima (Insumos)</option>
-                                    <option value="productos">Productos Terminados</option>
-                                </select>
-                            </div>
-                            
-                            <div id="campo-materia-prima" style="display: none;">
-                                <div class="mb-3">
-                                    <label class="form-label">Insumo <span style="color: red;">*</span></label>
-                                    <select name="insumo_id" id="insumo_id" class="form-control" onchange="actualizarStockInfo();">
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Tipo de Inventario <span style="color: red;">*</span></label>
+                                    <select name="tipo_inventario" id="tipo_inventario" class="form-control" required onchange="cambiarTipoInventario();">
                                         <option value=""></option>
-                                        <?php foreach ($insumos as $insumo): ?>
-                                            <?php
-                                            $sm = $insumo['stock_maximo'] ?? null;
-                                            $attrMax = ($sm !== null && $sm !== '') ? htmlspecialchars((string) $sm, ENT_QUOTES, 'UTF-8') : '';
-                                            ?>
-                                            <option value="<?php echo htmlspecialchars($insumo['id']); ?>" 
-                                                    data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>"
-                                                    data-stock-max="<?php echo $attrMax; ?>">
-                                                <?php echo htmlspecialchars($insumo['nombre'] . ' (' . $insumo['unidad_medida'] . ')'); ?>
-                                            </option>
-                                        <?php endforeach; ?>
+                                        <option value="materia_prima">Materia Prima (Insumos)</option>
+                                        <option value="productos">Productos Terminados</option>
                                     </select>
                                 </div>
-                            </div>
-                            
-                            <div id="campo-productos" style="display: none;">
-                                <div class="mb-3">
-                                    <label class="form-label">Receta/Producto <span style="color: red;">*</span></label>
-                                    <select name="receta_id" id="receta_id" class="form-control" onchange="actualizarStockInfoProducto();">
-                                        <option value=""></option>
-                                        <?php foreach ($recetas as $receta): ?>
-                                            <option value="<?php echo htmlspecialchars($receta['receta_id']); ?>" 
-                                                    data-producto-id="<?php echo htmlspecialchars($receta['producto_id']); ?>"
-                                                    data-rango-tallas-id="<?php echo htmlspecialchars($receta['rango_tallas_id']); ?>"
-                                                    data-tipo-produccion-id="<?php echo htmlspecialchars($receta['tipo_produccion_id']); ?>">
-                                                <?php echo htmlspecialchars($receta['producto_nombre'] . ' - ' . $receta['rango_tallas_nombre'] . ' - ' . $receta['tipo_produccion_nombre']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                
+                                <div id="campo-materia-prima" style="display: none;">
+                                    <div class="col-sm-6">
+                                        <label class="form-label">Insumo <span style="color: red;">*</span></label>
+                                        <select name="insumo_id" id="insumo_id" class="form-control" onchange="actualizarStockInfo();">
+                                            <option value=""></option>
+                                            <?php foreach ($insumos as $insumo): ?>
+                                                <?php
+                                                $sm = $insumo['stock_maximo'] ?? null;
+                                                $attrMax = ($sm !== null && $sm !== '') ? htmlspecialchars((string) $sm, ENT_QUOTES, 'UTF-8') : '';
+                                                ?>
+                                                <option value="<?php echo htmlspecialchars($insumo['id']); ?>" 
+                                                        data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>"
+                                                        data-stock-max="<?php echo $attrMax; ?>">
+                                                    <?php echo htmlspecialchars($insumo['nombre'] . ' (' . $insumo['unidad_medida'] . ')'); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="campo-productos" style="display: none;">
+                                    <div class="col-sm-6">
+                                        <label class="form-label">Producto <span style="color: red;">*</span></label>
+                                        <select name="receta_id" id="receta_id" class="form-control" onchange="actualizarStockInfoProducto();">
+                                            <option value=""></option>
+                                            <?php foreach ($recetas as $receta): ?>
+                                                <option value="<?php echo htmlspecialchars($receta['receta_id']); ?>" 
+                                                        data-producto-id="<?php echo htmlspecialchars($receta['producto_id']); ?>"
+                                                        data-rango-tallas-id="<?php echo htmlspecialchars($receta['rango_tallas_id']); ?>"
+                                                        data-tipo-produccion-id="<?php echo htmlspecialchars($receta['tipo_produccion_id']); ?>">
+                                                    <?php echo htmlspecialchars($receta['producto_nombre'] . ' - ' . $receta['rango_tallas_nombre'] . ' - ' . $receta['tipo_produccion_nombre']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div class="stock-info" id="stock-info" style="display: none;">
-                                <strong>Stock Actual:</strong> 
-                                <span class="stock-actual" id="stock-actual">0</span> 
-                                <span id="unidad-medida"></span>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Tipo de Movimiento <span style="color: red;">*</span></label>
+                                    <select name="tipo" id="tipo" class="form-control" required>
+                                        <option value=""></option>
+                                        <option value="entrada">Entrada</option>
+                                        <option value="salida">Salida</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="stock-info" id="stock-info">
+                                        <strong>Stock Actual:</strong> 
+                                        <span class="stock-actual" id="stock-actual">0</span> 
+                                        <span id="unidad-medida"></span>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Tipo de Movimiento <span style="color: red;">*</span></label>
-                                <select name="tipo" id="tipo" class="form-control" required>
-                                    <option value=""></option>
-                                    <option value="entrada">Entrada</option>
-                                    <option value="salida">Salida</option>
-                                </select>
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Origen del Movimiento <span style="color: red;">*</span></label>
+                                    <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required>
+                                        <option value="manual">Manual</option>
+                                        <option value="compra">Compra</option>
+                                        <option value="orden_produccion">Orden de Producción</option>
+                                        <option value="ajuste">Ajuste de Inventario</option>
+                                    </select>
+                                    <small class="form-text text-muted">Selecciona el origen de este movimiento de inventario</small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Cantidad <span style="color: red;">*</span></label>
+                                    <input type="number" step="0.01" min="0.01" name="cantidad" id="cantidad" 
+                                        class="form-control" required placeholder="Ej: 10.50">
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Origen del Movimiento <span style="color: red;">*</span></label>
-                                <select name="tipo_movimiento" id="tipo_movimiento" class="form-control" required>
-                                    <option value="manual">Manual</option>
-                                    <option value="compra">Compra</option>
-                                    <option value="orden_produccion">Orden de Producción</option>
-                                    <option value="ajuste">Ajuste de Inventario</option>
-                                </select>
-                                <small class="form-text text-muted">Selecciona el origen de este movimiento de inventario</small>
-                            </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Cantidad <span style="color: red;">*</span></label>
-                                <input type="number" step="0.01" min="0.01" name="cantidad" id="cantidad" 
-                                       class="form-control" required placeholder="Ej: 10.50">
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Observaciones</label>
-                                <textarea name="observaciones" id="observaciones" class="form-control" rows="3" 
-                                          placeholder="Notas adicionales sobre el movimiento..."></textarea>
+                            <div class="row form-group">
+                                <div class="col-sm-12">
+                                    <label class="form-label">Observaciones</label>
+                                    <textarea name="observaciones" id="observaciones" class="form-control" rows="3" 
+                                            placeholder="Notas adicionales sobre el movimiento..."></textarea>
+                                </div>
                             </div>
 
                             <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
@@ -239,14 +268,32 @@ if ($resultRecetas) {
     </div>
 
 <script>
-function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
+    
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
     });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
+
+function mostrarVista(vista) {
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 function actualizarStockInfo() {
