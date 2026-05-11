@@ -15,15 +15,22 @@ require_once('../template/header.php');
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Perfiles</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Usuario</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Usuarios</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Perfil
+                                </button>
+                            </div>
+                        </div>
+                        <!-- <h5 class="subtitle">Lista de Usuarios</h5> -->
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -43,35 +50,53 @@ require_once('../template/header.php');
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear Usuario</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+                        <!-- <h5 class="subtitle">Crear Usuario</h5> -->
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Nombre de Usuario <span style="color: red;">*</span></label>
-                                <input type="text" name="username" id="username" class="form-control" required 
-                                       maxlength="255" placeholder="Ej: leonardo">
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Nombre de Usuario <span style="color: red;">*</span></label>
+                                    <input type="text" name="username" id="username" class="form-control" required 
+                                        maxlength="255" placeholder="Ej: leonardo">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
+                                    <input type="email" name="correo" id="correo" class="form-control" required 
+                                    maxlength="255" placeholder="Ej: usuario@ejemplo.com">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Correo Electrónico <span style="color: red;">*</span></label>
-                                <input type="email" name="correo" id="correo" class="form-control" required 
-                                maxlength="255" placeholder="Ej: usuario@ejemplo.com">
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Contraseña <span style="color: red;">*</span></label>
+                                    <input type="password" name="password" id="password" class="form-control" 
+                                        placeholder="Dejar vacío para mantener la actual (solo al editar)">
+                                    <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Repetir Contraseña <span style="color: red;">*</span></label>
+                                    <input type="password" name="password" id="password" class="form-control" 
+                                        placeholder="Dejar vacío para mantener la actual (solo al editar)">
+                                    <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Contraseña <span style="color: red;">*</span></label>
-                                <input type="password" name="password" id="password" class="form-control" 
-                                       placeholder="Dejar vacío para mantener la actual (solo al editar)">
-                                <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Rol <span style="color: red;">*</span></label>
+                                    <select name="role_id" id="role_id" class="form-control" required>
+                                        <option value="">Seleccione un rol</option>
+                                        <option value="1">Admin</option>
+                                        <option value="2">Supervisor</option>
+                                        <option value="4">Gerencia de producción</option>
+                                        <option value="5">Gerencia comercial</option>
+                                        <option value="6">Gerencia administrativa</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Rol <span style="color: red;">*</span></label>
-                                <select name="role_id" id="role_id" class="form-control" required>
-                                    <option value="">Seleccione un rol</option>
-                                    <option value="1">Admin</option>
-                                    <option value="2">Supervisor</option>
-                                    <option value="4">Gerencia de producción</option>
-                                    <option value="5">Gerencia comercial</option>
-                                    <option value="6">Gerencia administrativa</option>
-                                </select>
-                            </div>
+
                             <button type="submit" class="btn btn-primary">Guardar Usuario</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-usuario-id" name="id" value="">
@@ -85,21 +110,33 @@ require_once('../template/header.php');
         </div>
     </div>
 
-    <script>
+<script>
+    $('#btn-ir-crear').on('click', function() {
+        limpiarFormulario(); 
+        mostrarVista('crear'); 
+    });
+
+    $('#btn-volver-listado').on('click', function() {
+        Swal.fire({
+            icon: 'question',
+            text: '¿Desea salir? Se perderán los cambios no guardados.',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, salir',
+            cancelButtonText: 'Cancelar'
+        }).then(function(r) {
+            if (r.isConfirmed) {
+                mostrarVista('listado');
+            }
+        });
+    });
+
     $(document).ready(function() {
         cargarListado();
     });
 
     function mostrarVista(vista) {
-        if (vista === 'crear') {
-            $('#vista-listado').addClass('hidden');
-            $('#vista-crear').removeClass('hidden');
-            $('#vista-botones').hide();
-        } else {
-            $('#vista-crear').addClass('hidden');
-            $('#vista-listado').removeClass('hidden');
-            $('#vista-botones').show();
-        }
+        $('#vista-listado, #vista-crear').addClass('hidden').hide();
+        $('#vista-' + vista).removeClass('hidden').fadeIn(250);
     }
 
     function prepararCrear() {

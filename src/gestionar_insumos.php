@@ -49,15 +49,22 @@ if (empty($almacenes)) {
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Insumos</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Insumo</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Insumos</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Insumo
+                                </button>
+                            </div>
+                        </div>
+                        <!-- <h5 class="subtitle">Lista de Insumos</h5> -->
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -81,74 +88,91 @@ if (empty($almacenes)) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear/Editar Insumo</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+                        <!-- <h5 class="subtitle">Crear/Editar Insumo</h5> -->
                         <form id="form-crear">
-                            <div class="mb-3">
-                                <label class="form-label">Nombre del Insumo <span style="color: red;">*</span></label>
-                                <input type="text" name="nombre" id="nombre" class="form-control" required 
-                                       maxlength="255" placeholder="Ej: Tela jean rígido 14oz">
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Nombre del Insumo <span style="color: red;">*</span></label>
+                                    <input type="text" name="nombre" id="nombre" class="form-control" required 
+                                        maxlength="255">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="form-label">Unidad de Medida <span style="color: red;">*</span></label>
+                                    <select name="unidad_medida" id="unidad_medida" class="form-control" required>
+                                        <option value="">-- Seleccione una unidad --</option>
+                                        <option value="metro">Metro</option>
+                                        <option value="unidad">Unidad</option>
+                                        <option value="kilogramo">Kilogramo</option>
+                                        <option value="litro">Litro</option>
+                                        <option value="metro_cuadrado">Metro Cuadrado</option>
+                                        <option value="carrete">Carrete</option>
+                                        <option value="rollo">Rollo</option>
+                                        <option value="pieza">Pieza</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                    <input type="checkbox" id="adicional" name="adicional" value="1" style="width: 20px; height: 20px;">
+                                    <label for="adicional" style="cursor: pointer; font-weight: bold;">
+                                        Insumo Adicional
+                                    </label>
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Unidad de Medida <span style="color: red;">*</span></label>
-                                <select name="unidad_medida" id="unidad_medida" class="form-control" required>
-                                    <option value="">-- Seleccione una unidad --</option>
-                                    <option value="metro">Metro</option>
-                                    <option value="unidad">Unidad</option>
-                                    <option value="kilogramo">Kilogramo</option>
-                                    <option value="litro">Litro</option>
-                                    <option value="metro_cuadrado">Metro Cuadrado</option>
-                                    <option value="carrete">Carrete</option>
-                                    <option value="rollo">Rollo</option>
-                                    <option value="pieza">Pieza</option>
-                                </select>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Costo Unitario ($) <span style="color: red;">*</span></label>
+                                    <input type="number" step="0.01" min="0" name="costo_unitario" id="costo_unitario" 
+                                        class="form-control" required>
+                                </div>
+                                <div class="col-sm-6" id="contenedor-equivalente-bs-insumo" style="display: none;">
+                                    <label class="form-label">Equivalente en Bs.</label>
+                                    <input type="text" id="equivalente_bs_insumo" class="form-control" readonly style="background-color: #e9ecef;">
+                                    <small class="text-muted" id="texto-tasa-informativa-insumo"></small>
+                                </div>
                             </div>
-                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                                <input type="checkbox" id="adicional" name="adicional" value="1" style="width: 20px; height: 20px;">
-                                <label for="adicional" style="cursor: pointer; font-weight: bold;">
-                                    Insumo Adicional
-                                </label>
+                            
+                           
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Stock mínimo</label>
+                                    <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="Ej: 10">
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Stock máximo</label>
+                                    <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="Ej: 100">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Costo Unitario ($) <span style="color: red;">*</span></label>
-                                <input type="number" step="0.01" min="0" name="costo_unitario" id="costo_unitario" 
-                                       class="form-control" required placeholder="Ej: 5.00">
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Almacén</label>
+                                    <select name="almacen_id" id="almacen_id" class="form-control">
+                                        <option value="">Seleccione un almacén</option>
+                                        <?php foreach ($almacenes as $a): ?>
+                                            <option value="<?php echo htmlspecialchars($a['id']); ?>">
+                                                <?php echo htmlspecialchars($a['nombre']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="form-text text-muted">Almacén donde se registra el inventario de este insumo</small>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label">Proveedor</label>
+                                    <select name="proveedor_id" required id="proveedor_id" class="form-control">
+                                        <option value="">Seleccione un proveedor</option>
+                                        <?php foreach ($proveedores as $prov): ?>
+                                            <option value="<?php echo htmlspecialchars($prov['id']); ?>">
+                                                <?php echo htmlspecialchars($prov['nombre']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="mb-3" id="contenedor-equivalente-bs-insumo" style="display: none;">
-                                <label class="form-label">Equivalente en Bs.</label>
-                                <input type="text" id="equivalente_bs_insumo" class="form-control" readonly style="background-color: #e9ecef;">
-                                <small class="text-muted" id="texto-tasa-informativa-insumo"></small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Stock mínimo</label>
-                                <input type="number" step="0.01" min="0" name="stock_minimo" id="stock_minimo" class="form-control" placeholder="Ej: 10">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Stock máximo</label>
-                                <input type="number" step="0.01" min="0" name="stock_maximo" id="stock_maximo" class="form-control" placeholder="Ej: 100">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Almacén</label>
-                                <select name="almacen_id" id="almacen_id" class="form-control">
-                                    <option value="">-- Seleccione un almacén --</option>
-                                    <?php foreach ($almacenes as $a): ?>
-                                        <option value="<?php echo htmlspecialchars($a['id']); ?>">
-                                            <?php echo htmlspecialchars($a['nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="form-text text-muted">Almacén donde se registra el inventario de este insumo</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Proveedor</label>
-                                <select name="proveedor_id" required id="proveedor_id" class="form-control">
-                                    <option value="">Seleccione un proveedor</option>
-                                    <?php foreach ($proveedores as $prov): ?>
-                                        <option value="<?php echo htmlspecialchars($prov['id']); ?>">
-                                            <?php echo htmlspecialchars($prov['nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+
                             <button type="submit" class="btn btn-primary">Guardar Insumo</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-insumo-id" name="id" value="">
@@ -163,6 +187,28 @@ if (empty($almacenes)) {
 <script>
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteInsumo = tasaCambiariaActual;
+
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
 
 function actualizarEquivalenteBsInsumo() {
     var costo = parseFloat($('#costo_unitario').val()) || 0;
@@ -179,13 +225,8 @@ function actualizarEquivalenteBsInsumo() {
 }
 
 function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 function cargarListado() {

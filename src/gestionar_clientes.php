@@ -17,15 +17,22 @@ require_once "../connection/connection.php";
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Clientes</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Cliente</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Clientes</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Crear Insumo
+                                </button>
+                            </div>
+                        </div>
+                        <!-- <h5 class="subtitle">Lista de Clientes</h5> -->
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -45,7 +52,10 @@ require_once "../connection/connection.php";
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Crear/Editar Cliente</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+                        <!-- <h5 class="subtitle">Crear/Editar Cliente</h5> -->
                         <form id="form-crear">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -113,15 +123,24 @@ require_once "../connection/connection.php";
     </div>
 
 <script>
-function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
+$('#btn-ir-crear').on('click', function() {
+    limpiarFormulario(); 
+    mostrarVista('crear'); 
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (r.isConfirmed) {
+            mostrarVista('listado');
+        }
     });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
-}
+});
 
 function cargarListado() {
     $.post('gestionar_clientes_data.php', { action: 'listar_html' }, function(html) {
@@ -133,18 +152,37 @@ function cargarListado() {
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     $('#nombre').val('');
-    $('#tipo_documento').val('');
-    $('#numero_documento').val('');
+    $('#tipo_doc').val('');
+    $('#nro_doc').val('');
     $('#telefono').val('');
     $('#email').val('');
     $('#direccion').val('');
     $('#editar-cliente-id').val('');
 }
 
+function mostrarVista(vista) {
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
+}
+
 function editarCliente(data) {
+
+    let doc = data.numero_documento; 
+
+    if (doc) {
+        let tipo = doc.charAt(0); 
+        let numero = doc.substring(1); 
+
+        $("#tipo_doc").val(tipo);
+        $("#nro_doc").val(numero);
+    }
+
+    if(data.telefono && data.telefono.length >= 11) {
+        $('#prefijo_tel').val(data.telefono.substring(0, 4));
+        $('#nro_tel').val(data.telefono.substring(4));
+    }
+    
     $('#nombre').val(data.nombre || '');
-    $('#tipo_documento').val(data.tipo_documento || '');
-    $('#numero_documento').val(data.numero_documento || '');
     $('#telefono').val(data.telefono || '');
     $('#email').val(data.email || '');
     $('#direccion').val(data.direccion || '');
@@ -172,6 +210,7 @@ function eliminarCliente(id) {
             success: function(resp) {
                 if (resp && resp.success) {
                     Swal.fire({ icon: 'success', text: resp.message });
+                    mostrarVista('listado');
                     cargarListado();
                 } else {
                     Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
@@ -186,10 +225,20 @@ function eliminarCliente(id) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
-    mostrarVista('listado');
+document.addEventListener('DOMContentLoaded', () => {
     cargarListado();
 });
+
+$('#nro_doc, #nro_tel').on('keypress', function(e) {
+    if (e.which < 48 || e.which > 57) {
+        return false;
+    }
+});
+
+$('#nro_doc, #nro_tel').on('input', function() {
+    this.value = this.value.replace(/\D/g, '');
+});
+
 
 $("#form-crear").on("submit", function(e) {
     e.preventDefault();

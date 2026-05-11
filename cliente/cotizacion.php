@@ -14,17 +14,19 @@
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Módulo de Cotizaciones</h2>
+                <h2 class="main-title">Cotizaciones</h2>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
+                        <div class="row form-group">
+                            <div class="col-sm-4">
                                 <button class="btn btn-success" id="btn-ir-crear">
                                     <i class="fas fa-plus"></i> Crear Nueva Cotización
                                 </button>
                             </div>
+                            <!-- <div class="col-sm-8">
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Historial de Cotizaciones</h5>
+                            </div> -->
                         </div>
-                        <h5 class="subtitle">Historial de Cotizaciones</h5>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -44,12 +46,39 @@
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <button class="btn-volver" id="btn-volver-listado">
-                            <i class="fas fa-arrow-left"></i> Volver al Listado
-                        </button>
-                        
-                        <div id="form-cotizacion">
-                            <div id="busqueda-manual" class="row mb-3 p-3" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd; margin: 0 1px;">
+                        <div class="row form-group">
+                            <div class="col-sm-4">
+                                <button class="btn-volver" id="btn-volver-listado">
+                                    <i class="fas fa-arrow-left"></i> Volver al Listado
+                                </button>
+                            </div>
+                            <!-- <div class="col-sm-8">
+                                <span class="subtitle"><b></b></span> 
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Registrar Cotizacion</h5>
+                            </div> -->
+                        </div>
+                        <div class="row from-group">
+                            <div class="col-sm-6">
+                                <label class="form-label">Seleccionar Cliente</label>
+                                <select id="select-cliente" class="form-control" style="width: 100%;">
+                                    <option value=""></option>
+                                    <?php
+                                    $query = mysqli_query($conn, "SELECT id, nombre FROM clientes ORDER BY nombre ASC");
+                                    while($c = mysqli_fetch_assoc($query)){
+                                        echo "<option value='".$c['id']."'>".$c['nombre']."</option>";
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label">Presupuesto Base</label>
+                                <select id="select-presupuesto" class="form-control" style="width: 100%;" disabled>
+                                    <option value="">Seleccione un cliente primero...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row form-group">
+                            <div id="busqueda-manual" class="col-sm-12" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd; margin-top: 10px;">
                                 <div class="col-md-12"><h6 class="text-muted"><i class="fas fa-search"></i> Agregar producto manualmente (Venta Presencial)</h6></div>
                                 <div class="col-md-4">
                                     <label class="form-label small">Producto</label>
@@ -70,52 +99,35 @@
                                     </button>
                                 </div>
                             </div>
-                            <div class="row mb-4" style="display: flex; gap: 20px;">
-                                <div style="flex: 1;">
-                                    <label class="form-label">Seleccionar Cliente</label>
-                                    <select id="select-cliente" class="form-control" style="width: 100%;">
-                                        <option value=""></option>
-                                        <?php
-                                        $query = mysqli_query($conn, "SELECT id, nombre FROM clientes ORDER BY nombre ASC");
-                                        while($c = mysqli_fetch_assoc($query)){
-                                            echo "<option value='".$c['id']."'>".$c['nombre']."</option>";
-                                        }
-                                        ?>
-                                    </select>
-                                </div>
-                                <div style="flex: 1;">
-                                    <label class="form-label">Presupuesto Base</label>
-                                    <select id="select-presupuesto" class="form-control" style="width: 100%;" disabled>
-                                        <option value="">Seleccione un cliente primero...</option>
-                                    </select>
-                                </div>
+                        </div>
+
+                        <div id="contenedor-items" style="display: none; margin-top: 20px;">
+                            <hr style="margin: 20px 0; border-color: #dee2e6;">
+
+                            <h5 style="color: #0056b3; margin-bottom: 15px; ">Detalles del Presupuesto Seleccionado</h5>
+
+                            <div class="table-responsive">
+                                <table class="table" style="width: 100%; border-collapse: collapse;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid #eee; text-align: left;">
+                                            <th>Producto</th>
+                                            <th>Cant.</th>
+                                            <th width="100">Talla</th>
+                                            <th width="120">Precio Base</th>
+                                            <th width="180">Personalización</th>
+                                            <th>Notas</th>
+                                            <th width="130">Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabla-cotizador-body"></tbody>
+                                </table>
                             </div>
 
-                            <div id="contenedor-items" style="display: none; margin-top: 20px;">
-                                <h3 style="font-size: 1.1rem; margin-bottom: 15px; color: #555;">Detalles del Presupuesto Seleccionado</h3>
-                                <div class="table-responsive">
-                                    <table class="table" style="width: 100%; border-collapse: collapse;">
-                                        <thead>
-                                            <tr style="border-bottom: 2px solid #eee; text-align: left;">
-                                                <th>Producto</th>
-                                                <th>Cant.</th>
-                                                <th width="100">Talla</th>
-                                                <th width="120">Precio Base</th>
-                                                <th width="180">Personalización</th>
-                                                <th>Notas</th>
-                                                <th width="130">Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="tabla-cotizador-body"></tbody>
-                                    </table>
-                                </div>
-
-                                <div class="mt-4" style="text-align: right; border-top: 2px solid #eee; padding-top: 15px;">
-                                    Total Cotizacion: <span id="gran-total-display" style="color: #005bbe;">$0.00</span> &nbsp;
-                                    <button type="button" class="btn-editar" id="btn-generar-cot" style="background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                                        <i class="fas fa-save"></i> Confirmar y Guardar Cotización
-                                    </button>
-                                </div>
+                            <div class="mt-4" style="text-align: right; border-top: 2px solid #eee; padding-top: 15px;">
+                                Total Cotizacion: <span id="gran-total-display" style="color: #005bbe;">$0.00</span> &nbsp;
+                                <button type="button" class="btn-editar" id="btn-generar-cot" style="background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+                                    <i class="fas fa-save"></i> Confirmar y Guardar Cotización
+                                </button>
                             </div>
                         </div>
                     </div>

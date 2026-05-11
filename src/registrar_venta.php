@@ -65,6 +65,17 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrar Venta</title>
+    <style>
+        .btn-volver { 
+            background: #6c757d; 
+            color: white; 
+            border: none; 
+            padding: 8px 15px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin-bottom: 15px; 
+        }
+    </style>
 </head>
 <body>
     <div class="main-content">
@@ -72,15 +83,22 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             <div class="container-inner">
                 <h2 class="main-title">Registrar Venta</h2>
                 
-                <div class="row mb-3" id="vista-botones">
+                <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Registrar Nueva Venta</button>
                     </div>
-                </div>
+                </div> -->
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Ventas</h5>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button class="btn btn-success" id="btn-ir-crear">
+                                    <i class="fas fa-plus"></i> Registrar Nueva Venta
+                                </button>
+                            </div>
+                        </div>
+                        <!-- <h5 class="subtitle">Lista de Ventas</h5> -->
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -104,133 +122,137 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h5 class="subtitle">Registrar Nueva Venta</h5>
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
+
+                        <!-- <h5 class="subtitle">Registrar Nueva Venta</h5> -->
                         <form id="form-venta">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Cliente <span style="color: red;">*</span></label>
-                            <select name="cliente_id" id="cliente_id" class="form-control" required>
-                                <option value="">-- Seleccione un cliente --</option>
-                                <?php foreach ($clientes as $cli): ?>
-                                    <option value="<?php echo htmlspecialchars($cli['id']); ?>">
-                                        <?php echo htmlspecialchars($cli['nombre']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Cotización</label>
-                            <select id="cotizacion_id" name="cotizacion_id" class="form-control" disabled>
-                                <option value="">— Primero elija un cliente —</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Forma de pago <span style="color: red;">*</span></label>
-                            <select name="forma_pago_id" id="forma_pago_id" class="form-control" required>
-                                <option value="">-- Seleccione una forma de pago --</option>
-                                <?php foreach ($formasPago as $fp): ?>
-                                    <?php $nombreNorm = strtolower(trim((string) ($fp['nombre'] ?? ''))); ?>
-                                    <option value="<?php echo (int) $fp['id']; ?>" data-forma="<?php echo htmlspecialchars($nombreNorm, ENT_QUOTES, 'UTF-8'); ?>">
-                                        <?php echo htmlspecialchars((string) $fp['nombre'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6" id="grupo-comprobante-venta" style="display: none;">
-                            <label class="form-label" for="venta_comprobante_referencia">Número o referencia del comprobante de pago <span style="color: red;">*</span></label>
-                            <input type="text" class="form-control" id="venta_comprobante_referencia" name="comprobante_referencia" maxlength="120" placeholder="Ej: referencia bancaria u operación" autocomplete="off">
-                            <small class="form-text text-muted" id="venta_nota_comprobante_cot" style="display: none;"></small>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Fecha <span style="color: red;">*</span></label>
-                            <input type="date" name="fecha" id="fecha" class="form-control" required
-                                   value="<?php echo date('Y-m-d'); ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Número de Factura</label>
-                            <input type="text" name="numero_factura" id="numero_factura" class="form-control"
-                                   maxlength="50" placeholder="Ej: FAC-001" readonly>
-                        </div>
-                    </div>
-
-                    <hr style="margin: 20px 0; border-color: #dee2e6;">
-
-                    <div class="mb-3">
-                        <h5 style="color: #0056b3; margin-bottom: 15px;">Detalle de la Venta</h5>
-                        <div id="alerta-comprobante-cot-venta" class="alert alert-warning small" style="display: none;">
-                            Esta cotización tiene <strong>comprobante de pago</strong> registrado: el detalle debe coincidir con la cotización. No puede agregar ni quitar artículos ni modificar cantidades o precios desde aquí.
-                        </div>
-                        <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
-                            <div class="row">
-                                <div class="col-md-5 mb-2">
-                                    <label class="form-label">Producto</label>
-                                    <select id="nuevo-producto-id" class="form-control">
-                                        <option value="">-- Seleccione un producto --</option>
-                                        <?php foreach ($productos as $prod): ?>
-                                            <option value="<?php echo htmlspecialchars($prod['id']); ?>" 
-                                                    data-nombre="<?php echo htmlspecialchars($prod['nombre']); ?>">
-                                                <?php echo htmlspecialchars($prod['nombre']); ?>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Cliente <span style="color: red;">*</span></label>
+                                    <select name="cliente_id" id="cliente_id" class="form-control" required>
+                                        <option value="">-- Seleccione un cliente --</option>
+                                        <?php foreach ($clientes as $cli): ?>
+                                            <option value="<?php echo htmlspecialchars($cli['id']); ?>">
+                                                <?php echo htmlspecialchars($cli['nombre']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <div id="stock-info-producto" style="margin-top: 8px; padding: 8px; background-color: #e9ecef; border-radius: 4px; display: none;">
-                                        <small><strong>Stock Actual:</strong> <span id="stock-actual-producto" style="color: #0056b3; font-weight: bold;">0</span> unidades</small>
-                                    </div>
                                 </div>
-                                <div class="col-md-2 mb-2">
-                                    <label class="form-label">Cantidad</label>
-                                    <input type="number" step="0.01" min="0.01" id="nuevo-cantidad" class="form-control" placeholder="0.00">
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <label class="form-label">Precio Unitario</label>
-                                    <input type="number" step="0.01" min="0" id="nuevo-precio-unitario" class="form-control" placeholder="0.00">
-                                </div>
-                                <div class="col-md-2 mb-2">
-                                    <label class="form-label">Subtotal</label>
-                                    <input type="text" id="nuevo-subtotal" class="form-control" readonly placeholder="$0.00">
-                                </div>
-                                <div class="col-md-1 mb-2 d-flex align-items-end" style="position: relative; top: 22px;">
-                                    <button type="button" class="btn btn-success" id="btn-agregar-producto" style="width: fit-content; margin-bottom: 0;">
-                                        <i class="fa fa-plus"></i>
-                                    </button>
+                                <div class="col-md-6">
+                                    <label class="form-label">Cotización</label>
+                                    <select id="cotizacion_id" name="cotizacion_id" class="form-control" disabled>
+                                        <option value="">— Primero elija un cliente —</option>
+                                    </select>
                                 </div>
                             </div>
-                        </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Forma de pago <span style="color: red;">*</span></label>
+                                    <select name="forma_pago_id" id="forma_pago_id" class="form-control" required>
+                                        <option value="">-- Seleccione una forma de pago --</option>
+                                        <?php foreach ($formasPago as $fp): ?>
+                                            <?php $nombreNorm = strtolower(trim((string) ($fp['nombre'] ?? ''))); ?>
+                                            <option value="<?php echo (int) $fp['id']; ?>" data-forma="<?php echo htmlspecialchars($nombreNorm, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <?php echo htmlspecialchars((string) $fp['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-6" id="grupo-comprobante-venta" style="display: none;">
+                                    <label class="form-label" for="venta_comprobante_referencia">Número o referencia del comprobante de pago <span style="color: red;">*</span></label>
+                                    <input type="text" class="form-control" id="venta_comprobante_referencia" name="comprobante_referencia" maxlength="120" placeholder="Ej: referencia bancaria u operación" autocomplete="off">
+                                    <small class="form-text text-muted" id="venta_nota_comprobante_cot" style="display: none;"></small>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Fecha <span style="color: red;">*</span></label>
+                                    <input type="date" name="fecha" id="fecha" class="form-control" required
+                                        value="<?php echo date('Y-m-d'); ?>">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Número de Factura</label>
+                                    <input type="text" name="numero_factura" id="numero_factura" class="form-control"
+                                        maxlength="50" placeholder="Ej: FAC-001" readonly>
+                                </div>
+                            </div>
 
-                        <div id="mensaje-sin-productos" class="alert alert-info" style="display: none;">
-                            No hay productos agregados. Por favor, agrega al menos un producto a la venta.
-                        </div>
+                            <hr style="margin: 20px 0; border-color: #dee2e6;">
 
-                        <div id="tabla-productos" style="display: none;">
-                            <table class="recipe-table">
-                                <thead>
-                                    <tr>
-                                        <th>Producto</th>
-                                        <th>Cantidad</th>
-                                        <th>Precio Unitario</th>
-                                        <th>Subtotal</th>
-                                        <th>Equiv. Bs.</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody-productos">
-                                </tbody>
-                                <tfoot>
-                                    <tr style="background-color: #f8f9fa; font-weight: bold;">
-                                        <td colspan="3" style="text-align: right;">Total:</td>
-                                        <td id="total-venta" style="color: #0056b3; font-size: 1.1em;">$0.00</td>
-                                        <td id="total-venta-bs" style="color: #0056b3; font-size: 1.1em;">—</td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                            <small class="text-muted" id="texto-tasa-informativa-venta"></small>
-                        </div>
-                    </div>
+                            <div class="mb-3">
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Detalle de la Venta</h5>
+                                <div id="alerta-comprobante-cot-venta" class="alert alert-warning small" style="display: none;">
+                                    Esta cotización tiene <strong>comprobante de pago</strong> registrado: el detalle debe coincidir con la cotización. No puede agregar ni quitar artículos ni modificar cantidades o precios desde aquí.
+                                </div>
+                                <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
+                                    <div class="row">
+                                        <div class="col-md-5 mb-2">
+                                            <label class="form-label">Producto</label>
+                                            <select id="nuevo-producto-id" class="form-control">
+                                                <option value="">-- Seleccione un producto --</option>
+                                                <?php foreach ($productos as $prod): ?>
+                                                    <option value="<?php echo htmlspecialchars($prod['id']); ?>" 
+                                                            data-nombre="<?php echo htmlspecialchars($prod['nombre']); ?>">
+                                                        <?php echo htmlspecialchars($prod['nombre']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <div id="stock-info-producto" style="margin-top: 8px; padding: 8px; background-color: #e9ecef; border-radius: 4px; display: none;">
+                                                <small><strong>Stock Actual:</strong> <span id="stock-actual-producto" style="color: #0056b3; font-weight: bold;">0</span> unidades</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Cantidad</label>
+                                            <input type="number" step="0.01" min="0.01" id="nuevo-cantidad" class="form-control" placeholder="0.00">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Precio Unitario</label>
+                                            <input type="number" step="0.01" min="0" id="nuevo-precio-unitario" class="form-control" placeholder="0.00">
+                                        </div>
+                                        <div class="col-md-2 mb-2">
+                                            <label class="form-label">Subtotal</label>
+                                            <input type="text" id="nuevo-subtotal" class="form-control" readonly placeholder="$0.00">
+                                        </div>
+                                        <div class="col-md-1 mb-2 d-flex align-items-end" style="position: relative; top: 22px;">
+                                            <button type="button" class="btn btn-success" id="btn-agregar-producto" style="width: fit-content; margin-bottom: 0;">
+                                                <i class="fa fa-plus"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="mensaje-sin-productos" class="alert alert-info" style="display: none;">
+                                    No hay productos agregados. Por favor, agrega al menos un producto a la venta.
+                                </div>
+
+                                <div id="tabla-productos" style="display: none;">
+                                    <table class="recipe-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Producto</th>
+                                                <th>Cantidad</th>
+                                                <th>Precio Unitario</th>
+                                                <th>Subtotal</th>
+                                                <th>Equiv. Bs.</th>
+                                                <th>Acciones</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-productos">
+                                        </tbody>
+                                        <tfoot>
+                                            <tr style="background-color: #f8f9fa; font-weight: bold;">
+                                                <td colspan="3" style="text-align: right;">Total:</td>
+                                                <td id="total-venta" style="color: #0056b3; font-size: 1.1em;">$0.00</td>
+                                                <td id="total-venta-bs" style="color: #0056b3; font-size: 1.1em;">—</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                    <small class="text-muted" id="texto-tasa-informativa-venta"></small>
+                                </div>
+                            </div>
 
                             <div class="row mb-3">
                                 <div class="col-md-12">
@@ -249,10 +271,10 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalDetalleVentaLabel">Detalle de la Venta</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
                         <span aria-hidden="true">&times;</span>
                     </button>
+                    <h5 class="modal-title" id="modalDetalleVentaLabel">Detalle de la Venta</h5>
                 </div>
                 <div class="modal-body" id="modalDetalleVentaBody">
                     <div class="text-center">
@@ -272,10 +294,10 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalStockInsuficienteTitulo">Inventario insuficiente</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
                         <span aria-hidden="true">&times;</span>
                     </button>
+                    <h5 class="modal-title" id="modalStockInsuficienteTitulo">Inventario insuficiente</h5>
                 </div>
                 <div class="modal-body text-left">
                     <p class="mb-2">No hay stock suficiente para registrar esta venta. Detalle:</p>
@@ -298,6 +320,29 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 var productosAgregados = [];
 var ventaCotizacionComprobanteBloqueo = false;
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+        // cargarStockInsumos(); 
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
 
 function limpiarComprobanteVentaYNotaCot() {
     $('#venta_comprobante_referencia').val('');
@@ -370,13 +415,8 @@ function formatearBs(valor) {
 }
 
 function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 function cargarListado() {
@@ -610,7 +650,7 @@ function verDetalle(ventaId) {
             html += '<hr>';
             html += '<h6><strong>Detalle de Productos:</strong></h6>';
             html += '<div class="table-responsive">';
-            html += '<table class="table table-bordered table-sm">';
+            html += '<table class="table table-sm">';
             // Agregamos el header de Talla
             html += '<thead class="thead-light"><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio U.</th><th>Subtotal</th></tr></thead>';
             html += '<tbody>';
@@ -619,7 +659,7 @@ function verDetalle(ventaId) {
             resp.detalles.forEach(function(detalle) {
                 total += parseFloat(detalle.subtotal);
                 html += '<tr>';
-                html += '<td>' + detalle.producto_nombre + '</td>';
+                html += '<td style="text-align: left;">' + detalle.producto_nombre + '</td>';
                 html += '<td>' + (detalle.talla_nombre || '-') + '</td>';
                 html += '<td>' + parseFloat(detalle.cantidad).toFixed(0) + '</td>'; 
                 html += '<td>$' + parseFloat(detalle.precio_unitario).toFixed(2) + '</td>';

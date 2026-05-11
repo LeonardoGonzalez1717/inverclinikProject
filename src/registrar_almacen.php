@@ -16,17 +16,27 @@ require_once "../connection/connection.php";
         <div class="container-inner">
             <h2 class="main-title">Almacenes</h2>
 
-            <div class="row mb-3">
+            <!-- <div class="row mb-3">
                 <div class="col-md-12">
                     <button type="button" class="btn btn-success" onclick="mostrarVista('crear'); limpiarFormulario();">
                         Registrar nuevo almacén
                     </button>
                 </div>
-            </div>
+            </div> -->
 
             <div id="contenedor-vistas">
                 <div id="vista-listado">
-                    <h5 class="subtitle">Lista de almacenes</h5>
+                    <div class="row form-group">
+                        <div class="col-sm-4">
+                            <button class="btn btn-success" id="btn-ir-crear">
+                                <i class="fas fa-plus"></i> Crear Almacen
+                            </button>
+                        </div>
+                        <!-- <div class="col-sm-8">
+                            <h5 style="color: #0056b3; margin-bottom: 15px;">Lista de almacenes</h5>
+                        </div> -->
+                    </div>
+                    <!-- <h5 class="subtitle">Lista de almacenes</h5> -->
                     <div class="table-container">
                         <table class="recipe-table">
                             <thead>
@@ -45,7 +55,16 @@ require_once "../connection/connection.php";
                 </div>
 
                 <div id="vista-crear" class="hidden">
-                    <h5 class="subtitle" id="subtitle-form-almacen">Registrar nuevo almacén</h5>
+                    <div class="row form-group">
+                        <div class="col-sm-4">
+                            <button class="btn-volver" id="btn-volver-listado">
+                                <i class="fas fa-arrow-left"></i> Volver al Listado
+                            </button>
+                        </div>
+                        <!-- <div class="col-sm-8">
+                            <h5 style="color: #0056b3; margin-bottom: 15px;">Registrar nuevo almacén</h5>
+                        </div> -->
+                    </div>
                     <form id="form-almacen">
                         <input type="hidden" id="editar-almacen-id" value="">
                         <div class="row mb-3">
@@ -83,6 +102,30 @@ require_once "../connection/connection.php";
 </div>
 
 <script>
+    
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+        // editarAlmacen();
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
+
 function mostrarVista(vista) {
     document.querySelectorAll('#contenedor-vistas > div').forEach(function (el) { el.classList.add('hidden'); });
     document.getElementById('vista-' + vista).classList.remove('hidden');

@@ -29,38 +29,39 @@ if ($resProv) {
 
       <form method="GET" action="compras_view.php" target="_blank">
 
-        <div class="mb-3">
-          <label class="form-label">Proveedor</label>
-          <select name="proveedor_id" class="form-control">
-            <option value="">Todos los proveedores</option>
-            <?php foreach ($proveedores as $prov): ?>
-              <option value="<?php echo (int) $prov['id']; ?>">
-                <?php echo htmlspecialchars($prov['nombre'], ENT_QUOTES, 'UTF-8'); ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
+        <div class="row form-group">
+            <div class="col-sm-8">
+                <label class="form-label">Proveedor</label>
+                <select name="proveedor_id" class="form-control">
+                    <option value="">Todos los proveedores</option>
+                    <?php foreach ($proveedores as $prov): ?>
+                    <option value="<?php echo (int) $prov['id']; ?>">
+                        <?php echo htmlspecialchars($prov['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-sm-4">
+                <label class="form-label">Estado</label>
+                <select name="estado" class="form-control">
+                    <option value=""></option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="recibido">Recibido</option>
+                    <option value="cancelado">Cancelado</option>
+                </select>
+            </div>
         </div>
 
-        <div class="mb-3">
-          <label class="form-label">Fecha Inicio</label>
-          <input type="date" name="fecha_inicio" class="form-control">
+        <div class="row form-group">
+            <div class="col-sm-6">
+                <label class="form-label">Fecha Inicio</label>
+                <input type="date" name="fecha_inicio" class="form-control">
+            </div>
+            <div class="col-sm-6">
+                <label class="form-label">Fecha Fin</label>
+                <input type="date" name="fecha_fin" class="form-control">
+            </div>
         </div>
-
-        <div class="mb-3">
-          <label class="form-label">Fecha Fin</label>
-          <input type="date" name="fecha_fin" class="form-control">
-        </div>
-
-        <div class="mb-3">
-          <label class="form-label">Estado</label>
-          <select name="estado" class="form-control">
-            <option value=""></option>
-            <option value="pendiente">Pendiente</option>
-            <option value="recibido">Recibido</option>
-            <option value="cancelado">Cancelado</option>
-          </select>
-        </div>
-
         <div class="text-center">
           <button type="submit" class="btn btn-primary">Generar Reporte</button>
         </div>

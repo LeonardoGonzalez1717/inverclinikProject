@@ -42,55 +42,56 @@ if (empty($categorias)) {
 ?>
 
 <div class="main-content">
-<div class="container-wrapper">
-<div class="container-inner">
+    <div class="container-wrapper">
+        <div class="container-inner">
 
-<h1 class="main-title">Reporte de Productos</h1>
+        <h1 class="main-title">Reporte de Productos</h1>
 
-<form method="GET" action="productos_view.php" target="_blank">
+        <form method="GET" action="productos_view.php" target="_blank">
+            <div class="row form-group">
+                <div class="col-sm-12">
+                    <label class="form-label">Producto</label>
+                    <select name="producto_id" class="form-control">
+                        <option value="">Todos los productos</option>
+                        <?php foreach ($lista_productos as $pr): ?>
+                        <option value="<?php echo (int) $pr['id']; ?>"><?php echo htmlspecialchars($pr['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
 
-<div class="mb-3">
-<label class="form-label">Producto</label>
-<select name="producto_id" class="form-control">
-<option value="">Todos los productos</option>
-<?php foreach ($lista_productos as $pr): ?>
-<option value="<?php echo (int) $pr['id']; ?>"><?php echo htmlspecialchars($pr['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
-<?php endforeach; ?>
-</select>
-</div>
 
-<div class="mb-3">
-<label class="form-label">Categoría</label>
-<select name="categoria" class="form-control">
-<option value="">Todas las categorías</option>
-<?php foreach ($categorias as $cat): ?>
-<option value="<?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
-<?php endforeach; ?>
-</select>
-</div>
+            <div class="row form-group">
+                <div class="col-sm-8">
+                    <label class="form-label">Categoría</label>
+                    <select name="categoria" class="form-control">
+                        <option value="">Todas las categorías</option>
+                        <?php foreach ($categorias as $cat): ?>
+                        <option value="<?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($cat['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-sm-4">
+                    <label class="form-label">Género</label>
+                    <select name="genero" class="form-control">
+                        <option value="">Seleccione un género</option>
+                        <option value="Masculino">Masculino</option>
+                        <option value="Femenino">Femenino</option>
+                        <option value="Unisex">Unisex</option>
+                    </select>
+                </div>
+            </div>
 
-<div class="mb-3">
-<label class="form-label">Género</label>
-<select name="genero" class="form-control">
+            <div class="text-center">
+                <button type="submit" class="btn btn-primary">
+                    Generar Reporte
+                </button>
+            </div>
 
-<option value="">-- Seleccione un género --</option>
-<option value="Masculino">Masculino</option>
-<option value="Femenino">Femenino</option>
-<option value="Unisex">Unisex</option>
+        </form>
 
-</select>
-</div>
-
-<div class="text-center">
-<button type="submit" class="btn btn-primary">
-Generar Reporte
-</button>
-</div>
-
-</form>
-
-</div>
-</div>
+        </div>
+    </div>
 </div>
 
 <?php require_once('../template/footer.php'); ?>

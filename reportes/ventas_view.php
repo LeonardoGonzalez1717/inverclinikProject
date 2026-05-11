@@ -59,58 +59,56 @@ $result = $conn->query($sql);
 
 <div class="contenido-principal">
 
-<div class="reporte-header">
-  <div class="logo-info">
-    <img src="../assets/img/inverclinik_3.png" alt="Logo INVERCLINIK">
-    <div class="empresa-fecha">
-      <h1>INVERCLINIK</h1>
-      <p><?= date('d/m/Y') ?></p>
+    <div class="reporte-header">
+        <div class="logo-info">
+            <img src="../assets/img/inverclinik_3.png" alt="Logo INVERCLINIK">
+            <div class="empresa-fecha">
+            <h1>INVERCLINIK</h1>
+            <p><?= date('d/m/Y') ?></p>
+            </div>
+        </div>
+        <div class="titulo-reporte">
+            <h2>Reporte de Ventas</h2>
+        </div>
     </div>
-  </div>
-  <div class="titulo-reporte">
-    <h2>Reporte de Ventas</h2>
-  </div>
-</div>
 
-<?php if($result->num_rows > 0): ?>
-<table class="table">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Fecha</th>
-      <th>Factura</th>
-      <th>Cliente</th>
-      <th>Estado</th>
-      <th>Total</th>
-    </tr>
-  </thead>
-  <tbody>
-    <?php $i = 1; ?>
-    <?php while($row = $result->fetch_assoc()): ?>
-    <tr>
-      <td style="text-align:right"><?= $i++ ?></td>
-      <td><?= htmlspecialchars($row['fecha']) ?></td>
-      <td><?= htmlspecialchars($row['numero_factura']) ?></td>
-      <td><?= htmlspecialchars($row['cliente']) ?></td>
-      <td><?php
-        $etqEst = ['pendiente'=>'Pendiente','por_pagar'=>'Por pagar','aprobado'=>'Aprobado','entregado'=>'Entregado','cancelado'=>'Cancelado'];
-        echo htmlspecialchars($etqEst[$row['estado']] ?? $row['estado']);
-      ?></td>
-      <td style="text-align:right"><?= htmlspecialchars($row['total']) ?></td>
-    </tr>
-    <?php endwhile; ?>
-  </tbody>
-</table>
-<?php else: ?>
-<div class="no-data">
-  No se encontraron ventas con los filtros seleccionados.
-</div>
-<?php endif; ?>
-
-<div class="reporte-footer">
-  Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
-</div>
-
+    <?php if($result->num_rows > 0): ?>
+        <table class="table">
+            <thead>
+                <tr>
+                <th>#</th>
+                <th>Fecha</th>
+                <th>Factura</th>
+                <th>Cliente</th>
+                <th>Estado</th>
+                <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $i = 1; ?>
+                <?php while($row = $result->fetch_assoc()): ?>
+                <tr>
+                <td style="text-align:right"><?= $i++ ?></td>
+                <td><?= htmlspecialchars($row['fecha']) ?></td>
+                <td><?= htmlspecialchars($row['numero_factura']) ?></td>
+                <td><?= htmlspecialchars($row['cliente']) ?></td>
+                <td><?php
+                    $etqEst = ['pendiente'=>'Pendiente','por_pagar'=>'Por pagar','aprobado'=>'Aprobado','entregado'=>'Entregado','cancelado'=>'Cancelado'];
+                    echo htmlspecialchars($etqEst[$row['estado']] ?? $row['estado']);
+                ?></td>
+                <td style="text-align:right"><?= htmlspecialchars($row['total']) ?></td>
+                </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    <?php else: ?>
+        <div class="no-data">
+            No se encontraron ventas con los filtros seleccionados.
+        </div>
+    <?php endif; ?>
+    <div class="reporte-footer">
+        Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+    </div>
 </div>
 
 <?php require_once('../template/footer.php'); ?>

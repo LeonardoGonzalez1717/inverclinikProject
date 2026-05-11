@@ -20,7 +20,7 @@ require_once "../template/navbar.php";
                 <p class="text-muted">Todos los movimientos registrados en inventario (insumos y productos terminados).</p>
 
                 <div id="vista-listado">
-                    <h5 class="subtitle">Listado de movimientos</h5>
+                    <!-- <h5 class="subtitle">Listado de movimientos</h5> -->
                     <div class="table-container">
                         <table class="recipe-table">
                             <thead>
