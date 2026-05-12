@@ -488,7 +488,6 @@ ALTER TABLE `detalle_venta`
 -- Indices de la tabla `compras`
 --
 ALTER TABLE `compras`
-  ADD KEY `proveedor_id` (`proveedor_id`),
   ADD KEY `orden_produccion_id` (`orden_produccion_id`);
 
 ALTER TABLE proveedores 

@@ -429,7 +429,7 @@ try {
             }
 
             if ($tipo_inventario === 'productos' && !$receta_id) {
-                throw new Exception("La receta/producto es obligatoria");
+                throw new Exception("La guia de corte / producto es obligatoria");
             }
 
             if (empty($tipo) || !in_array($tipo, ['entrada', 'salida'])) {
@@ -505,7 +505,7 @@ try {
                     $stmtReceta->execute();
                     $resultReceta = $stmtReceta->get_result();
                     if (!$rowReceta = $resultReceta->fetch_assoc()) {
-                        throw new Exception("Receta no encontrada");
+                        throw new Exception("Guia de corte no encontrada");
                     }
                     $stmtReceta->close();
                     $producto_id = $rowReceta['producto_id'];
@@ -568,7 +568,7 @@ try {
 
                 $detalleItem = $tipo_inventario === 'materia_prima'
                     ? ('insumo #' . (int) $insumo_id)
-                    : ('receta #' . (int) $receta_id);
+                    : ('guia de corte #' . (int) $receta_id);
                 Auditoria::registrar(
                     $conn,
                     "Movimiento inventario: {$tipo_inventario} {$tipo} {$detalleItem}. Cantidad: {$cantidad}. Origen: {$tipo_movimiento}. " . trim((string) $observaciones),

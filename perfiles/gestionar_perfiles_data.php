@@ -46,11 +46,16 @@ try {
 
         $username = $_POST['username'] ?? '';
         $password = $_POST['password'] ?? '';
+        $password_confirm = $_POST['password_confirm'] ?? '';
         $correo   = $_POST['correo'] ?? '';
         $role_id  = (int) ($_POST['role_id'] ?? 0);
 
         if (empty($username) || empty($password) || empty($correo) || $role_id < 1) {
             throw new Exception("Todos los campos son obligatorios");
+        }
+
+        if ($password !== $password_confirm) {
+            throw new Exception('Las contraseñas no coinciden');
         }
 
         if (!in_array($role_id, [1, 2, 4, 5, 6], true)) {

@@ -63,15 +63,22 @@ try {
                 throw new Exception("El nombre del proveedor es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM proveedores WHERE cedrif = ?";
+            if ($documento === '') {
+                throw new Exception("El documento (RIF/Cédula) del proveedor es obligatorio");
+            }
+
+            $documentoNorm = strtoupper(preg_replace('/\s+/', '', $documento));
+
+            $checkSql = "SELECT id FROM proveedores WHERE UPPER(REPLACE(TRIM(cedrif), ' ', '')) = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("s", $documento);
+            $checkStmt->bind_param("s", $documentoNorm);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe un proveedor con el Documento: " . $documento);
+                throw new Exception("Ya existe un proveedor con el mismo documento (RIF/Cédula).");
             }
+            $checkStmt->close();
 
             $stmt = $conn->prepare("
                 INSERT INTO proveedores (nombre, cedrif, telefono, email, direccion)
@@ -101,15 +108,22 @@ try {
                 throw new Exception("El nombre del proveedor es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM proveedores WHERE nombre = ? AND id != ?";
+            if ($documento === '') {
+                throw new Exception("El documento (RIF/Cédula) del proveedor es obligatorio");
+            }
+
+            $documentoNorm = strtoupper(preg_replace('/\s+/', '', $documento));
+
+            $checkSql = "SELECT id FROM proveedores WHERE id != ? AND UPPER(REPLACE(TRIM(cedrif), ' ', '')) = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("si", $nombre, $id);
+            $checkStmt->bind_param("is", $id, $documentoNorm);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe otro proveedor con el nombre: " . $nombre);
+                throw new Exception("Ya existe otro proveedor con el mismo documento (RIF/Cédula).");
             }
+            $checkStmt->close();
 
             $stmt = $conn->prepare("
                 UPDATE proveedores 

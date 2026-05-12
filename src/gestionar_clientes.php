@@ -166,16 +166,19 @@ function mostrarVista(vista) {
 }
 
 function editarCliente(data) {
+    var tipo = (data.tipo_documento || '').toString().trim();
+    var num = (data.numero_documento || '').toString().trim();
 
-    let doc = data.numero_documento; 
-
-    if (doc) {
-        let tipo = doc.charAt(0); 
-        let numero = doc.substring(1); 
-
-        $("#tipo_doc").val(tipo);
-        $("#nro_doc").val(numero);
+    // Registros antiguos: todo el documento en numero_documento (ej. V12345678)
+    if (!tipo && num.length > 1 && /^[VJE]$/i.test(num.charAt(0))) {
+        tipo = num.charAt(0).toUpperCase();
+        num = num.substring(1).replace(/\D/g, '');
+    } else {
+        num = num.replace(/\D/g, '');
     }
+
+    $('#tipo_doc').val(tipo || '');
+    $('#nro_doc').val(num || '');
 
     if(data.telefono && data.telefono.length >= 11) {
         $('#prefijo_tel').val(data.telefono.substring(0, 4));
@@ -188,6 +191,25 @@ function editarCliente(data) {
     $('#direccion').val(data.direccion || '');
     $('#editar-cliente-id').val(data.id);
     mostrarVista('crear');
+}
+
+function mensajeErrorAjax(xhr, textoPorDefecto) {
+    textoPorDefecto = textoPorDefecto || 'Error de comunicación con el servidor.';
+    if (xhr.responseJSON && xhr.responseJSON.message) {
+        return xhr.responseJSON.message;
+    }
+    if (xhr.responseText) {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r && r.message) {
+                return r.message;
+            }
+        } catch (ignore) {}
+    }
+    if (xhr.status === 0) {
+        return 'No hay conexión con el servidor.';
+    }
+    return textoPorDefecto;
 }
 
 function eliminarCliente(id) {
@@ -218,8 +240,7 @@ function eliminarCliente(id) {
             },
             error: function(xhr) {
                 console.error("Error:", xhr.responseText);
-                var resp = JSON.parse(xhr.responseText);
-                Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error al eliminar cliente") });
+                Swal.fire({ icon: 'error', text: mensajeErrorAjax(xhr, 'Error al eliminar el cliente.') });
             }
         });
     });
@@ -312,8 +333,8 @@ $("#form-crear").on("submit", function(e) {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
-        error: function() {
-            Swal.fire({ icon: 'error', text: "Error de comunicación con el servidor." });
+        error: function(xhr) {
+            Swal.fire({ icon: 'error', text: mensajeErrorAjax(xhr) });
         }
     });
 });

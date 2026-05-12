@@ -335,6 +335,25 @@ try {
             throw new Exception("Debe agregar al menos un insumo a la compra");
         }
 
+        if ($numero_factura !== '') {
+            $facNorm = strtoupper($numero_factura);
+            $chkFac = $conn->prepare(
+                "SELECT id FROM compras WHERE proveedor_id = ? AND numero_factura IS NOT NULL AND TRIM(numero_factura) <> '' AND UPPER(TRIM(numero_factura)) = ? LIMIT 1"
+            );
+            if (!$chkFac) {
+                throw new Exception('Error al validar número de factura: ' . $conn->error);
+            }
+            $proveedor_id_int = (int) $proveedor_id;
+            $chkFac->bind_param('is', $proveedor_id_int, $facNorm);
+            $chkFac->execute();
+            $rsFac = $chkFac->get_result();
+            if ($rsFac && $rsFac->num_rows > 0) {
+                $chkFac->close();
+                throw new Exception('Este proveedor ya tiene una compra registrada con el mismo número de factura.');
+            }
+            $chkFac->close();
+        }
+
         $total = 0;
         foreach ($insumos as $insumo) {
             $cantidad = floatval($insumo['cantidad'] ?? 0);

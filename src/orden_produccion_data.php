@@ -1,6 +1,29 @@
 <?php
 require_once "../connection/connection.php";
 
+function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $chk = $conn->query("SHOW COLUMNS FROM ordenes_produccion LIKE 'venta_id'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD COLUMN venta_id INT NULL DEFAULT NULL COMMENT \'Venta enlazada (p. ej. órdenes por falta de stock)\''
+    );
+    @$conn->query('ALTER TABLE ordenes_produccion ADD INDEX idx_ordenes_produccion_venta_id (venta_id)');
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD CONSTRAINT fk_ordenes_produccion_venta '
+        . 'FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE SET NULL ON UPDATE CASCADE'
+    );
+}
+
+asegurar_venta_id_en_ordenes_produccion($conn);
+
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
 $action = $_POST['action'] ?? '';
@@ -94,7 +117,7 @@ try {
         case 'obtener_costo_receta':
             $receta_id = $_POST['receta_id'] ?? null;
             if (!$receta_id) {
-                throw new Exception("ID de receta requerido");
+                throw new Exception("ID de guia de corte requerido");
             }
             
             $sqlReceta = "SELECT producto_id, rango_tallas_id, tipo_produccion_id 
@@ -128,10 +151,10 @@ try {
                         'costo_por_unidad' => $rowCosto['costo_por_unidad'] ?? 0
                     ]);
                 } else {
-                    throw new Exception("No se pudo calcular el costo de la receta");
+                    throw new Exception("No se pudo calcular el costo de la guia de corte");
                 }
             } else {
-                throw new Exception("Receta no encontrada");
+                throw new Exception("Guia de corte no encontrada");
             }
             break;
 
@@ -143,7 +166,7 @@ try {
             $observaciones = $_POST['observaciones'] ?? '';
 
             if (!$receta_id || $cantidad <= 0) {
-                throw new Exception("Receta y cantidad válida son obligatorios");
+                throw new Exception("Guia de corte y cantidad válida son obligatorios");
             }
 
             if (!empty($fecha_inicio) && !empty($fecha_fin)) {
@@ -163,7 +186,7 @@ try {
                 $resultRecetaInfo = $stmtRecetaInfo->get_result();
                 
                 if (!$rowRecetaInfo = $resultRecetaInfo->fetch_assoc()) {
-                    throw new Exception("Receta no encontrada");
+                    throw new Exception("Guia de corte no encontrada");
                 }
                 $stmtRecetaInfo->close();
 
@@ -245,7 +268,7 @@ try {
                 $resultRecetaProducto = $stmtRecetaProducto->get_result();
                 
                 if (!$rowRecetaProducto = $resultRecetaProducto->fetch_assoc()) {
-                    throw new Exception("No se encontró receta_producto asociada a esta receta");
+                    throw new Exception("No se encontró línea de producción asociada a esta guia de corte");
                 }
                 $receta_producto_id = $rowRecetaProducto['id'];
                 $stmtRecetaProducto->close();
@@ -277,7 +300,7 @@ try {
             $conn->begin_transaction();
             try {
                 $sqlOrden = "
-                    SELECT op.id, op.estado, op.cantidad_a_producir, op.receta_producto_id,
+                    SELECT op.id, op.estado, op.cantidad_a_producir, op.receta_producto_id, op.venta_id,
                            rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id,
                            r.id AS receta_id
                     FROM ordenes_produccion op
@@ -419,6 +442,39 @@ try {
                 $stmtUpdate->bind_param("i", $ordenId);
                 $stmtUpdate->execute();
                 $stmtUpdate->close();
+
+                $ventaIdEnlazada = (int) ($orden['venta_id'] ?? 0);
+                if ($ventaIdEnlazada > 0) {
+                    $stPend = $conn->prepare(
+                        "SELECT COUNT(*) AS pend FROM ordenes_produccion WHERE venta_id = ? AND estado <> 'finalizado'"
+                    );
+                    $stPend->bind_param('i', $ventaIdEnlazada);
+                    $stPend->execute();
+                    $pendRow = $stPend->get_result()->fetch_assoc();
+                    $stPend->close();
+                    if ((int) ($pendRow['pend'] ?? 0) === 0) {
+                        $stV = $conn->prepare(
+                            "UPDATE ventas SET estado = 'aprobado' WHERE id = ? AND estado = 'en_proceso'"
+                        );
+                        $stV->bind_param('i', $ventaIdEnlazada);
+                        $stV->execute();
+                        $stV->close();
+
+                        $stCot = $conn->prepare('SELECT cotizacion_id FROM ventas WHERE id = ? LIMIT 1');
+                        $stCot->bind_param('i', $ventaIdEnlazada);
+                        $stCot->execute();
+                        $vr = $stCot->get_result()->fetch_assoc();
+                        $stCot->close();
+                        $cotId = $vr ? (int) ($vr['cotizacion_id'] ?? 0) : 0;
+                        if ($cotId > 0) {
+                            $statusAprobada = 2;
+                            $stUpCot = $conn->prepare('UPDATE cotizaciones SET status = ? WHERE id_cotizacion = ?');
+                            $stUpCot->bind_param('ii', $statusAprobada, $cotId);
+                            $stUpCot->execute();
+                            $stUpCot->close();
+                        }
+                    }
+                }
 
                 $conn->commit();
                 echo json_encode(['success' => true, 'message' => 'Orden finalizada y movimiento de inventario generado.']);

@@ -204,7 +204,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         <form id="form-crear">
                             <div class="row form-group">
                                 <div class="col-sm-6">
-                                    <label class="form-label">Receta</label>
+                                    <label class="form-label">Guia de corte</label>
                                     <select name="receta_id" id="receta_id" class="form-control" required>
                                         <option value=""></option>
                                         <?php foreach ($recetas as $r): ?>
@@ -225,7 +225,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo por Unidad ($)</label>
                                     <input type="text" id="costo_por_unidad" class="form-control" readonly style="background-color: #e9ecef;">
-                                    <small class="text-muted">Costo de la receta por unidad de producto</small>
+                                    <small class="text-muted">Costo de la guia de corte por unidad de producto</small>
                                 </div>
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo Total de Producción ($)</label>

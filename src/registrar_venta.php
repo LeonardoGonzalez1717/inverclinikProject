@@ -147,7 +147,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     </select>
                                 </div>
                             </div>
-                            <div class="row mb-3">
+                            <div class="row mb-3" id="form-venta-fila-forma-pago">
                                 <div class="col-md-6">
                                     <label class="form-label">Forma de pago <span style="color: red;">*</span></label>
                                     <select name="forma_pago_id" id="forma_pago_id" class="form-control" required>
@@ -304,8 +304,8 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     <ul id="modal-stock-lista-faltantes" class="small pl-3 mb-3"></ul>
                     <p class="small text-muted mb-0">
                         ¿Desea generar <strong>órdenes de producción</strong> por las <strong>cantidades faltantes</strong>?
-                        La venta <strong>no se guardará</strong> en este paso; cuando exista inventario podrá registrar la venta de nuevo.
-                        Las órdenes quedarán en pendientes en Orden de producción.
+                        La venta se guardará con estado <strong>En proceso</strong> (sin descontar inventario hasta completar la producción).
+                        Las órdenes quedarán pendientes en Orden de producción.
                     </p>
                 </div>
                 <div class="modal-footer">
@@ -320,6 +320,25 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 var productosAgregados = [];
 var ventaCotizacionComprobanteBloqueo = false;
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
+
+/** Forma de pago + comprobante (#form-venta-fila-forma-pago o 2.º hijo del form). */
+function filaPagoReadonly(activo) {
+    var cont = document.querySelector('#form-venta-fila-forma-pago')
+        || document.querySelector('#form-venta > div:nth-child(2)');
+    if (!cont) {
+        return;
+    }
+    var on = !!activo;
+    var els = cont.querySelectorAll('input, select, textarea');
+    for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        if (el.tagName === 'SELECT') {
+            el.disabled = on;
+        } else {
+            el.readOnly = on;
+        }
+    }
+}
 
 $('#btn-ir-crear').on('click', function() {
     $('#vista-listado').fadeOut(200, function() {
@@ -457,6 +476,7 @@ function rellenarSelectCotizaciones(idCliente) {
 }
 
 function limpiarFormulario() {
+    filaPagoReadonly(false);
     $('#form-venta')[0].reset();
     $('#fecha').val('<?php echo date('Y-m-d'); ?>');
     $('#cliente_id').val('');
@@ -688,6 +708,7 @@ document.addEventListener('DOMContentLoaded', function() {
         $('#cotizacion_id').val('');
         productosAgregados = [];
         ventaCotizacionComprobanteBloqueo = false;
+        filaPagoReadonly(false);
         limpiarComprobanteVentaYNotaCot();
         rellenarSelectCotizaciones(idc);
         aplicarEstadoBloqueoComprobanteCotizacion();
@@ -703,6 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!cid) {
             ventaCotizacionComprobanteBloqueo = false;
             productosAgregados = [];
+            filaPagoReadonly(false);
             limpiarFormularioProducto();
             limpiarComprobanteVentaYNotaCot();
             aplicarEstadoBloqueoComprobanteCotizacion();
@@ -711,6 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!idCliente) {
             Swal.fire({ icon: 'warning', text: 'Seleccione primero un cliente.' });
             $(this).val('');
+            filaPagoReadonly(false);
             return;
         }
         $.getJSON('registrar_venta_data.php', {
@@ -721,6 +744,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .done(function(resp) {
                 if (!resp || !resp.success) {
                     ventaCotizacionComprobanteBloqueo = false;
+                    filaPagoReadonly(false);
                     aplicarEstadoBloqueoComprobanteCotizacion();
                     Swal.fire({ icon: 'error', text: (resp && resp.message) ? resp.message : 'No se pudieron cargar los productos de la cotización' });
                     return;
@@ -739,6 +763,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     productosAgregados = [];
                     $('#cotizacion_id').val('');
                     ventaCotizacionComprobanteBloqueo = false;
+                    filaPagoReadonly(false);
                     limpiarComprobanteVentaYNotaCot();
                     aplicarEstadoBloqueoComprobanteCotizacion();
                     return;
@@ -751,9 +776,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 rellenarCamposComprobanteDesdeResp(resp);
                 ventaCotizacionComprobanteBloqueo = !!(resp.tiene_comprobante);
                 aplicarEstadoBloqueoComprobanteCotizacion();
+                filaPagoReadonly(true);
             })
             .fail(function(xhr) {
                 ventaCotizacionComprobanteBloqueo = false;
+                filaPagoReadonly(false);
                 aplicarEstadoBloqueoComprobanteCotizacion();
                 try {
                     var r = JSON.parse(xhr.responseText);
@@ -892,10 +919,6 @@ function enviarRegistroVenta(crearOrdenesFaltantes) {
         dataType: "json",
         success: function(resp) {
             if (resp && resp.success) {
-                if (resp.code === 'ORDENES_PRODUCCION_CREADAS_SIN_VENTA') {
-                    Swal.fire({ icon: 'success', text: resp.message || 'Órdenes de producción registradas.' });
-                    return;
-                }
                 Swal.fire({ icon: 'success', text: resp.message || 'Venta registrada.' });
                 mostrarVista("listado");
                 cargarListado();

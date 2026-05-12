@@ -125,7 +125,25 @@ require_once "../connection/connection.php";
     </div>
 
 <script>
-// --- LOGICA DE INTERFAZ ---
+
+function mensajeErrorAjax(xhr, textoPorDefecto) {
+    textoPorDefecto = textoPorDefecto || 'Error de comunicación con el servidor.';
+    if (xhr.responseJSON && xhr.responseJSON.message) {
+        return xhr.responseJSON.message;
+    }
+    if (xhr.responseText) {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r && r.message) {
+                return r.message;
+            }
+        } catch (ignore) {}
+    }
+    if (xhr.status === 0) {
+        return 'No hay conexión con el servidor.';
+    }
+    return textoPorDefecto;
+}
 
 $('#btn-ir-crear').on('click', function() {
     $('#vista-listado').fadeOut(200, function() {
@@ -277,8 +295,8 @@ $("#form-crear").on("submit", function(e) {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
-        error: function() {
-            Swal.fire({ icon: 'error', text: "Error de comunicación con el servidor." });
+        error: function(xhr) {
+            Swal.fire({ icon: 'error', text: mensajeErrorAjax(xhr) });
         }
     });
 });

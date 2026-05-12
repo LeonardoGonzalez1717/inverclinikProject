@@ -53,11 +53,11 @@ function asegurar_enum_estado_ventas(mysqli $conn): void
         return;
     }
     $type = (string) ($row['Type'] ?? '');
-    if (stripos($type, 'aprobado') !== false && stripos($type, 'por_pagar') !== false) {
+    if (stripos($type, 'en_proceso') !== false) {
         return;
     }
     $conn->query(
-        "ALTER TABLE ventas MODIFY COLUMN estado ENUM('pendiente','entregado','cancelado','aprobado','por_pagar') DEFAULT 'por_pagar'"
+        "ALTER TABLE ventas MODIFY COLUMN estado ENUM('pendiente','entregado','cancelado','aprobado','por_pagar','en_proceso') DEFAULT 'por_pagar'"
     );
 }
 
@@ -145,6 +145,27 @@ function asegurar_formas_pago_y_relacion_ventas(mysqli $conn): void
 }
 
 asegurar_formas_pago_y_relacion_ventas($conn);
+
+function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+    $chk = $conn->query("SHOW COLUMNS FROM ordenes_produccion LIKE 'venta_id'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD COLUMN venta_id INT NULL DEFAULT NULL COMMENT \'Venta enlazada (p. ej. órdenes por falta de stock)\''
+    );
+    @$conn->query('ALTER TABLE ordenes_produccion ADD INDEX idx_ordenes_produccion_venta_id (venta_id)');
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD CONSTRAINT fk_ordenes_produccion_venta '
+        . 'FOREIGN KEY (venta_id) REFERENCES ventas(id) ON DELETE SET NULL ON UPDATE CASCADE'
+    );
+}
 
 function normalizar_forma_pago(string $txt): string
 {
@@ -277,6 +298,7 @@ function etiqueta_estado_venta(?string $estado): array
         'pendiente' => ['Pendiente', 'badge-secondary'],
         'por_pagar' => ['Por pagar', 'badge-warning'],
         'aprobado' => ['Aprobado', 'badge-success'],
+        'en_proceso' => ['En proceso', 'badge-primary'],
         'entregado' => ['Entregado', 'badge-info'],
         'cancelado' => ['Cancelado', 'badge-danger'],
     ];
@@ -343,7 +365,7 @@ function analizar_stock_venta(mysqli $conn, array $productos, bool $tieneInventa
             return [
                 'ok' => false,
                 'faltantes' => [],
-                'mensaje' => "No existe una receta asociada al producto: {$nombreProd} (ID {$producto_id}).",
+                'mensaje' => "No existe una guia de corte asociada al producto: {$nombreProd} (ID {$producto_id}).",
             ];
         }
         $receta_id = (int) $rowReceta['id'];
@@ -453,8 +475,8 @@ function crear_ordenes_produccion_por_faltantes_venta(mysqli $conn, array $falta
 
         if (!$rrp) {
             throw new Exception(
-                'No hay receta de producción (recetas_productos) para '
-                . ($f['producto_nombre'] ?? 'producto') . '. Registre la receta en producción antes de crear la orden.'
+                'No hay guia de corte de producción (recetas_productos) para '
+                . ($f['producto_nombre'] ?? 'producto') . '. Registre la guia de corte en producción antes de crear la orden.'
             );
         }
         $rpid = (int) $rrp['id'];
@@ -865,7 +887,7 @@ try {
         } else {
             echo json_encode([
                 'success' => false,
-                'message' => 'No se encontró una receta con precio para este producto'
+                'message' => 'No se encontró una guia de corte con precio para este producto'
             ]);
         }
         
@@ -990,48 +1012,23 @@ try {
             || (is_string($flagOp) && strcasecmp($flagOp, 'true') === 0);
 
         $analisisStock = analizar_stock_venta($conn, $productos, $tieneInventarioNuevo);
+        $ventaConOrdenesSinStock = false;
         if (!$analisisStock['ok']) {
             if ($crearOpFaltantes && !empty($analisisStock['faltantes'])) {
-                $conn->begin_transaction();
-                try {
-                    $idsOp = crear_ordenes_produccion_por_faltantes_venta($conn, $analisisStock['faltantes'], (string) $fecha);
-                    Auditoria::registrar(
-                        $conn,
-                        'Órdenes de producción generadas por falta de stock al registrar venta (venta no guardada). IDs: '
-                        . implode(', ', $idsOp),
-                        'Ventas'
-                    );
-                    $conn->commit();
-                } catch (Exception $e) {
-                    $conn->rollback();
-                    throw $e;
-                }
+                $ventaConOrdenesSinStock = true;
+            } else {
                 header('Content-Type: application/json; charset=utf-8');
-                $n = count($idsOp);
-                $msgOp = $n === 1
-                    ? 'Se creó 1 orden de producción por las cantidades faltantes. La venta no se guardó: aún no hay inventario suficiente. Cuando haya stock, registre la venta nuevamente.'
-                    : "Se crearon {$n} órdenes de producción por las cantidades faltantes. La venta no se guardó: aún no hay inventario suficiente. Cuando haya stock, registre la venta nuevamente.";
+                http_response_code(400);
                 echo json_encode([
-                    'success' => true,
-                    'code' => 'ORDENES_PRODUCCION_CREADAS_SIN_VENTA',
-                    'message' => $msgOp,
-                    'ordenes_produccion_ids' => $idsOp,
+                    'success' => false,
+                    'code' => 'STOCK_INSUFICIENTE',
+                    'message' => $analisisStock['mensaje'],
+                    'faltantes' => $analisisStock['faltantes'],
+                    'puede_crear_ordenes_produccion' => !empty($analisisStock['faltantes']),
                 ]);
                 $conn->close();
                 exit;
             }
-
-            header('Content-Type: application/json; charset=utf-8');
-            http_response_code(400);
-            echo json_encode([
-                'success' => false,
-                'code' => 'STOCK_INSUFICIENTE',
-                'message' => $analisisStock['mensaje'],
-                'faltantes' => $analisisStock['faltantes'],
-                'puede_crear_ordenes_produccion' => !empty($analisisStock['faltantes']),
-            ]);
-            $conn->close();
-            exit;
         }
 
         $conn->begin_transaction();
@@ -1039,7 +1036,14 @@ try {
         try {
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
 
-            $estado_venta = ($comprobante_ref_input !== '') ? 'aprobado' : 'por_pagar';
+            $idsOp = [];
+            if ($ventaConOrdenesSinStock) {
+                $idsOp = crear_ordenes_produccion_por_faltantes_venta($conn, $analisisStock['faltantes'], (string) $fecha);
+            }
+
+            $estado_venta = $ventaConOrdenesSinStock
+                ? 'en_proceso'
+                : (($comprobante_ref_input !== '') ? 'aprobado' : 'por_pagar');
 
             if ($cotizacion_id) {
                 $colTasa = $conn->query("SHOW COLUMNS FROM ventas LIKE 'tasa_cambiaria_id'");
@@ -1074,6 +1078,20 @@ try {
 
             if (!$venta_id) {
                 throw new Exception("Error al crear la venta");
+            }
+
+            if ($ventaConOrdenesSinStock && $idsOp !== []) {
+                asegurar_venta_id_en_ordenes_produccion($conn);
+                $stLinkOp = $conn->prepare('UPDATE ordenes_produccion SET venta_id = ? WHERE id = ?');
+                foreach ($idsOp as $oidRaw) {
+                    $oid = (int) $oidRaw;
+                    if ($oid <= 0) {
+                        continue;
+                    }
+                    $stLinkOp->bind_param('ii', $venta_id, $oid);
+                    $stLinkOp->execute();
+                }
+                $stLinkOp->close();
             }
 
             $stmtDetalle = $conn->prepare("
@@ -1112,70 +1130,74 @@ try {
 
                     $stmtDetalle->bind_param("iidd", $venta_id, $receta_id, $cantidad, $precio_unitario);
                     $stmtDetalle->execute();
-                    
-                    if ($tieneInventarioNuevo) {
-                        $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
-                        $stmtStock = $conn->prepare($sqlStock);
-                        $stmtStock->bind_param("i", $receta_id);
-                    } else {
-                        $sqlStock = "SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
-                        $stmtStock = $conn->prepare($sqlStock);
-                        $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
-                    }
-                    $stmtStock->execute();
-                    $resultStock = $stmtStock->get_result();
-                    $stockActual = 0;
-                    if ($rowStock = $resultStock->fetch_assoc()) {
-                        $stockActual = floatval($rowStock['stock_actual']);
-                    }
-                    $stmtStock->close();
 
-                    if ($cantidad > $stockActual) {
-                        throw new Exception('Inconsistencia de inventario respecto a la validación previa. Reintente la venta.');
-                    }
+                    if (!$ventaConOrdenesSinStock) {
+                        if ($tieneInventarioNuevo) {
+                            $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
+                            $stmtStock = $conn->prepare($sqlStock);
+                            $stmtStock->bind_param("i", $receta_id);
+                        } else {
+                            $sqlStock = "SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
+                            $stmtStock = $conn->prepare($sqlStock);
+                            $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                        }
+                        $stmtStock->execute();
+                        $resultStock = $stmtStock->get_result();
+                        $stockActual = 0;
+                        if ($rowStock = $resultStock->fetch_assoc()) {
+                            $stockActual = floatval($rowStock['stock_actual']);
+                        }
+                        $stmtStock->close();
 
-                    $nuevoStock = $stockActual - $cantidad;
-                    if ($nuevoStock < 0) $nuevoStock = 0;
-                    
-                    $observacionesMovimiento = "Salida por venta #{$venta_id}";
-                    $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
-                    if ($tieneRecetaIdDet) {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) VALUES ('producto', ?, 'salida', ?, ?)");
-                        $stmtMovimiento->bind_param("ids", $receta_id, $cantidad, $observacionesMovimiento);
-                    } else {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'salida', ?, ?)");
-                        $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $observacionesMovimiento);
-                    }
-                    $stmtMovimiento->execute();
-                    $stmtMovimiento->close();
-                    
-                    if ($tieneInventarioNuevo) {
-                        $stmtInventario = $conn->prepare("
+                        if ($cantidad > $stockActual) {
+                            throw new Exception('Inconsistencia de inventario respecto a la validación previa. Reintente la venta.');
+                        }
+
+                        $nuevoStock = $stockActual - $cantidad;
+                        if ($nuevoStock < 0) {
+                            $nuevoStock = 0;
+                        }
+
+                        $observacionesMovimiento = "Salida por venta #{$venta_id}";
+                        $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
+                        if ($tieneRecetaIdDet) {
+                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) VALUES ('producto', ?, 'salida', ?, ?)");
+                            $stmtMovimiento->bind_param("ids", $receta_id, $cantidad, $observacionesMovimiento);
+                        } else {
+                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'salida', ?, ?)");
+                            $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $observacionesMovimiento);
+                        }
+                        $stmtMovimiento->execute();
+                        $stmtMovimiento->close();
+
+                        if ($tieneInventarioNuevo) {
+                            $stmtInventario = $conn->prepare("
                             INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
                             VALUES ('producto', ?, ?, 'manual', NOW())
                             ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
                         ");
-                        $stmtInventario->bind_param("id", $receta_id, $nuevoStock);
-                    } else {
-                        $stmtInventario = $conn->prepare("
+                            $stmtInventario->bind_param("id", $receta_id, $nuevoStock);
+                        } else {
+                            $stmtInventario = $conn->prepare("
                             INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
                             VALUES (?, ?, ?, ?, NOW())
                             ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
                         ");
-                        $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                            $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
+                        }
+                        $stmtInventario->execute();
+                        $stmtInventario->close();
                     }
-                    $stmtInventario->execute();
-                    $stmtInventario->close();
                 } else {
                     $stmtReceta->close();
-                    throw new Exception("No existe una receta asociada al producto seleccionado (ID: {$producto_id})");
+                    throw new Exception("No existe una guia de corte asociada al producto seleccionado (ID: {$producto_id})");
                 }
                 $stmtReceta->close();
             }
 
             $stmtDetalle->close();
 
-            if ($cotizacion_id) {
+            if ($cotizacion_id && !$ventaConOrdenesSinStock) {
                 $statusAprobada = 2;
                 $stUpCot = $conn->prepare('UPDATE cotizaciones SET status = ? WHERE id_cotizacion = ?');
                 $stUpCot->bind_param('ii', $statusAprobada, $cotizacion_id);
@@ -1190,17 +1212,30 @@ try {
 
             $facturaTxt = $numero_factura !== null && $numero_factura !== '' ? $numero_factura : 'sin número';
             $cotTxt = $cotizacion_id ? " Cotización #{$cotizacion_id}." : '';
-            Auditoria::registrar(
-                $conn,
-                "Venta #{$venta_id} registrada. Cliente #{$cliente_id}. Factura: {$facturaTxt}. Total: {$total}.{$cotTxt}",
-                'Ventas'
-            );
+            $auditVenta = $ventaConOrdenesSinStock
+                ? "Venta #{$venta_id} registrada en estado en proceso (sin salida de inventario; órdenes de producción por faltante). Cliente #{$cliente_id}. Factura: {$facturaTxt}. Total: {$total}.{$cotTxt}"
+                : "Venta #{$venta_id} registrada. Cliente #{$cliente_id}. Factura: {$facturaTxt}. Total: {$total}.{$cotTxt}";
+            Auditoria::registrar($conn, $auditVenta, 'Ventas');
 
-            echo json_encode([
-                'success' => true, 
-                'message' => 'Venta registrada exitosamente',
-                'venta_id' => $venta_id
-            ]);
+            $nOp = count($idsOp);
+            $msgOk = $ventaConOrdenesSinStock
+                ? (
+                    $nOp === 1
+                        ? 'Venta guardada en estado En proceso. Se creó 1 orden de producción por el inventario faltante; el stock no se descontará hasta completar la producción y registrar el despacho.'
+                        : "Venta guardada en estado En proceso. Se crearon {$nOp} órdenes de producción por el inventario faltante; el stock no se descontará hasta completar la producción y registrar el despacho."
+                )
+                : 'Venta registrada exitosamente';
+
+            $respOk = [
+                'success' => true,
+                'message' => $msgOk,
+                'venta_id' => $venta_id,
+            ];
+            if ($ventaConOrdenesSinStock) {
+                $respOk['code'] = 'VENTA_EN_PROCESO_CON_ORDENES';
+                $respOk['ordenes_produccion_ids'] = $idsOp;
+            }
+            echo json_encode($respOk);
 
         } catch (Exception $e) {
             $conn->rollback();
