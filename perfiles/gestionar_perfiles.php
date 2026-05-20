@@ -47,6 +47,7 @@ require_once('../template/header.php');
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-perfiles"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -131,7 +132,8 @@ require_once('../template/header.php');
     });
 
     $(document).ready(function() {
-        cargarListado();
+        cargarListado(1);
+        bindCrudPagination('#paginacion-perfiles', cargarListado);
     });
 
     function mostrarVista(vista) {
@@ -164,14 +166,14 @@ require_once('../template/header.php');
 
     }
 
-    function cargarListado() {
-        $.post('gestionar_perfiles_data.php', {
-            action: 'listar_html'
-        }, function(html) {
-            $('#listaUsuarios').html(html);
-        }).fail(function() {
-            $('#listaUsuarios').html('<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>');
-        });
+    function cargarListado(page) {
+        crudPostListadoPaginado(
+            'gestionar_perfiles_data.php',
+            { action: 'listar_html' },
+            '#listaUsuarios',
+            '#paginacion-perfiles',
+            page || 1
+        );
     }
 
     // $.post('gestionar_perfiles_data.php', { action: 'eliminar', id: usuarioId }, function(response) {
@@ -211,7 +213,7 @@ require_once('../template/header.php');
                 setTimeout(function() {
                     $('#resultadoUsuarios').html('');
                     mostrarVista('listado');
-                    cargarListado();
+                    cargarListado(1);
                 }, 1500);
             } else {
                 $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
@@ -265,7 +267,7 @@ require_once('../template/header.php');
                     $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
                     setTimeout(function() {
                         $('#resultadoUsuarios').html('');
-                        cargarListado();
+                        cargarListado(1);
                     }, 1500);
                 } else {
                     $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');

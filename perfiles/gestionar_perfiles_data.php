@@ -2,15 +2,22 @@
 session_start();
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        $total = (int) ($conn->query(
+            'SELECT COUNT(*) AS c FROM users u LEFT JOIN roles r ON r.id = u.role_id'
+        )->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "SELECT u.id, u.username, u.correo, u.role_id, u.createdAt, r.nombre AS rol
                 FROM users u
                 LEFT JOIN roles r ON r.id = u.role_id
-                ORDER BY u.id DESC";
+                ORDER BY u.id DESC
+                " . $pg->limitClause();
         $result = $conn->query($sql);
         $usuarios = [];
         if ($result) {
@@ -19,10 +26,11 @@ try {
             }
         }
 
+        ob_start();
         if (empty($usuarios)) {
             echo '<tr><td colspan="6" class="text-center">No hay usuarios registrados</td></tr>';
-        } else {        
-            $i = 0;
+        } else {
+            $i = $pg->rowNumberStart() - 1;
             foreach ($usuarios as $user) {
                 $i++;
                 $fecha = date('d/m/Y H:i', strtotime($user['createdAt']));
@@ -41,6 +49,10 @@ try {
                 echo '</tr>';
             }
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
+        $conn->close();
+        exit;
     } elseif ($action === 'crear') {
         restringirEscritura();
 
@@ -178,7 +190,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         } else {
-            echo '<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>';
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         }
 }
 

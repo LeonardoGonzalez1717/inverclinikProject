@@ -119,6 +119,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-ventas"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -205,7 +206,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         </div>
                                         <div class="col-md-2 mb-2">
                                             <label class="form-label">Cantidad</label>
-                                            <input type="number" step="0.01" min="0.01" id="nuevo-cantidad" class="form-control" placeholder="0.00">
+                                            <input type="number" step="1" min="1" id="nuevo-cantidad" class="form-control" placeholder="1">
                                         </div>
                                         <div class="col-md-2 mb-2">
                                             <label class="form-label">Precio Unitario</label>
@@ -438,10 +439,14 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
-function cargarListado() {
-    $.post('registrar_venta_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'registrar_venta_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-ventas',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -526,7 +531,12 @@ function agregarProducto() {
         Swal.fire({ icon: 'warning', text: 'Por favor selecciona un producto e ingresa una cantidad válida' });
         return;
     }
-    
+
+    if (Math.abs(cantidad - Math.round(cantidad)) > 1e-9) {
+        Swal.fire({ icon: 'warning', text: 'Los productos terminados solo se venden por unidades enteras (sin decimales).' });
+        return;
+    }
+
     if (precioUnitario <= 0) {
         Swal.fire({ icon: 'warning', text: 'Por favor ingresa un precio unitario válido' });
         return;
@@ -701,7 +711,8 @@ function verDetalle(ventaId) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-ventas', cargarListado);
 
     $('#cliente_id').on('change', function() {
         var idc = $(this).val();
@@ -760,6 +771,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
                 if (hayProductosDuplicadosPorId(productosAgregados)) {
                     Swal.fire({ icon: 'warning', text: 'La cotización incluye el mismo artículo más de una vez. Unifique las cantidades en la cotización o elimine líneas duplicadas antes de facturar.' });
+                    productosAgregados = [];
+                    $('#cotizacion_id').val('');
+                    ventaCotizacionComprobanteBloqueo = false;
+                    filaPagoReadonly(false);
+                    limpiarComprobanteVentaYNotaCot();
+                    aplicarEstadoBloqueoComprobanteCotizacion();
+                    return;
+                }
+                var cantidadNoEntera = productosAgregados.some(function(p) {
+                    var q = parseFloat(p.cantidad);
+                    return !(q > 0) || Math.abs(q - Math.round(q)) > 1e-9;
+                });
+                if (cantidadNoEntera) {
+                    Swal.fire({ icon: 'warning', text: 'Esta cotización tiene cantidades con decimales. Los productos terminados solo se facturan por unidades enteras: corrija la cotización antes de continuar.' });
                     productosAgregados = [];
                     $('#cotizacion_id').val('');
                     ventaCotizacionComprobanteBloqueo = false;
@@ -952,6 +977,15 @@ $("#form-venta").on("submit", function(e) {
 
     if (hayProductosDuplicadosPorId(productosAgregados)) {
         Swal.fire({ icon: 'warning', text: 'No se puede guardar la venta: hay el mismo artículo más de una vez. Deje una sola línea por producto.' });
+        return;
+    }
+
+    var hayCantidadDecimal = productosAgregados.some(function(p) {
+        var q = parseFloat(p.cantidad);
+        return !(q > 0) || Math.abs(q - Math.round(q)) > 1e-9;
+    });
+    if (hayCantidadDecimal) {
+        Swal.fire({ icon: 'warning', text: 'Las cantidades de productos terminados deben ser números enteros (sin decimales).' });
         return;
     }
 

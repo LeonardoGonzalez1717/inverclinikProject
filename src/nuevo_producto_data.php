@@ -1,6 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 // Verificar y agregar columna precio_total a la tabla recetas si no existe
 $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
@@ -70,7 +71,7 @@ try {
             $conn->query($sqlInsertRecetas);
         }
 
-        $sql = "
+        $sqlBase = "
             SELECT 
                 r.id,
                 r.tasa_cambiaria_id,
@@ -104,8 +105,14 @@ try {
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
             GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
-            ORDER BY r.id DESC
         ";
+
+        $total = Pagination::countFromSubquery($conn, $sqlBase);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . '
+            ORDER BY r.id DESC
+        ' . $pg->limitClause();
 
         $result = $conn->query($sql);
         $recetas = [];
@@ -115,8 +122,9 @@ try {
             }
         }
 
+        ob_start();
         if (!empty($recetas)) {
-            $i = 0;
+            $i = $pg->rowNumberStart() - 1;
             foreach ($recetas as $r) {
                 $i++;
                 $fecha = $r['creado_en'] ? date('d/m/Y H:i', strtotime($r['creado_en'])) : '';
@@ -140,6 +148,8 @@ try {
         } else {
             echo '<tr><td colspan="11" class="text-center">No se encontraron guias de corte registradas</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -419,7 +429,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar guias de corte</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

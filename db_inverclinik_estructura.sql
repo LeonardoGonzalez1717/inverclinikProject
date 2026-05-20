@@ -85,13 +85,41 @@ CREATE TABLE IF NOT EXISTS `detalle_venta` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `unidad_medida`
+-- Catálogo de unidades (insumos.unidad_medida_id → FK).
+--
+
+CREATE TABLE IF NOT EXISTS `unidad_medida` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo` varchar(32) NOT NULL COMMENT 'Identificador estable (ej. metro, unidad)',
+  `nombre` varchar(100) NOT NULL COMMENT 'Etiqueta para mostrar',
+  `permite_movimiento_decimal` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1=cantidades con decimales en movimientos; 0=solo enteros',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `codigo` (`codigo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT IGNORE INTO `unidad_medida` (`codigo`, `nombre`) VALUES
+('metro', 'Metro'),
+('unidad', 'Unidad'),
+('kilogramo', 'Kilogramo'),
+('litro', 'Litro'),
+('metro_cuadrado', 'Metro cuadrado'),
+('carrete', 'Carrete'),
+('rollo', 'Rollo'),
+('pieza', 'Pieza'),
+('cono', 'Cono'),
+('paquete', 'Paquete');
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `insumos`
 --
 
 CREATE TABLE IF NOT EXISTS `insumos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(255) NOT NULL,
-  `unidad_medida` varchar(20) NOT NULL,
+  `unidad_medida_id` int(11) NOT NULL COMMENT 'FK a unidad_medida',
   `costo_unitario` decimal(10,2) NOT NULL DEFAULT 0.00,
   `stock_minimo` decimal(12,2) DEFAULT NULL COMMENT 'Stock mínimo deseado',
   `stock_maximo` decimal(12,2) DEFAULT NULL COMMENT 'Stock máximo deseado',
@@ -511,7 +539,8 @@ ALTER TABLE `detalle_venta`
 --
 ALTER TABLE `insumos`
   ADD KEY `proveedor` (`proveedor_id`),
-  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
+  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
+  ADD KEY `unidad_medida_id` (`unidad_medida_id`);
 
 --
 -- Indices de la tabla `inventario` (definidos en CREATE TABLE)
@@ -609,6 +638,7 @@ ALTER TABLE `detalle_venta`
 -- Filtros para la tabla `insumos`
 --
 ALTER TABLE `insumos`
+  ADD CONSTRAINT `fk_insumos_unidad_medida` FOREIGN KEY (`unidad_medida_id`) REFERENCES `unidad_medida` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_insumos_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_insumos_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
@@ -745,10 +775,10 @@ WHERE NOT EXISTS (
   SELECT 1 FROM `proveedores` WHERE `cedrif` = 'J-43777666-9'
 );
 
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+INSERT INTO `insumos` (`nombre`, `unidad_medida_id`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
 SELECT
   'Tela Drill Azul Marino',
-  'metro',
+  um.id,
   4.80,
   20.00,
   200.00,
@@ -758,15 +788,16 @@ SELECT
   0
 FROM `almacenes` a
 JOIN `proveedores` p ON p.`cedrif` = 'J-41234567-8'
+JOIN `unidad_medida` um ON um.`codigo` = 'metro'
 WHERE a.`codigo` = 'ALM-001'
   AND NOT EXISTS (
     SELECT 1 FROM `insumos` WHERE `nombre` = 'Tela Drill Azul Marino'
   );
 
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+INSERT INTO `insumos` (`nombre`, `unidad_medida_id`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
 SELECT
   'Hilo Poliéster Blanco',
-  'cono',
+  um.id,
   2.40,
   10.00,
   100.00,
@@ -776,15 +807,16 @@ SELECT
   0
 FROM `almacenes` a
 JOIN `proveedores` p ON p.`cedrif` = 'J-40999888-1'
+JOIN `unidad_medida` um ON um.`codigo` = 'cono'
 WHERE a.`codigo` = 'ALM-001'
   AND NOT EXISTS (
     SELECT 1 FROM `insumos` WHERE `nombre` = 'Hilo Poliéster Blanco'
   );
 
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+INSERT INTO `insumos` (`nombre`, `unidad_medida_id`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
 SELECT
   'Botón Blanco 4 Huecos',
-  'paquete',
+  um.id,
   1.80,
   15.00,
   120.00,
@@ -794,15 +826,16 @@ SELECT
   0
 FROM `almacenes` a
 JOIN `proveedores` p ON p.`cedrif` = 'J-40111222-3'
+JOIN `unidad_medida` um ON um.`codigo` = 'paquete'
 WHERE a.`codigo` = 'ALM-001'
   AND NOT EXISTS (
     SELECT 1 FROM `insumos` WHERE `nombre` = 'Botón Blanco 4 Huecos'
   );
 
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+INSERT INTO `insumos` (`nombre`, `unidad_medida_id`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
 SELECT
   'Cierre Nylon 60cm',
-  'unidad',
+  um.id,
   0.95,
   30.00,
   250.00,
@@ -812,15 +845,16 @@ SELECT
   0
 FROM `almacenes` a
 JOIN `proveedores` p ON p.`cedrif` = 'J-42333444-5'
+JOIN `unidad_medida` um ON um.`codigo` = 'unidad'
 WHERE a.`codigo` = 'ALM-001'
   AND NOT EXISTS (
     SELECT 1 FROM `insumos` WHERE `nombre` = 'Cierre Nylon 60cm'
   );
 
-INSERT INTO `insumos` (`nombre`, `unidad_medida`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
+INSERT INTO `insumos` (`nombre`, `unidad_medida_id`, `costo_unitario`, `stock_minimo`, `stock_maximo`, `almacen_id`, `proveedor_id`, `activo`, `adicional`)
 SELECT
   'Bolsa Plástica Transparente',
-  'paquete',
+  um.id,
   2.10,
   20.00,
   180.00,
@@ -830,6 +864,7 @@ SELECT
   1
 FROM `almacenes` a
 JOIN `proveedores` p ON p.`cedrif` = 'J-43777666-9'
+JOIN `unidad_medida` um ON um.`codigo` = 'paquete'
 WHERE a.`codigo` = 'ALM-001'
   AND NOT EXISTS (
     SELECT 1 FROM `insumos` WHERE `nombre` = 'Bolsa Plástica Transparente'

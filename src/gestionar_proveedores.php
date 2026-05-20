@@ -48,6 +48,7 @@ require_once "../connection/connection.php";
                                 <tbody></tbody>
                             </table>
                         </div>
+                        <div id="paginacion-proveedores"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -167,10 +168,14 @@ $('#btn-volver-listado').on('click', function() {
     });
 });
 
-function cargarListado() {
-    $.post('gestionar_proveedores_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_proveedores_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-proveedores',
+        page || 1
+    );
 }
 
 function limpiarFormulario() {
@@ -302,7 +307,8 @@ $("#form-crear").on("submit", function(e) {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-proveedores', cargarListado);
 });
 </script>
 

@@ -1,5 +1,7 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 {
@@ -31,7 +33,7 @@ $action = $_POST['action'] ?? '';
 try {
     if ($action === 'listar_html') {
 
-        $sql = "
+        $sqlBase = "
             SELECT 
                 op.id AS orden_id,
                 op.tasa_cambiaria_id,
@@ -60,8 +62,15 @@ try {
                 AND rp2.tipo_produccion_id = rp.tipo_produccion_id
             LEFT JOIN insumos i ON rp2.insumo_id = i.id
             GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
-            ORDER BY op.id DESC
         ";
+
+        $total = Pagination::countFromSubquery($conn, $sqlBase);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . '
+            ORDER BY op.id DESC
+        ' . $pg->limitClause();
+
         $result = $conn->query($sql);
         $ordenes = [];
         if ($result) {
@@ -69,7 +78,8 @@ try {
                 $ordenes[] = $row;
             }
         }
-        $i = 0;
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($ordenes)) {
             foreach ($ordenes as $o) {
                 $i++;
@@ -105,6 +115,8 @@ try {
         } else {
             echo '<tr><td colspan="10" class="text-center">No hay órdenes de producción</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -165,8 +177,14 @@ try {
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
             $observaciones = $_POST['observaciones'] ?? '';
 
-            if (!$receta_id || $cantidad <= 0) {
+            if (!$receta_id || floatval($cantidad) <= 0) {
                 throw new Exception("Guia de corte y cantidad válida son obligatorios");
+            }
+
+            try {
+                $cantidad = inv_normalizar_cantidad_producto_terminado(floatval($cantidad));
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
             }
 
             if (!empty($fecha_inicio) && !empty($fecha_fin)) {
@@ -195,9 +213,11 @@ try {
                 $tipo_produccion_id = $rowRecetaInfo['tipo_produccion_id'];
 
                 // Validar que haya insumos disponibles en el inventario
-                $sqlInsumosReceta = "SELECT rp.insumo_id, rp.cantidad_por_unidad, i.nombre AS insumo_nombre
+                $sqlInsumosReceta = "SELECT rp.insumo_id, rp.cantidad_por_unidad, i.nombre AS insumo_nombre,
+                                           COALESCE(um.permite_movimiento_decimal, 1) AS permite_movimiento_decimal
                                     FROM recetas_productos rp
                                     INNER JOIN insumos i ON rp.insumo_id = i.id
+                                    LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
                                     WHERE rp.producto_id = ? 
                                       AND rp.rango_tallas_id = ? 
                                       AND rp.tipo_produccion_id = ?";
@@ -207,13 +227,17 @@ try {
                 $resultInsumosReceta = $stmtInsumosReceta->get_result();
                 
                 $insumosFaltantes = array();
-                $cantidadProducir = floatval($cantidad);
-                
+                $cantidadProducir = $cantidad;
+
                 while ($rowInsumo = $resultInsumosReceta->fetch_assoc()) {
                     $insumoId = $rowInsumo['insumo_id'];
                     $cantidadPorUnidad = floatval($rowInsumo['cantidad_por_unidad']);
                     $insumoNombre = $rowInsumo['insumo_nombre'];
-                    $cantidadNecesaria = $cantidadPorUnidad * $cantidadProducir;
+                    $permiteDec = !isset($rowInsumo['permite_movimiento_decimal']) || (int) $rowInsumo['permite_movimiento_decimal'] === 1;
+                    $cantidadNecesaria = inv_normalizar_cantidad_consumo_automatico(
+                        $cantidadPorUnidad * $cantidadProducir,
+                        $permiteDec
+                    );
                     
                     // Obtener stock actual del insumo
                     if ($tieneInventarioNuevo) {
@@ -324,14 +348,24 @@ try {
                     throw new Exception("La orden ya se encuentra finalizada");
                 }
 
-                $cantidadProducir = floatval($orden['cantidad_a_producir']);
+                try {
+                    $cantidadProducir = inv_normalizar_cantidad_producto_terminado(floatval($orden['cantidad_a_producir']));
+                } catch (InvalidArgumentException $e) {
+                    throw new Exception(
+                        'La cantidad a producir de la orden debe ser un número entero. Edite la orden y corrija la cantidad antes de finalizar.'
+                    );
+                }
                 $producto_id = (int)$orden['producto_id'];
                 $rango_tallas_id = (int)$orden['rango_tallas_id'];
                 $tipo_produccion_id = (int)$orden['tipo_produccion_id'];
                 $recetaId = !empty($orden['receta_id']) ? (int)$orden['receta_id'] : null;
 
-                $sqlInsumos = "SELECT insumo_id, cantidad_por_unidad FROM recetas_productos
-                               WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
+                $sqlInsumos = "SELECT rp.insumo_id, rp.cantidad_por_unidad,
+                                      COALESCE(um.permite_movimiento_decimal, 1) AS permite_movimiento_decimal
+                               FROM recetas_productos rp
+                               INNER JOIN insumos i ON i.id = rp.insumo_id
+                               LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
+                               WHERE rp.producto_id = ? AND rp.rango_tallas_id = ? AND rp.tipo_produccion_id = ?";
                 $stmtInsumos = $conn->prepare($sqlInsumos);
                 $stmtInsumos->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
                 $stmtInsumos->execute();
@@ -341,7 +375,11 @@ try {
                 $insumos = [];
                 while ($rowInsumo = $resultInsumos->fetch_assoc()) {
                     $insumoId = (int)$rowInsumo['insumo_id'];
-                    $cantidadTotal = floatval($rowInsumo['cantidad_por_unidad']) * $cantidadProducir;
+                    $permiteDec = !isset($rowInsumo['permite_movimiento_decimal']) || (int) $rowInsumo['permite_movimiento_decimal'] === 1;
+                    $cantidadTotal = inv_normalizar_cantidad_consumo_automatico(
+                        floatval($rowInsumo['cantidad_por_unidad']) * $cantidadProducir,
+                        $permiteDec
+                    );
 
                     if ($tieneInventarioNuevo) {
                         $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
@@ -513,6 +551,16 @@ try {
                 }
             }
 
+            $cantidadFloat = floatval($cantidad);
+            if ($cantidadFloat <= 0) {
+                $cantidadFloat = floatval($ordenActual['cantidad_a_producir'] ?? 0);
+            }
+            try {
+                $cantidad = inv_normalizar_cantidad_producto_terminado($cantidadFloat);
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
+            }
+
             // Si se está cambiando la receta, obtener el recetas_productos.id correcto
             $receta_producto_id = $ordenActual['receta_producto_id']; // Mantener el actual por defecto
             
@@ -568,7 +616,7 @@ try {
                     $ordenActual['estado'] === 'pendiente') {
                     
                     $recetaId = $receta_id ?? $ordenActual['receta_producto_id'];
-                    $cantidadProducir = $cantidad > 0 ? $cantidad : $ordenActual['cantidad_a_producir'];
+                    $cantidadProducir = $cantidad;
                     
                     // Obtener información de la receta
                     $sqlRecetaInfo = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
@@ -583,11 +631,14 @@ try {
                         $tipo_produccion_id = $rowRecetaInfo['tipo_produccion_id'];
                         
                         // Obtener los insumos de la receta
-                        $sqlInsumos = "SELECT insumo_id, cantidad_por_unidad 
-                                      FROM recetas_productos 
-                                      WHERE producto_id = ? 
-                                        AND rango_tallas_id = ? 
-                                        AND tipo_produccion_id = ?";
+                        $sqlInsumos = "SELECT rp.insumo_id, rp.cantidad_por_unidad,
+                                              COALESCE(um.permite_movimiento_decimal, 1) AS permite_movimiento_decimal
+                                       FROM recetas_productos rp
+                                       INNER JOIN insumos i ON i.id = rp.insumo_id
+                                       LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
+                                       WHERE rp.producto_id = ?
+                                         AND rp.rango_tallas_id = ?
+                                         AND rp.tipo_produccion_id = ?";
                         $stmtInsumos = $conn->prepare($sqlInsumos);
                         $stmtInsumos->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
                         $stmtInsumos->execute();
@@ -596,7 +647,11 @@ try {
                         while ($rowInsumo = $resultInsumos->fetch_assoc()) {
                             $insumoId = $rowInsumo['insumo_id'];
                             $cantidadPorUnidad = floatval($rowInsumo['cantidad_por_unidad']);
-                            $cantidadTotal = $cantidadPorUnidad * floatval($cantidadProducir);
+                            $permiteDec = !isset($rowInsumo['permite_movimiento_decimal']) || (int) $rowInsumo['permite_movimiento_decimal'] === 1;
+                            $cantidadTotal = inv_normalizar_cantidad_consumo_automatico(
+                                $cantidadPorUnidad * floatval($cantidadProducir),
+                                $permiteDec
+                            );
                             
                             if ($tieneInventarioNuevo) {
                                 $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
@@ -644,6 +699,70 @@ try {
                 $conn->rollback();
                 throw $e;
             }
+            break;
+
+        case 'obtener_stock_insumos':
+            $receta_id = (int) ($_POST['receta_id'] ?? 0);
+            if ($receta_id <= 0) {
+                throw new Exception('Guia de corte requerida');
+            }
+            $stmtR = $conn->prepare('SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?');
+            $stmtR->bind_param('i', $receta_id);
+            $stmtR->execute();
+            $rr = $stmtR->get_result()->fetch_assoc();
+            $stmtR->close();
+            if (!$rr) {
+                throw new Exception('Guia de corte no encontrada');
+            }
+            $pid = (int) $rr['producto_id'];
+            $rid = (int) $rr['rango_tallas_id'];
+            $tid = (int) $rr['tipo_produccion_id'];
+
+            $sql = "
+                SELECT rp.insumo_id, rp.cantidad_por_unidad, i.nombre AS insumo_nombre,
+                       COALESCE(um.codigo, '') AS unidad_medida
+                FROM recetas_productos rp
+                INNER JOIN insumos i ON i.id = rp.insumo_id
+                LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
+                WHERE rp.producto_id = ? AND rp.rango_tallas_id = ? AND rp.tipo_produccion_id = ?
+                ORDER BY i.nombre
+            ";
+            $st = $conn->prepare($sql);
+            $st->bind_param('iii', $pid, $rid, $tid);
+            $st->execute();
+            $resList = $st->get_result();
+            $insumos = [];
+            while ($row = $resList->fetch_assoc()) {
+                $insumoId = (int) $row['insumo_id'];
+                $stock_actual = 0.0;
+                if ($tieneInventarioNuevo) {
+                    $qs = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ? LIMIT 1");
+                    $qs->bind_param('i', $insumoId);
+                    $qs->execute();
+                    $rs = $qs->get_result()->fetch_assoc();
+                    $qs->close();
+                    if ($rs) {
+                        $stock_actual = (float) $rs['stock_actual'];
+                    }
+                } else {
+                    $qs = $conn->prepare('SELECT stock_actual FROM inventario WHERE insumo_id = ? LIMIT 1');
+                    $qs->bind_param('i', $insumoId);
+                    $qs->execute();
+                    $rs = $qs->get_result()->fetch_assoc();
+                    $qs->close();
+                    if ($rs) {
+                        $stock_actual = (float) $rs['stock_actual'];
+                    }
+                }
+                $insumos[] = [
+                    'insumo_nombre' => $row['insumo_nombre'],
+                    'unidad_medida' => $row['unidad_medida'],
+                    'cantidad_por_unidad' => $row['cantidad_por_unidad'],
+                    'stock_actual' => $stock_actual,
+                ];
+            }
+            $st->close();
+            echo json_encode(['success' => true, 'insumos' => $insumos]);
             break;
 
         default:

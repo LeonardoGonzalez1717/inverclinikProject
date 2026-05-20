@@ -10,7 +10,11 @@ if ($resultProductos) {
     }
 }
 
-$sqlInsumos = "SELECT id, nombre, costo_unitario, unidad_medida FROM insumos WHERE activo = 1 ORDER BY nombre";
+$sqlInsumos = "SELECT i.id, i.nombre, i.costo_unitario, um.codigo AS unidad_medida
+               FROM insumos i
+               INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
+               WHERE i.activo = 1
+               ORDER BY i.nombre";
 $resultInsumos = $conn->query($sqlInsumos);
 $insumos = [];
 if ($resultInsumos) {
@@ -116,6 +120,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-recetas"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -490,10 +495,14 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
-function cargarListado() {
-    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'nuevo_producto_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-recetas',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -685,7 +694,7 @@ $("#form-crear").on("submit", function(e) {
             if (resp && resp.success) {
                 Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
@@ -699,7 +708,8 @@ $("#form-crear").on("submit", function(e) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-recetas', cargarListado);
 });
 </script>
 

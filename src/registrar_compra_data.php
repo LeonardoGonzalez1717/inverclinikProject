@@ -1,6 +1,8 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
@@ -30,10 +32,11 @@ try {
             throw new Exception("ID de proveedor requerido");
         }
         
-        $sql = "SELECT id, nombre, costo_unitario, unidad_medida 
-                FROM insumos 
-                WHERE proveedor_id = ? 
-                ORDER BY nombre ASC";
+        $sql = "SELECT i.id, i.nombre, i.costo_unitario, um.codigo AS unidad_medida
+                FROM insumos i
+                INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
+                WHERE i.proveedor_id = ?
+                ORDER BY i.nombre ASC";
         
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("i", $proveedor_id);
@@ -98,9 +101,10 @@ try {
                 dc.costo_unitario,
                 dc.subtotal,
                 i.nombre AS insumo_nombre,
-                i.unidad_medida
+                um.codigo AS unidad_medida
             FROM detalle_compra dc
             INNER JOIN insumos i ON dc.insumo_id = i.id
+            INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
             WHERE dc.compra_id = ?
             ORDER BY i.nombre ASC
         ";
@@ -145,7 +149,7 @@ try {
     }
     
     if ($action === 'listar_html') {
-        $sql = "
+        $sqlBase = "
             SELECT 
                 c.id,
                 c.fecha,
@@ -161,9 +165,15 @@ try {
             INNER JOIN proveedores p ON c.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = c.tasa_cambiaria_id
             LEFT JOIN detalle_compra dc ON c.id = dc.compra_id
-            GROUP BY c.id, c.fecha, c.numero_factura, c.total, c.estado, c.tasa_cambiaria_id, tc.tasa, p.nombre
-            ORDER BY c.creado_en DESC, c.fecha DESC
+            GROUP BY c.id, c.fecha, c.numero_factura, c.total, c.estado, c.tasa_cambiaria_id, tc.tasa, p.nombre, c.creado_en
         ";
+
+        $total = Pagination::countFromSubquery($conn, $sqlBase);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . '
+            ORDER BY c.creado_en DESC, c.fecha DESC
+        ' . $pg->limitClause();
 
         $result = $conn->query($sql);
         $compras = [];
@@ -172,7 +182,8 @@ try {
                 $compras[] = $row;
             }
         }
-        $i = 0;
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($compras)) {
             foreach ($compras as $c) {
                 $i++;
@@ -212,6 +223,8 @@ try {
         } else {
             echo '<tr><td colspan="8" class="text-center">No se encontraron compras registradas</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -247,16 +260,34 @@ try {
             throw new Exception('Datos inválidos');
         }
         $porInsumo = [];
+        $stmtPerm = $conn->prepare(
+            'SELECT COALESCE(um.permite_movimiento_decimal, 1) AS p FROM insumos i LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id WHERE i.id = ? LIMIT 1'
+        );
         foreach ($insumos as $row) {
             $id = (int) ($row['insumo_id'] ?? 0);
             $q = (float) ($row['cantidad'] ?? 0);
             if ($id <= 0 || $q <= 0) {
                 continue;
             }
+            if (!$stmtPerm) {
+                throw new Exception('Error al validar unidades de medida');
+            }
+            $stmtPerm->bind_param('i', $id);
+            $stmtPerm->execute();
+            $rp = $stmtPerm->get_result()->fetch_assoc();
+            $permite = !$rp || (int) ($rp['p'] ?? 1) === 1;
+            try {
+                $q = inv_normalizar_cantidad_movimiento_manual($q, $permite);
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
+            }
             if (!isset($porInsumo[$id])) {
                 $porInsumo[$id] = 0;
             }
             $porInsumo[$id] += $q;
+        }
+        if ($stmtPerm) {
+            $stmtPerm->close();
         }
         $alertas = [];
         foreach ($porInsumo as $insumo_id => $cant_total) {
@@ -354,12 +385,38 @@ try {
             $chkFac->close();
         }
 
+        $stmtPermTot = $conn->prepare(
+            'SELECT COALESCE(um.permite_movimiento_decimal, 1) AS p FROM insumos i LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id WHERE i.id = ? LIMIT 1'
+        );
+        if (!$stmtPermTot) {
+            throw new Exception('Error al preparar validación de unidades');
+        }
+
         $total = 0;
-        foreach ($insumos as $insumo) {
-            $cantidad = floatval($insumo['cantidad'] ?? 0);
-            $costo_unitario = floatval($insumo['costo_unitario'] ?? 0);
+        foreach ($insumos as &$insumo) {
+            $insumo_id = (int) ($insumo['insumo_id'] ?? 0);
+            $cantidad = (float) ($insumo['cantidad'] ?? 0);
+            $costo_unitario = (float) ($insumo['costo_unitario'] ?? 0);
+
+            if ($insumo_id <= 0 || $costo_unitario <= 0) {
+                throw new Exception('Datos inválidos en el detalle de la compra');
+            }
+
+            $stmtPermTot->bind_param('i', $insumo_id);
+            $stmtPermTot->execute();
+            $rp = $stmtPermTot->get_result()->fetch_assoc();
+            $permite = !$rp || (int) ($rp['p'] ?? 1) === 1;
+            try {
+                $cantidad = inv_normalizar_cantidad_movimiento_manual($cantidad, $permite);
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage());
+            }
+
+            $insumo['cantidad'] = $cantidad;
             $total += $cantidad * $costo_unitario;
         }
+        unset($insumo);
+        $stmtPermTot->close();
 
         $tasa_cambiaria_id = null;
         $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
@@ -481,7 +538,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar compras</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

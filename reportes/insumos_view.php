@@ -27,7 +27,7 @@ if ($insumo_id > 0) {
 
 if (!empty($unidad)) {
   $unidad = $conn->real_escape_string($unidad);
-  $where[] = "i.unidad_medida = '$unidad'";
+  $where[] = "um.codigo = '$unidad'";
 }
 
 if (!empty($estado)) {
@@ -38,8 +38,9 @@ if (!empty($estado)) {
 $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";
 
 $sql = "
-  SELECT i.id, i.nombre, i.unidad_medida, i.costo_unitario
+  SELECT i.id, i.nombre, COALESCE(um.nombre, um.codigo) AS unidad_medida, i.costo_unitario
   FROM insumos i
+  LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
   $condiciones
   ORDER BY i.nombre ASC
 ";

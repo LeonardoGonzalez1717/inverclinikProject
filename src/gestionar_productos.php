@@ -51,6 +51,7 @@ if ($resCat) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-productos"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -130,10 +131,14 @@ function mostrarVista(vista) {
     }
 }
 
-function cargarListado() {
-    $.post('gestionar_productos_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_productos_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-productos',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -182,7 +187,8 @@ function editarProducto(data) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-productos', cargarListado);
 });
 
 // Preview de imagen

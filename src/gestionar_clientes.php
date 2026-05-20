@@ -49,6 +49,7 @@ require_once "../connection/connection.php";
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-clientes"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -142,10 +143,14 @@ $('#btn-volver-listado').on('click', function() {
     });
 });
 
-function cargarListado() {
-    $.post('gestionar_clientes_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_clientes_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-clientes',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -247,7 +252,8 @@ function eliminarCliente(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-clientes', cargarListado);
 });
 
 $('#nro_doc, #nro_tel').on('keypress', function(e) {

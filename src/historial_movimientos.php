@@ -40,23 +40,27 @@ require_once "../template/navbar.php";
                             </tbody>
                         </table>
                     </div>
+                    <div id="paginacion-historial"></div>
                 </div>
             </div>
         </div>
     </div>
 
 <script>
-$(function() {
-    cargarHistorial();
-});
-
-function cargarHistorial() {
-    $.post('historial_movimientos_data.php', { action: 'listar_html' }, function(html) {
-        $('#tbody-historial').html(html);
-    }).fail(function() {
-        $('#tbody-historial').html('<tr><td colspan="9" class="text-center text-danger">Error al cargar el historial.</td></tr>');
-    });
+function cargarHistorial(page) {
+    crudPostListadoPaginado(
+        'historial_movimientos_data.php',
+        { action: 'listar_html' },
+        '#tbody-historial',
+        '#paginacion-historial',
+        page || 1
+    );
 }
+
+$(function() {
+    cargarHistorial(1);
+    bindCrudPagination('#paginacion-historial', cargarHistorial);
+});
 </script>
 </body>
 </html>

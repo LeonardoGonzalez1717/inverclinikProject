@@ -1,5 +1,6 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Pagination.php';
 
 function html_origen_movimiento_detalle($codigo)
 {
@@ -19,14 +20,14 @@ function html_origen_movimiento_detalle($codigo)
 $action = $_POST['action'] ?? '';
 
 if ($action !== 'listar_html') {
-    header('Content-Type: application/json');
+    header('Content-Type: application/json; charset=utf-8');
     echo json_encode(['success' => false, 'message' => 'Acción no válida']);
     exit;
 }
 
 $tieneRecetaId = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
 if ($tieneRecetaId) {
-    $sql = "
+    $sqlBody = "
         SELECT 
             inv.id,
             inv.tipo_item,
@@ -48,10 +49,9 @@ if ($tieneRecetaId) {
         LEFT JOIN productos p ON rec.producto_id = p.id
         LEFT JOIN rangos_tallas rt ON rec.rango_tallas_id = rt.id
         LEFT JOIN tipos_produccion tp ON rec.tipo_produccion_id = tp.id
-        ORDER BY inv.fecha_movimiento DESC, inv.id DESC
     ";
 } else {
-    $sql = "
+    $sqlBody = "
         SELECT 
             inv.id,
             inv.tipo_item,
@@ -74,9 +74,15 @@ if ($tieneRecetaId) {
         LEFT JOIN productos p ON inv.tipo_item = 'producto' AND inv.producto_id = p.id
         LEFT JOIN rangos_tallas rt ON inv.tipo_item = 'producto' AND inv.rango_tallas_id = rt.id
         LEFT JOIN tipos_produccion tp ON inv.tipo_item = 'producto' AND inv.tipo_produccion_id = tp.id
-        ORDER BY inv.fecha_movimiento DESC, inv.id DESC
     ";
 }
+
+$total = Pagination::countFromSubquery($conn, $sqlBody);
+$pg = Pagination::fromInput($total, $_POST);
+
+$sql = $sqlBody . '
+    ORDER BY inv.fecha_movimiento DESC, inv.id DESC
+' . $pg->limitClause();
 
 $result = $conn->query($sql);
 $filas = [];
@@ -86,7 +92,8 @@ if ($result) {
     }
 }
 
-$i = 0;
+ob_start();
+$i = $pg->rowNumberStart() - 1;
 if (!empty($filas)) {
     foreach ($filas as $r) {
         $i++;
@@ -109,7 +116,6 @@ if (!empty($filas)) {
         if (strlen($r['observaciones'] ?? '') > 80) {
             $observaciones .= '…';
         }
-        // $ordenProd = $r['orden_produccion_id'] ? (int)$r['orden_produccion_id'] : '—';
 
         echo '<tr>';
         echo '<td>' . $i . '</td>';
@@ -118,13 +124,14 @@ if (!empty($filas)) {
         echo '<td>' . $itemNombre . '</td>';
         echo '<td><span class="' . $badgeClass . '">' . $movimiento . '</span></td>';
         echo '<td>' . $origenHtml . '</td>';
-        echo '<td>' . number_format((float)$r['cantidad'], 2, '.', ',') . '</td>';
+        echo '<td>' . number_format((float) $r['cantidad'], 2, '.', ',') . '</td>';
         echo '<td>' . $observaciones . '</td>';
-        // echo '<td>' . $ordenProd . '</td>';
         echo '</tr>';
     }
 } else {
-    echo '<tr><td colspan="9" class="text-center">No hay movimientos registrados.</td></tr>';
+    echo '<tr><td colspan="8" class="text-center">No hay movimientos registrados.</td></tr>';
 }
 
+$rowsHtml = ob_get_clean();
+Pagination::sendJsonList($rowsHtml, $pg);
 $conn->close();

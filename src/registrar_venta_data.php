@@ -1,6 +1,8 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
 {
@@ -313,6 +315,31 @@ function etiqueta_estado_venta(?string $estado): array
 }
 
 /**
+ * @param array<int,array<string,mixed>> $productos
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function venta_normalizar_cantidades_productos_terminados(array $productos): array
+{
+    foreach ($productos as &$producto) {
+        $pid = (int) ($producto['producto_id'] ?? 0);
+        if ($pid <= 0) {
+            continue;
+        }
+        try {
+            $producto['cantidad'] = inv_normalizar_cantidad_producto_terminado((float) ($producto['cantidad'] ?? 0));
+        } catch (InvalidArgumentException $e) {
+            throw new Exception(
+                'Las cantidades de productos terminados deben ser números enteros (sin decimales), mínimo 1 unidad por línea.'
+            );
+        }
+    }
+    unset($producto);
+
+    return $productos;
+}
+
+/**
  * Analiza stock con saldo virtual por línea. Devuelve detalle para UI y órdenes de producción.
  *
  * @param array<int,array<string,mixed>> $productos
@@ -460,7 +487,7 @@ function crear_ordenes_produccion_por_faltantes_venta(mysqli $conn, array $falta
         $pid = (int) ($f['producto_id'] ?? 0);
         $rt = (int) ($f['rango_tallas_id'] ?? 0);
         $tp = (int) ($f['tipo_produccion_id'] ?? 0);
-        $cantFalta = (float) ($f['cantidad_falta'] ?? 0);
+        $cantFalta = inv_normalizar_cantidad_consumo_automatico((float) ($f['cantidad_falta'] ?? 0), false);
         if ($pid <= 0 || $cantFalta <= 0) {
             continue;
         }
@@ -743,7 +770,7 @@ try {
     }
     
     if ($action === 'listar_html') {
-        $sql = "
+        $sqlBase = "
             SELECT 
                 v.id,
                 v.fecha,
@@ -767,9 +794,15 @@ try {
                 AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar')
                 AND v.tasa_cambiaria_id IS NULL
             )
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion
-            ORDER BY v.creado_en DESC, v.fecha DESC
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, v.creado_en
         ";
+
+        $total = Pagination::countFromSubquery($conn, $sqlBase);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . '
+            ORDER BY v.creado_en DESC, v.fecha DESC
+        ' . $pg->limitClause();
 
         $result = $conn->query($sql);
         $ventas = [];
@@ -778,7 +811,8 @@ try {
                 $ventas[] = $row;
             }
         }
-        $i = 0;
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($ventas)) {
             foreach ($ventas as $v) {
                 $i++;
@@ -808,6 +842,8 @@ try {
         } else {
             echo '<tr><td colspan="10" class="text-center">No se encontraron ventas registradas</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -960,6 +996,8 @@ try {
             }
             $idsLinea[$pid] = true;
         }
+
+        $productos = venta_normalizar_cantidades_productos_terminados($productos);
 
         if ($cotizacion_id) {
             $stc = $conn->prepare(
@@ -1251,7 +1289,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar ventas</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

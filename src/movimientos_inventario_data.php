@@ -1,6 +1,8 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 // Inventario usa tipo_item + tipo_item_id (id de insumo o de receta). Ver sql/migracion_inventario_radical.sql
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
@@ -113,15 +115,17 @@ $action = $_POST['action'] ?? '';
 try {
     if ($action === 'listar_html') {
         $tipoInventario = $_POST['tipo_inventario'] ?? 'materia_prima';
-        
+
         if ($tipoInventario === 'materia_prima') {
             if ($tieneInventarioNuevo) {
-                // inventario: tipo_item + tipo_item_id (tipo_item_id = id del insumo)
-                $sql = "
+                $countSql = "SELECT COUNT(*) AS c FROM inventario inv
+                    INNER JOIN insumos i ON i.id = inv.tipo_item_id AND inv.tipo_item = 'insumo'
+                    WHERE i.activo = 1";
+                $sqlBody = "
                     SELECT 
                         inv.tipo_item_id AS insumo_id,
                         i.nombre AS insumo_nombre,
-                        i.unidad_medida,
+                        COALESCE(um.codigo, '') AS unidad_medida,
                         a.nombre AS almacen_nombre,
                         inv.stock_actual,
                         i.stock_minimo,
@@ -129,16 +133,19 @@ try {
                         DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion
                     FROM inventario inv
                     INNER JOIN insumos i ON i.id = inv.tipo_item_id AND inv.tipo_item = 'insumo'
+                    LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
                     LEFT JOIN almacenes a ON i.almacen_id = a.id
-                    WHERE i.activo = 1
-                    ORDER BY i.nombre ASC
-                ";
+                    WHERE i.activo = 1";
+                $orderBy = ' ORDER BY i.nombre ASC';
             } else {
-                $sql = "
+                $countSql = "SELECT COUNT(*) AS c FROM inventario inv
+                    INNER JOIN insumos i ON inv.insumo_id = i.id
+                    WHERE i.activo = 1";
+                $sqlBody = "
                     SELECT 
                         inv.insumo_id,
                         i.nombre AS insumo_nombre,
-                        i.unidad_medida,
+                        COALESCE(um.codigo, '') AS unidad_medida,
                         NULL AS almacen_nombre,
                         inv.stock_actual,
                         i.stock_minimo,
@@ -146,10 +153,14 @@ try {
                         DATE_FORMAT(inv.ultima_actualizacion, '%d/%m/%Y %H:%i') AS fecha_actualizacion
                     FROM inventario inv
                     INNER JOIN insumos i ON inv.insumo_id = i.id
-                    WHERE i.activo = 1
-                    ORDER BY i.nombre ASC
-                ";
+                    LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
+                    WHERE i.activo = 1";
+                $orderBy = ' ORDER BY i.nombre ASC';
             }
+
+            $total = (int) ($conn->query($countSql)->fetch_assoc()['c'] ?? 0);
+            $pg = Pagination::fromInput($total, $_POST);
+            $sql = $sqlBody . $orderBy . $pg->limitClause();
 
             $result = $conn->query($sql);
             $inventario = [];
@@ -159,18 +170,19 @@ try {
                 }
             }
 
+            ob_start();
+            $i = $pg->rowNumberStart() - 1;
             if (!empty($inventario)) {
-                $i = 0;
                 foreach ($inventario as $inv) {
                     $i++;
                     echo '<tr>';
-                    echo '<td>' . htmlspecialchars($i) . '</td>';
+                    echo '<td>' . htmlspecialchars((string) $i) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['insumo_nombre'] . ' (' . $inv['unidad_medida'] . ')') . '</td>';
                     echo '<td>' . htmlspecialchars($inv['almacen_nombre'] ?? '—') . '</td>';
                     echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
-                    $min = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null ? number_format((float)$inv['stock_minimo'], 2, '.', ',') : '—';
-                    $max = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null ? number_format((float)$inv['stock_maximo'], 2, '.', ',') : '—';
+                    $min = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null ? number_format((float) $inv['stock_minimo'], 2, '.', ',') : '—';
+                    $max = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null ? number_format((float) $inv['stock_maximo'], 2, '.', ',') : '—';
                     echo '<td>' . $min . '</td>';
                     echo '<td>' . $max . '</td>';
                     echo '</tr>';
@@ -180,7 +192,15 @@ try {
             }
         } else {
             if ($tieneInventarioNuevo) {
-                $sql = "
+                $countSql = "
+                    SELECT COUNT(*) AS c
+                    FROM recetas r
+                    INNER JOIN productos p ON r.producto_id = p.id
+                    INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
+                    INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+                    LEFT JOIN almacenes a ON r.almacen_id = a.id
+                    LEFT JOIN inventario inv ON inv.tipo_item = 'producto' AND inv.tipo_item_id = r.id";
+                $sqlBody = "
                     SELECT 
                         r.id AS receta_id,
                         r.producto_id,
@@ -204,11 +224,18 @@ try {
                     INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
                     INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
                     LEFT JOIN almacenes a ON r.almacen_id = a.id
-                    LEFT JOIN inventario inv ON inv.tipo_item = 'producto' AND inv.tipo_item_id = r.id
-                    ORDER BY p.nombre, rt.nombre_rango
-                ";
+                    LEFT JOIN inventario inv ON inv.tipo_item = 'producto' AND inv.tipo_item_id = r.id";
+                $orderBy = ' ORDER BY p.nombre, rt.nombre_rango';
             } else {
-                $sql = "
+                $countSql = "
+                    SELECT COUNT(*) AS c
+                    FROM recetas r
+                    INNER JOIN productos p ON r.producto_id = p.id
+                    INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
+                    INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+                    LEFT JOIN almacenes a ON r.almacen_id = a.id
+                    LEFT JOIN inventario_productos inv ON r.producto_id = inv.producto_id AND r.rango_tallas_id = inv.rango_tallas_id AND r.tipo_produccion_id = inv.tipo_produccion_id";
+                $sqlBody = "
                     SELECT 
                         r.id AS receta_id,
                         r.producto_id,
@@ -228,10 +255,13 @@ try {
                     INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
                     INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
                     LEFT JOIN almacenes a ON r.almacen_id = a.id
-                    LEFT JOIN inventario_productos inv ON r.producto_id = inv.producto_id AND r.rango_tallas_id = inv.rango_tallas_id AND r.tipo_produccion_id = inv.tipo_produccion_id
-                    ORDER BY p.nombre, rt.nombre_rango
-                ";
+                    LEFT JOIN inventario_productos inv ON r.producto_id = inv.producto_id AND r.rango_tallas_id = inv.rango_tallas_id AND r.tipo_produccion_id = inv.tipo_produccion_id";
+                $orderBy = ' ORDER BY p.nombre, rt.nombre_rango';
             }
+
+            $total = (int) ($conn->query($countSql)->fetch_assoc()['c'] ?? 0);
+            $pg = Pagination::fromInput($total, $_POST);
+            $sql = $sqlBody . $orderBy . $pg->limitClause();
 
             $result = $conn->query($sql);
             $inventario = [];
@@ -241,19 +271,20 @@ try {
                 }
             }
 
+            ob_start();
+            $i = $pg->rowNumberStart() - 1;
             if (!empty($inventario)) {
-                $i = 0;
                 foreach ($inventario as $inv) {
                     $i++;
                     echo '<tr>';
-                    echo '<td>' . htmlspecialchars($i) . '</td>';
+                    echo '<td>' . htmlspecialchars((string) $i) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['producto_nombre']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['rango_tallas_nombre']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['tipo_produccion_nombre']) . '</td>';
                     echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
-                    $minReceta = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null && $inv['stock_minimo'] !== '' ? number_format((float)$inv['stock_minimo'], 2, '.', ',') : '—';
-                    $maxReceta = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null && $inv['stock_maximo'] !== '' ? number_format((float)$inv['stock_maximo'], 2, '.', ',') : '—';
+                    $minReceta = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null && $inv['stock_minimo'] !== '' ? number_format((float) $inv['stock_minimo'], 2, '.', ',') : '—';
+                    $maxReceta = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null && $inv['stock_maximo'] !== '' ? number_format((float) $inv['stock_maximo'], 2, '.', ',') : '—';
                     echo '<td>' . htmlspecialchars($minReceta) . '</td>';
                     echo '<td>' . htmlspecialchars($maxReceta) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['almacen_nombre'] ?? '—') . '</td>';
@@ -263,6 +294,9 @@ try {
                 echo '<tr><td colspan="9" class="text-center">No hay registros en el inventario de productos</td></tr>';
             }
         }
+
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -287,7 +321,24 @@ try {
             $stock_actual = floatval($row['stock_actual']);
         }
         $stmt->close();
-        echo json_encode(['success' => true, 'stock_actual' => $stock_actual]);
+
+        $permite = true;
+        $stUm = $conn->prepare(
+            'SELECT COALESCE(um.permite_movimiento_decimal, 1) AS p FROM insumos i LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id WHERE i.id = ? LIMIT 1'
+        );
+        if ($stUm) {
+            $stUm->bind_param('i', $insumo_id);
+            $stUm->execute();
+            $ru = $stUm->get_result()->fetch_assoc();
+            $stUm->close();
+            $permite = !$ru || (int) ($ru['p'] ?? 1) === 1;
+        }
+
+        echo json_encode([
+            'success' => true,
+            'stock_actual' => $stock_actual,
+            'permite_movimiento_decimal' => $permite ? 1 : 0,
+        ]);
         $conn->close();
         exit;
     }
@@ -336,6 +387,34 @@ try {
         $receta_id = isset($_POST['receta_id']) ? (int) $_POST['receta_id'] : 0;
         $tipo = $_POST['tipo'] ?? '';
         $cantidad = floatval($_POST['cantidad'] ?? 0);
+
+        if ($tipo_inventario === 'materia_prima' && $insumo_id > 0 && $cantidad > 0) {
+            $stUm = $conn->prepare(
+                'SELECT COALESCE(um.permite_movimiento_decimal, 1) AS p FROM insumos i LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id WHERE i.id = ? LIMIT 1'
+            );
+            if ($stUm) {
+                $stUm->bind_param('i', $insumo_id);
+                $stUm->execute();
+                $ru = $stUm->get_result()->fetch_assoc();
+                $stUm->close();
+                $permite = !$ru || (int) ($ru['p'] ?? 1) === 1;
+                try {
+                    $cantidad = inv_normalizar_cantidad_movimiento_manual($cantidad, $permite);
+                } catch (InvalidArgumentException $e) {
+                    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                    $conn->close();
+                    exit;
+                }
+            }
+        } elseif ($tipo_inventario === 'productos' && $receta_id > 0 && $cantidad > 0) {
+            try {
+                $cantidad = inv_normalizar_cantidad_producto_terminado($cantidad);
+            } catch (InvalidArgumentException $e) {
+                echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+                $conn->close();
+                exit;
+            }
+        }
 
         $supera_maximo = false;
         if ($tipo === 'entrada' && $cantidad > 0) {
@@ -440,6 +519,8 @@ try {
                 throw new Exception("La cantidad debe ser mayor a 0");
             }
 
+            $cantidad = floatval($cantidad);
+
             $conn->begin_transaction();
 
             try {
@@ -452,6 +533,20 @@ try {
                         throw new Exception("El insumo seleccionado no existe o está inactivo");
                     }
                     $checkInsumo->close();
+
+                    $stUm = $conn->prepare(
+                        'SELECT COALESCE(um.permite_movimiento_decimal, 1) AS p FROM insumos i LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id WHERE i.id = ? LIMIT 1'
+                    );
+                    $stUm->bind_param('i', $insumo_id);
+                    $stUm->execute();
+                    $ru = $stUm->get_result()->fetch_assoc();
+                    $stUm->close();
+                    $permite = !$ru || (int) ($ru['p'] ?? 1) === 1;
+                    try {
+                        $cantidad = inv_normalizar_cantidad_movimiento_manual($cantidad, $permite);
+                    } catch (InvalidArgumentException $e) {
+                        throw new Exception($e->getMessage());
+                    }
 
                     if ($tieneInventarioNuevo) {
                         $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?");
@@ -511,6 +606,12 @@ try {
                     $producto_id = $rowReceta['producto_id'];
                     $rango_tallas_id = $rowReceta['rango_tallas_id'];
                     $tipo_produccion_id = $rowReceta['tipo_produccion_id'];
+
+                    try {
+                        $cantidad = inv_normalizar_cantidad_producto_terminado($cantidad);
+                    } catch (InvalidArgumentException $e) {
+                        throw new Exception($e->getMessage());
+                    }
 
                     if ($tieneInventarioNuevo) {
                         $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?");
@@ -597,7 +698,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="6" class="text-center text-danger">Error al cargar movimientos: ' . htmlspecialchars($e->getMessage()) . '</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

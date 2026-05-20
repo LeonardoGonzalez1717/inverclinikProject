@@ -81,6 +81,7 @@ if ($resultTipos) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-recetas-registrar"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -345,7 +346,7 @@ $("#form-crear").on("submit", function(e) {
             if (resp && resp.success) {
                 Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
@@ -367,10 +368,14 @@ function mostrarVista(vista) {
     }
 }
 
-function cargarListado() {
-    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'nuevo_producto_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-recetas-registrar',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -400,7 +405,8 @@ function editarReceta(data) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-recetas-registrar', cargarListado);
 });
 </script>
 

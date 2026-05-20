@@ -34,6 +34,15 @@ if (empty($almacenes)) {
         }
     }
 }
+
+$sqlUnidades = "SELECT id, codigo, nombre FROM unidad_medida ORDER BY nombre ASC";
+$resultUnidades = $conn->query($sqlUnidades);
+$unidades_medida = [];
+if ($resultUnidades) {
+    while ($row = $resultUnidades->fetch_assoc()) {
+        $unidades_medida[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -85,6 +94,7 @@ if (empty($almacenes)) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-insumos"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -101,16 +111,11 @@ if (empty($almacenes)) {
                                 </div>
                                 <div class="col-sm-3">
                                     <label class="form-label">Unidad de Medida <span style="color: red;">*</span></label>
-                                    <select name="unidad_medida" id="unidad_medida" class="form-control" required>
+                                    <select name="unidad_medida_id" id="unidad_medida_id" class="form-control" required>
                                         <option value="">-- Seleccione una unidad --</option>
-                                        <option value="metro">Metro</option>
-                                        <option value="unidad">Unidad</option>
-                                        <option value="kilogramo">Kilogramo</option>
-                                        <option value="litro">Litro</option>
-                                        <option value="metro_cuadrado">Metro Cuadrado</option>
-                                        <option value="carrete">Carrete</option>
-                                        <option value="rollo">Rollo</option>
-                                        <option value="pieza">Pieza</option>
+                                        <?php foreach ($unidades_medida as $um): ?>
+                                            <option value="<?php echo (int) $um['id']; ?>"><?php echo htmlspecialchars($um['nombre'], ENT_QUOTES, 'UTF-8'); ?></option>
+                                        <?php endforeach; ?>
                                     </select>
                                 </div>
                                 <div class="col-sm-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
@@ -229,17 +234,21 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
-function cargarListado() {
-    $.post('gestionar_insumos_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_insumos_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-insumos',
+        page || 1
+    );
     limpiarFormulario();
 }
 
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     $('#nombre').val('');
-    $('#unidad_medida').val('');
+    $('#unidad_medida_id').val('');
     $('#costo_unitario').val('');
     $('#stock_minimo').val('');
     $('#stock_maximo').val('');
@@ -252,7 +261,7 @@ function limpiarFormulario() {
 
 function editarInsumo(data) {
     $('#nombre').val(data.nombre || '');
-    $('#unidad_medida').val(data.unidad_medida || '');
+    $('#unidad_medida_id').val(data.unidad_medida_id ? String(data.unidad_medida_id) : '');
     $('#costo_unitario').val(data.costo_unitario || '');
     $('#stock_minimo').val(data.stock_minimo !== undefined && data.stock_minimo !== '' ? data.stock_minimo : '');
     $('#stock_maximo').val(data.stock_maximo !== undefined && data.stock_maximo !== '' ? data.stock_maximo : '');
@@ -271,7 +280,8 @@ $('#costo_unitario').on('input change', function() {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-insumos', cargarListado);
 });
 
 $("#form-crear").on("submit", function(e) {
@@ -283,7 +293,7 @@ $("#form-crear").on("submit", function(e) {
         action: idInsumo ? "editar" : "crear",
         id: idInsumo || null,
         nombre: $("#nombre").val(),
-        unidad_medida: $("#unidad_medida").val(),
+        unidad_medida_id: $("#unidad_medida_id").val(),
         costo_unitario: $("#costo_unitario").val(),
         stock_minimo: $("#stock_minimo").val() || null,
         stock_maximo: $("#stock_maximo").val() || null,
@@ -297,7 +307,7 @@ $("#form-crear").on("submit", function(e) {
         return;
     }
 
-    if (!datos.unidad_medida || datos.unidad_medida.trim() === '') {
+    if (!datos.unidad_medida_id || datos.unidad_medida_id.trim() === '') {
         Swal.fire({ icon: 'warning', text: 'La unidad de medida es obligatoria' });
         return;
     }

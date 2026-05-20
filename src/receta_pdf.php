@@ -50,10 +50,11 @@ $tid = (int) $receta['tipo_produccion_id'];
 $stmt2 = $conn->prepare("
     SELECT 
         i.nombre AS insumo_nombre,
-        i.unidad_medida,
+        COALESCE(um.codigo, '') AS unidad_medida,
         rp.cantidad_por_unidad
     FROM recetas_productos rp
     INNER JOIN insumos i ON i.id = rp.insumo_id
+    LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
     WHERE rp.producto_id = ? AND rp.rango_tallas_id = ? AND rp.tipo_produccion_id = ?
     ORDER BY i.nombre
 ");

@@ -1,10 +1,14 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM clientes')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "
             SELECT 
                 id,
@@ -16,7 +20,7 @@ try {
                 direccion
             FROM clientes
             ORDER BY nombre ASC
-        ";
+        " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $clientes = [];
@@ -25,7 +29,8 @@ try {
                 $clientes[] = $row;
             }
         }
-        $i = 0; 
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($clientes)) {
             foreach ($clientes as $c) {
                 $i++;
@@ -48,6 +53,8 @@ try {
         } else {
             echo '<tr><td colspan="8" class="text-center">No se encontraron clientes registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -196,7 +203,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="8" class="text-center text-danger">Error al cargar clientes</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

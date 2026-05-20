@@ -23,6 +23,13 @@ if ($r) {
         $lista_insumos[] = $p;
     }
 }
+$unidades_medida = [];
+$r = $conn->query('SELECT codigo, nombre FROM unidad_medida ORDER BY nombre ASC');
+if ($r) {
+    while ($p = $r->fetch_assoc()) {
+        $unidades_medida[] = $p;
+    }
+}
 ?>
 
 <div class="main-content">
@@ -46,14 +53,11 @@ if ($r) {
                         <label class="form-label">Unidad de Medida</label>
                         <select name="unidad_medida" id="unidad_medida" class="form-control">
                             <option value="">-- Seleccione una unidad --</option>
-                            <option value="metro">Metro</option>
-                            <option value="unidad">Unidad</option>
-                            <option value="kilogramo">Kilogramo</option>
-                            <option value="litro">Litro</option>
-                            <option value="metro_cuadrado">Metro Cuadrado</option>
-                            <option value="carrete">Carrete</option>
-                            <option value="rollo">Rollo</option>
-                            <option value="pieza">Pieza</option>
+                            <?php foreach ($unidades_medida as $um): ?>
+                                <option value="<?php echo htmlspecialchars($um['codigo'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <?php echo htmlspecialchars($um['nombre'], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
