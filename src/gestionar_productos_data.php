@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
@@ -15,6 +16,9 @@ try {
             $conn->query("ALTER TABLE productos ADD COLUMN imagen VARCHAR(255) NULL AFTER descripcion");
         }
         
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM productos')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "
             SELECT 
                 id,
@@ -26,7 +30,7 @@ try {
                 fecha_creacion
             FROM productos
             ORDER BY fecha_creacion DESC, nombre ASC
-        ";
+        " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $productos = [];
@@ -35,7 +39,8 @@ try {
                 $productos[] = $row;
             }
         }
-        $i = 0;
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($productos)) {
             foreach ($productos as $p) {
                 $i++;
@@ -54,6 +59,8 @@ try {
         } else {
             echo '<tr><td colspan="7" class="text-center">No se encontraron productos registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -244,7 +251,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="7" class="text-center text-danger">Error al cargar productos</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

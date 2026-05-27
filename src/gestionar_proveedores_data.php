@@ -1,10 +1,14 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM proveedores')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "
             SELECT 
                 id,
@@ -15,7 +19,7 @@ try {
                 cedrif
             FROM proveedores
             ORDER BY nombre ASC
-        ";
+        " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $proveedores = [];
@@ -24,7 +28,8 @@ try {
                 $proveedores[] = $row;
             }
         }
-        $i = 0; 
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($proveedores)) {
             foreach ($proveedores as $p) {
                 $i++;
@@ -43,6 +48,8 @@ try {
         } else {
             echo '<tr><td colspan="6" class="text-center">No se encontraron proveedores registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -63,15 +70,22 @@ try {
                 throw new Exception("El nombre del proveedor es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM proveedores WHERE cedrif = ?";
+            if ($documento === '') {
+                throw new Exception("El documento (RIF/Cédula) del proveedor es obligatorio");
+            }
+
+            $documentoNorm = strtoupper(preg_replace('/\s+/', '', $documento));
+
+            $checkSql = "SELECT id FROM proveedores WHERE UPPER(REPLACE(TRIM(cedrif), ' ', '')) = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("s", $documento);
+            $checkStmt->bind_param("s", $documentoNorm);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe un proveedor con el Documento: " . $documento);
+                throw new Exception("Ya existe un proveedor con el mismo documento (RIF/Cédula).");
             }
+            $checkStmt->close();
 
             $stmt = $conn->prepare("
                 INSERT INTO proveedores (nombre, cedrif, telefono, email, direccion)
@@ -101,15 +115,22 @@ try {
                 throw new Exception("El nombre del proveedor es obligatorio");
             }
 
-            $checkSql = "SELECT id FROM proveedores WHERE nombre = ? AND id != ?";
+            if ($documento === '') {
+                throw new Exception("El documento (RIF/Cédula) del proveedor es obligatorio");
+            }
+
+            $documentoNorm = strtoupper(preg_replace('/\s+/', '', $documento));
+
+            $checkSql = "SELECT id FROM proveedores WHERE id != ? AND UPPER(REPLACE(TRIM(cedrif), ' ', '')) = ?";
             $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("si", $nombre, $id);
+            $checkStmt->bind_param("is", $id, $documentoNorm);
             $checkStmt->execute();
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe otro proveedor con el nombre: " . $nombre);
+                throw new Exception("Ya existe otro proveedor con el mismo documento (RIF/Cédula).");
             }
+            $checkStmt->close();
 
             $stmt = $conn->prepare("
                 UPDATE proveedores 
@@ -153,7 +174,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="6" class="text-center text-danger">Error al cargar proveedores</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

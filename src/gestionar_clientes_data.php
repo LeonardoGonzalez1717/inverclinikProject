@@ -1,10 +1,14 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM clientes')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "
             SELECT 
                 id,
@@ -16,7 +20,7 @@ try {
                 direccion
             FROM clientes
             ORDER BY nombre ASC
-        ";
+        " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $clientes = [];
@@ -25,13 +29,18 @@ try {
                 $clientes[] = $row;
             }
         }
-        $i = 0; 
+        ob_start();
+        $i = $pg->rowNumberStart() - 1;
         if (!empty($clientes)) {
             foreach ($clientes as $c) {
                 $i++;
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
-                echo '<td>' . htmlspecialchars($c['numero_documento'] ?? '-') . '</td>';
+                $docMostrar = trim((string) ($c['tipo_documento'] ?? '')) . trim((string) ($c['numero_documento'] ?? ''));
+                if ($docMostrar === '' && !empty($c['numero_documento'])) {
+                    $docMostrar = (string) $c['numero_documento'];
+                }
+                echo '<td>' . htmlspecialchars($docMostrar !== '' ? $docMostrar : '-') . '</td>';
                 echo '<td>' . htmlspecialchars($c['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($c['telefono'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($c['email'] ?? '-') . '</td>';
@@ -44,6 +53,8 @@ try {
         } else {
             echo '<tr><td colspan="8" class="text-center">No se encontraron clientes registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -64,26 +75,40 @@ try {
             if (empty($nombre) || empty($num_doc)) {
                 throw new Exception("El nombre y el documento son obligatorios");
             }
-
-            $checkSql = "SELECT id FROM clientes WHERE numero_documento = ?";
-            $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("s", $num_doc);
-            $checkStmt->execute();
-            if ($checkStmt->get_result()->num_rows > 0) {
-                throw new Exception("Ya existe un cliente con el documento: " . $num_doc);
+            if ($tipo_doc === '') {
+                throw new Exception("Debe indicar el tipo de documento (V, J o E)");
             }
 
-            // Usamos el documento como clave inicial 27123456
+            $docNormalizado = strtoupper(preg_replace('/\s+/', '', $tipo_doc . $num_doc));
+
+            $checkSql = "SELECT id FROM clientes WHERE UPPER(REPLACE(CONCAT(TRIM(IFNULL(tipo_documento,'')), TRIM(IFNULL(numero_documento,''))), ' ', '')) = ? LIMIT 1";
+            $checkStmt = $conn->prepare($checkSql);
+            $checkStmt->bind_param("s", $docNormalizado);
+            $checkStmt->execute();
+            if ($checkStmt->get_result()->num_rows > 0) {
+                throw new Exception("Ya existe un cliente con el mismo documento de identidad.");
+            }
+            $checkStmt->close();
+
+            if ($email !== '') {
+                $checkEmail = $conn->prepare("SELECT id FROM clientes WHERE LOWER(TRIM(email)) = LOWER(?) LIMIT 1");
+                $checkEmail->bind_param("s", $email);
+                $checkEmail->execute();
+                if ($checkEmail->get_result()->num_rows > 0) {
+                    throw new Exception("Ya existe un cliente con el correo: " . $email);
+                }
+                $checkEmail->close();
+            }
+
+            // Usamos el documento como clave inicial
             $password_hash = password_hash($num_doc, PASSWORD_DEFAULT);
 
-            $doc= $tipo_doc . $num_doc;
-
             $stmt = $conn->prepare("
-                INSERT INTO clientes (nombre, numero_documento, telefono, email, direccion, password)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO clientes (nombre, tipo_documento, numero_documento, telefono, email, direccion, password)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $stmt->bind_param("ssssss", $nombre, $doc, $telefono, $email, $direccion, $password_hash);
+            $stmt->bind_param("sssssss", $nombre, $tipo_doc, $num_doc, $telefono, $email, $direccion, $password_hash);
             
             if ($stmt->execute()) {
                 echo json_encode(['success' => true, 'message' => 'Cliente registrado.']);
@@ -93,8 +118,10 @@ try {
             break;
         
         case 'editar':
-            $id = $_POST['id'] ?? null;
-            if (!$id) throw new Exception("ID de cliente requerido");
+            $id = (int) ($_POST['id'] ?? 0);
+            if ($id <= 0) {
+                throw new Exception("ID de cliente requerido");
+            }
 
             $nombre = trim($_POST['nombre'] ?? '');
             $tipo_documento = trim($_POST['tipo_documento'] ?? '');
@@ -106,20 +133,37 @@ try {
             if (empty($nombre)) {
                 throw new Exception("El nombre del cliente es obligatorio");
             }
+            if ($tipo_documento === '' || $numero_documento === '') {
+                throw new Exception("El tipo y el número de documento son obligatorios");
+            }
 
-            $checkSql = "SELECT id FROM clientes WHERE numero_documento = ? AND id != ?";
-            $checkStmt = $conn->prepare($checkSql);
-            $checkStmt->bind_param("si", $numero_documento, $id);
-            $checkStmt->execute();
-            $result = $checkStmt->get_result();
-            
-            if ($result->num_rows > 0) {
-                throw new Exception("Ya existe otro cliente con el mismo documento: " . $nombre);
+            $docNormalizado = strtoupper(preg_replace('/\s+/', '', $tipo_documento . $numero_documento));
+
+            if ($docNormalizado !== '') {
+                $checkSql = "SELECT id FROM clientes WHERE id != ? AND UPPER(REPLACE(CONCAT(TRIM(IFNULL(tipo_documento,'')), TRIM(IFNULL(numero_documento,''))), ' ', '')) = ? LIMIT 1";
+                $checkStmt = $conn->prepare($checkSql);
+                $checkStmt->bind_param("is", $id, $docNormalizado);
+                $checkStmt->execute();
+                if ($checkStmt->get_result()->num_rows > 0) {
+                    throw new Exception("Ya existe otro cliente con el mismo documento de identidad.");
+                }
+                $checkStmt->close();
+            }
+
+            if ($email !== '') {
+                $checkEmail = $conn->prepare("SELECT id FROM clientes WHERE id != ? AND LOWER(TRIM(email)) = LOWER(?) LIMIT 1");
+                $checkEmail->bind_param("is", $id, $email);
+                $checkEmail->execute();
+                if ($checkEmail->get_result()->num_rows > 0) {
+                    throw new Exception("Ya existe otro cliente con el correo indicado.");
+                }
+                $checkEmail->close();
             }
 
             $stmt = $conn->prepare("
                 UPDATE clientes 
                 SET nombre = ?, 
+                    tipo_documento = ?,
                     numero_documento = ?, 
                     telefono = ?, 
                     email = ?, 
@@ -127,14 +171,11 @@ try {
                 WHERE id = ?
             ");
 
-            $tipo_documento = empty($tipo_documento) ? null : $tipo_documento;
-            $numero_documento = empty($numero_documento) ? null : $numero_documento;
             $telefono = empty($telefono) ? null : $telefono;
             $email = empty($email) ? null : $email;
             $direccion = empty($direccion) ? null : $direccion;
-            $doc= $tipo_documento. $numero_documento;
 
-            $stmt->bind_param("sssssi", $nombre, $doc, $telefono, $email, $direccion, $id);
+            $stmt->bind_param("ssssssi", $nombre, $tipo_documento, $numero_documento, $telefono, $email, $direccion, $id);
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Cliente actualizado exitosamente']);
             break;
@@ -162,7 +203,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="8" class="text-center text-danger">Error al cargar clientes</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

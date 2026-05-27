@@ -33,6 +33,7 @@ require_once __DIR__ . '/../template/header.php';
                         </tbody>
                     </table>
                 </div>
+                <div id="paginacion-tasas"></div>
             </div>
         </div>
     </div>
@@ -64,10 +65,14 @@ require_once __DIR__ . '/../template/header.php';
 
 <script>
 (function() {
-    function cargarListado() {
-        $.post('tasas_cambiarias_data.php', { action: 'listar_html' }, function(html) {
-            $('#tbody-tasas').html(html);
-        });
+    function cargarListado(page) {
+        crudPostListadoPaginado(
+            'tasas_cambiarias_data.php',
+            { action: 'listar_html' },
+            '#tbody-tasas',
+            '#paginacion-tasas',
+            page || 1
+        );
     }
 
     $('#btn-registrar-manual').on('click', function() {
@@ -92,7 +97,7 @@ require_once __DIR__ . '/../template/header.php';
             if (res && res.success) {
                 $('#modal-registrar').modal('hide');
                 Swal.fire({ icon: 'success', text: res.message });
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: res && res.message ? res.message : 'Error al registrar.' });
             }
@@ -122,7 +127,7 @@ require_once __DIR__ . '/../template/header.php';
             if (!r.isConfirmed) return;
             $.post('tasas_cambiarias_data.php', { action: 'borrar', id: id }, function(res) {
                 if (res && res.success) {
-                    cargarListado();
+                    cargarListado(1);
                 } else {
                     Swal.fire({ icon: 'error', text: 'Error: ' + (res && res.message ? res.message : '') });
                 }
@@ -131,7 +136,8 @@ require_once __DIR__ . '/../template/header.php';
     });
 
     $(document).ready(function() {
-        cargarListado();
+        cargarListado(1);
+        bindCrudPagination('#paginacion-tasas', cargarListado);
     });
 })();
 </script>

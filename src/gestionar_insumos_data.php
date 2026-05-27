@@ -1,5 +1,6 @@
 <?php
 require_once "../connection/connection.php";
+require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
@@ -20,11 +21,15 @@ if ($checkInsumoAlmacen->num_rows == 0) {
 
 try {
     if ($action === 'listar_html') {
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM insumos')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
         $sql = "
             SELECT 
                 i.id,
                 i.nombre,
-                i.unidad_medida,
+                i.unidad_medida_id,
+                um.codigo AS unidad_medida,
                 i.costo_unitario,
                 i.stock_minimo,
                 i.stock_maximo,
@@ -36,11 +41,12 @@ try {
                 a.nombre AS almacen_nombre,
                 i.adicional
             FROM insumos i
+            LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
             LEFT JOIN proveedores p ON i.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = i.tasa_cambiaria_id
             LEFT JOIN almacenes a ON i.almacen_id = a.id
             ORDER BY i.nombre ASC
-        ";
+        " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $insumos = [];
@@ -49,35 +55,38 @@ try {
                 $insumos[] = $row;
             }
         }
-        $orden = 0;
+        ob_start();
+        $orden = $pg->rowNumberStart() - 1;
         if (!empty($insumos)) {
-            foreach ($insumos as $i) {
+            foreach ($insumos as $insRow) {
                 $orden++;
-                $costo = (float) ($i['costo_unitario'] ?? 0);
-                $tasa = isset($i['tasa_insumo']) && $i['tasa_insumo'] !== null ? (float) $i['tasa_insumo'] : 0;
+                $costo = (float) ($insRow['costo_unitario'] ?? 0);
+                $tasa = isset($insRow['tasa_insumo']) && $insRow['tasa_insumo'] !== null ? (float) $insRow['tasa_insumo'] : 0;
                 $equivBs = ($tasa > 0 && $costo > 0) ? $costo * $tasa : null;
                 $equivBsFormato = $equivBs !== null ? 'Bs. ' . number_format($equivBs, 2, '.', ',') : '-';
-                $minStr = isset($i['stock_minimo']) && $i['stock_minimo'] !== null && $i['stock_minimo'] !== '' ? number_format((float)$i['stock_minimo'], 2, '.', ',') : '—';
-                $maxStr = isset($i['stock_maximo']) && $i['stock_maximo'] !== null && $i['stock_maximo'] !== '' ? number_format((float)$i['stock_maximo'], 2, '.', ',') : '—';
-                $almacenStr = isset($i['almacen_nombre']) && $i['almacen_nombre'] ? htmlspecialchars($i['almacen_nombre']) : '—';
+                $minStr = isset($insRow['stock_minimo']) && $insRow['stock_minimo'] !== null && $insRow['stock_minimo'] !== '' ? number_format((float)$insRow['stock_minimo'], 2, '.', ',') : '—';
+                $maxStr = isset($insRow['stock_maximo']) && $insRow['stock_maximo'] !== null && $insRow['stock_maximo'] !== '' ? number_format((float)$insRow['stock_maximo'], 2, '.', ',') : '—';
+                $almacenStr = isset($insRow['almacen_nombre']) && $insRow['almacen_nombre'] ? htmlspecialchars($insRow['almacen_nombre']) : '—';
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($orden) . '</td>';
-                echo '<td>' . htmlspecialchars($i['nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($i['unidad_medida'] ?? '-') . '</td>';
+                echo '<td>' . htmlspecialchars((string) $orden) . '</td>';
+                echo '<td>' . htmlspecialchars($insRow['nombre']) . '</td>';
+                echo '<td>' . htmlspecialchars($insRow['unidad_medida'] ?? '-') . '</td>';
                 echo '<td>$' . number_format($costo, 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($equivBsFormato) . '</td>';
                 echo '<td>' . htmlspecialchars($minStr) . '</td>';
                 echo '<td>' . htmlspecialchars($maxStr) . '</td>';
                 echo '<td>' . $almacenStr . '</td>';
-                echo '<td>' . htmlspecialchars($i['proveedor_nombre'] ?? '-') . '</td>';
+                echo '<td>' . htmlspecialchars($insRow['proveedor_nombre'] ?? '-') . '</td>';
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarInsumo(' . htmlspecialchars(json_encode($i), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
+                echo '<button class="btn btn-sm btn-primary" onclick="editarInsumo(' . htmlspecialchars(json_encode($insRow), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
             echo '<tr><td colspan="10" class="text-center">No se encontraron insumos registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -89,8 +98,8 @@ try {
     switch ($action) {
         case 'crear':
             $nombre = trim($_POST['nombre'] ?? '');
-            $adicional = trim($_POST['adicional'] ?? '');
-            $unidad_medida = trim($_POST['unidad_medida'] ?? '');
+            $adicional_val = !empty($_POST['adicional']) ? 1 : 0;
+            $unidad_medida_id = isset($_POST['unidad_medida_id']) ? (int) $_POST['unidad_medida_id'] : 0;
             $costo_unitario = $_POST['costo_unitario'] ?? 0;
             $stock_minimo = isset($_POST['stock_minimo']) && $_POST['stock_minimo'] !== '' ? (float)$_POST['stock_minimo'] : null;
             $stock_maximo = isset($_POST['stock_maximo']) && $_POST['stock_maximo'] !== '' ? (float)$_POST['stock_maximo'] : null;
@@ -101,13 +110,22 @@ try {
                 throw new Exception("El nombre del insumo es obligatorio");
             }
 
-            if (empty($unidad_medida)) {
+            if ($unidad_medida_id <= 0) {
                 throw new Exception("La unidad de medida es obligatoria");
             }
 
             if ($costo_unitario < 0) {
                 throw new Exception("El costo unitario debe ser mayor o igual a 0");
             }
+
+            $chkUm = $conn->prepare('SELECT id FROM unidad_medida WHERE id = ?');
+            $chkUm->bind_param('i', $unidad_medida_id);
+            $chkUm->execute();
+            if ($chkUm->get_result()->num_rows === 0) {
+                $chkUm->close();
+                throw new Exception('Unidad de medida no válida');
+            }
+            $chkUm->close();
 
             $checkSql = "SELECT id FROM insumos WHERE nombre = ?";
             $checkStmt = $conn->prepare($checkSql);
@@ -126,13 +144,25 @@ try {
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO insumos (nombre, unidad_medida, costo_unitario, stock_minimo, stock_maximo, adicional, almacen_id, proveedor_id, tasa_cambiaria_id)
+                INSERT INTO insumos (nombre, unidad_medida_id, costo_unitario, stock_minimo, stock_maximo, adicional, almacen_id, proveedor_id, tasa_cambiaria_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
-            $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
+            $proveedor_id = ($proveedor_id === '' || $proveedor_id === null) ? null : (int) $proveedor_id;
             $almacen_id_val = $almacen_id !== null ? $almacen_id : 1;
-            $stmt->bind_param("ssddiiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $adicional, $almacen_id_val, $proveedor_id, $tasa_cambiaria_id);
+            $costo_unitario = (float) $costo_unitario;
+            $stmt->bind_param(
+                "sidddiiii",
+                $nombre,
+                $unidad_medida_id,
+                $costo_unitario,
+                $stock_minimo,
+                $stock_maximo,
+                $adicional_val,
+                $almacen_id_val,
+                $proveedor_id,
+                $tasa_cambiaria_id
+            );
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo creado exitosamente', 'id' => $conn->insert_id]);
             break;
@@ -142,7 +172,7 @@ try {
             if (!$id) throw new Exception("ID de insumo requerido");
 
             $nombre = trim($_POST['nombre'] ?? '');
-            $unidad_medida = trim($_POST['unidad_medida'] ?? '');
+            $unidad_medida_id = isset($_POST['unidad_medida_id']) ? (int) $_POST['unidad_medida_id'] : 0;
             $costo_unitario = $_POST['costo_unitario'] ?? 0;
             $stock_minimo = isset($_POST['stock_minimo']) && $_POST['stock_minimo'] !== '' ? (float)$_POST['stock_minimo'] : null;
             $stock_maximo = isset($_POST['stock_maximo']) && $_POST['stock_maximo'] !== '' ? (float)$_POST['stock_maximo'] : null;
@@ -153,9 +183,18 @@ try {
                 throw new Exception("El nombre del insumo es obligatorio");
             }
 
-            if (empty($unidad_medida)) {
+            if ($unidad_medida_id <= 0) {
                 throw new Exception("La unidad de medida es obligatoria");
             }
+
+            $chkUm = $conn->prepare('SELECT id FROM unidad_medida WHERE id = ?');
+            $chkUm->bind_param('i', $unidad_medida_id);
+            $chkUm->execute();
+            if ($chkUm->get_result()->num_rows === 0) {
+                $chkUm->close();
+                throw new Exception('Unidad de medida no válida');
+            }
+            $chkUm->close();
 
             if ($costo_unitario < 0) {
                 throw new Exception("El costo unitario debe ser mayor o igual a 0");
@@ -180,7 +219,7 @@ try {
            $stmt = $conn->prepare("
                 UPDATE insumos 
                 SET nombre = ?, 
-                    unidad_medida = ?, 
+                    unidad_medida_id = ?, 
                     costo_unitario = ?, 
                     stock_minimo = ?,
                     stock_maximo = ?,
@@ -191,15 +230,25 @@ try {
                 WHERE id = ?
             ");
 
-            // Asegúrate de procesar el checkbox antes
             $adicional_val = isset($_POST['adicional']) ? 1 : 0;
 
-            $proveedor_id = empty($proveedor_id) ? null : $proveedor_id;
+            $proveedor_id = ($proveedor_id === '' || $proveedor_id === null) ? null : (int) $proveedor_id;
             $almacen_id_val = $almacen_id !== null ? $almacen_id : 1;
+            $costo_unitario = (float) $costo_unitario;
 
-            // "ssddiiiiii" ahora tiene 10 letras para 10 variables
-            $stmt->bind_param("ssddiiiiii", $nombre, $unidad_medida, $costo_unitario, $stock_minimo, $stock_maximo, $almacen_id_val, $proveedor_id, 
-                $tasa_cambiaria_id, $adicional_val, $id);
+            $stmt->bind_param(
+                "sidddiiiii",
+                $nombre,
+                $unidad_medida_id,
+                $costo_unitario,
+                $stock_minimo,
+                $stock_maximo,
+                $almacen_id_val,
+                $proveedor_id,
+                $tasa_cambiaria_id,
+                $adicional_val,
+                $id
+            );
 
             $stmt->execute();
             echo json_encode(['success' => true, 'message' => 'Insumo actualizado exitosamente']);
@@ -214,7 +263,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar insumos</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

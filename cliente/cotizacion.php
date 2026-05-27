@@ -1,15 +1,5 @@
 <?php require_once('../template/header.php'); ?>
-<?php require_once "../connection/connection.php"; ?>
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cotizaciones | Inverclinik</title>
-    <style>
-        .btn-volver { background: #6c757d; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer; margin-bottom: 15px; }
-    </style>
-</head>
-
+<?php require_once '../connection/connection.php'; ?>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
@@ -17,18 +7,15 @@
                 <h2 class="main-title">Cotizaciones</h2>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row form-group">
-                            <div class="col-sm-4">
-                                <button class="btn btn-success" id="btn-ir-crear">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button type="button" class="btn btn-success" id="btn-ir-crear">
                                     <i class="fas fa-plus"></i> Crear Nueva Cotización
                                 </button>
                             </div>
-                            <!-- <div class="col-sm-8">
-                                <h5 style="color: #0056b3; margin-bottom: 15px;">Historial de Cotizaciones</h5>
-                            </div> -->
                         </div>
                         <div class="table-container">
-                            <table class="recipe-table">
+                            <table class="recipe-table" id="tabla-listado-cotizaciones">
                                 <thead>
                                     <tr>
                                         <th>Código</th>
@@ -39,64 +26,65 @@
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody id="tbody-listado-cotizaciones">
                                 </tbody>
                             </table>
                         </div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <div class="row form-group">
-                            <div class="col-sm-4">
-                                <button class="btn-volver" id="btn-volver-listado">
+                        <div class="row mb-3">
+                            <div class="col-md-12">
+                                <button type="button" class="btn btn-secondary" id="btn-volver-listado">
                                     <i class="fas fa-arrow-left"></i> Volver al Listado
                                 </button>
                             </div>
-                            <!-- <div class="col-sm-8">
-                                <span class="subtitle"><b></b></span> 
-                                <h5 style="color: #0056b3; margin-bottom: 15px;">Registrar Cotizacion</h5>
-                            </div> -->
                         </div>
-                        <div class="row from-group">
-                            <div class="col-sm-6">
-                                <label class="form-label">Seleccionar Cliente</label>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6 col-sm-12" style="margin-bottom: 15px;">
+                                <label class="form-label">Seleccionar cliente <span class="text-danger">*</span></label>
                                 <select id="select-cliente" class="form-control" style="width: 100%;">
                                     <option value=""></option>
                                     <?php
                                     $query = mysqli_query($conn, "SELECT id, nombre FROM clientes ORDER BY nombre ASC");
-                                    while($c = mysqli_fetch_assoc($query)){
-                                        echo "<option value='".$c['id']."'>".$c['nombre']."</option>";
+                                    while ($c = mysqli_fetch_assoc($query)) {
+                                        echo "<option value='" . (int) $c['id'] . "'>" . htmlspecialchars($c['nombre'], ENT_QUOTES, 'UTF-8') . "</option>";
                                     }
                                     ?>
                                 </select>
                             </div>
-                            <div class="col-sm-6">
-                                <label class="form-label">Presupuesto Base</label>
+                            <div class="col-md-6 col-sm-12">
+                                <label class="form-label">Presupuesto base</label>
                                 <select id="select-presupuesto" class="form-control" style="width: 100%;" disabled>
                                     <option value="">Seleccione un cliente primero...</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="row form-group">
-                            <div id="busqueda-manual" class="col-sm-12" style="background: #f8f9fa; border-radius: 8px; border: 1px solid #ddd; margin-top: 10px;">
-                                <div class="col-md-12"><h6 class="text-muted"><i class="fas fa-search"></i> Agregar producto manualmente (Venta Presencial)</h6></div>
-                                <div class="col-md-4">
-                                    <label class="form-label small">Producto</label>
-                                    <select id="manual-producto" class="form-control" style="width:100%">
-                                        <option value="">Buscar producto...</option>
-                                       
-                                    </select>
-                                </div>
-                                
-                                <div class="col-md-2">
-                                    <label class="form-label small">Cant.</label>
-                                    <input type="number" id="manual-cantidad" class="form-control" value="1" min="1">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label d-block">&nbsp;</label>
-                                    <button type="button" class="btn btn-primary btn-block" onclick="agregarProductoManual()">
-                                        <i class="fas fa-plus"></i> Añadir a Tabla
-                                    </button>
+
+                        <div class="row mb-3">
+                            <div class="col-xs-12">
+                                <div class="well well-sm" style="margin-bottom: 0; background-color: #f8f9fa; border-color: #dee2e6;">
+                                    <h5 style="color: #0056b3; margin-bottom: 15px;">
+                                        <i class="fas fa-search"></i> Agregar producto manualmente (venta presencial)
+                                    </h5>
+                                    <div class="row">
+                                        <div class="col-md-5 col-sm-12" style="margin-bottom: 10px;">
+                                            <label class="form-label">Producto</label>
+                                            <select id="manual-producto" class="form-control" style="width:100%">
+                                                <option value="">Buscar producto...</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2 col-sm-12" style="margin-bottom: 10px;">
+                                            <label class="form-label">Cantidad</label>
+                                            <input type="number" id="manual-cantidad" class="form-control" value="1" min="1">
+                                        </div>
+                                        <div class="col-md-5 col-sm-12" style="padding-top: 24px;">
+                                            <button type="button" class="btn btn-primary btn-block" onclick="agregarProductoManual()">
+                                                <i class="fas fa-plus"></i> Añadir a la tabla
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -104,42 +92,45 @@
                         <div id="contenedor-items" style="display: none; margin-top: 20px;">
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
 
-                            <h5 style="color: #0056b3; margin-bottom: 15px; ">Detalles del Presupuesto Seleccionado</h5>
+                            <h5 style="color: #0056b3; margin-bottom: 15px;">Detalle del presupuesto seleccionado</h5>
 
-                            <div class="table-responsive">
-                                <table class="table" style="width: 100%; border-collapse: collapse;">
+                            <div class="table-container">
+                                <table class="recipe-table">
                                     <thead>
-                                        <tr style="border-bottom: 2px solid #eee; text-align: left;">
+                                        <tr>
                                             <th>Producto</th>
                                             <th>Cant.</th>
-                                            <th width="100">Talla</th>
-                                            <th width="120">Precio Base</th>
-                                            <th width="180">Personalización</th>
+                                            <th>Talla</th>
+                                            <th>Precio base</th>
+                                            <th>Personalización</th>
                                             <th>Notas</th>
-                                            <th width="130">Subtotal</th>
+                                            <th>Subtotal</th>
+                                            <th>Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tabla-cotizador-body"></tbody>
                                 </table>
                             </div>
 
-                            <div class="mt-4" style="text-align: right; border-top: 2px solid #eee; padding-top: 15px;">
-                                Total Cotizacion: <span id="gran-total-display" style="color: #005bbe;">$0.00</span> &nbsp;
-                                <button type="button" class="btn-editar" id="btn-generar-cot" style="background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-                                    <i class="fas fa-save"></i> Confirmar y Guardar Cotización
-                                </button>
+                            <div class="row" style="margin-top: 15px;">
+                                <div class="col-xs-12 text-right">
+                                    <span style="font-weight: bold;">Total cotización:</span>
+                                    <span id="gran-total-display" style="color: #0056b3; font-size: 1.1em; font-weight: bold;">$0.00</span>
+                                    <span class="visible-xs-block" style="height: 10px; display: inline-block;"></span>
+                                    <button type="button" class="btn btn-success" id="btn-generar-cot" style="margin-left: 8px; margin-top: 8px;">
+                                        <i class="fas fa-save"></i> Confirmar y guardar cotización
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div id="resultadoCot" class="mt-3"></div>
+                    <div id="resultadoCot" style="margin-top: 15px;"></div>
                 </div>
             </div>
         </div>
     </div>
 
-<script src="../assets/js/jquery-3.7.1.min.js"></script>
 <script src="../assets/js/select2.min.js"></script>
-
 <script>
 
     function mostrarVista(vista) {
@@ -168,14 +159,14 @@
         let badge = origen === 'manual' ? '<small style="color:#28a745; display:block;">(Venta Directa)</small>' : '';
         
         return `
-            <tr style="border-bottom: 1px solid #eee;" 
-                data-id-receta="${id}" 
+            <tr
+                data-id-receta="${id}"
                 data-id-talla="${tallaId}"
                 data-precio-original="${precio}"
                 data-origen="${origen}">
                 <td><strong>${nombre}</strong></td>
-                <td class="col-cant" style="font-weight:bold; text-align:center;">${cant}</td>
-                <td style="color:#555;">${tallaNombre}</td>
+                <td class="col-cant text-center" style="font-weight: bold;">${cant}</td>
+                <td class="text-muted">${tallaNombre}</td>
                 <td>$${precio}</td>
                 <td>
                     <select class="form-control perso-sel">
@@ -188,9 +179,11 @@
                         ?>
                     </select>
                 </td>
-                <td><input type="text" class="form-control nota-input" placeholder="Bordado, color, etc..."></td>
+                <td><input type="text" class="form-control nota-input" placeholder="Bordado, color, etc."></td>
                 <td class="row-subtotal" style="font-weight: bold;">$${subtotal}</td>
-                <td><button type="button" class="btn-eliminar-fila" style="color:#dc3545; border:none; background:none; cursor:pointer;"><i class="fas fa-trash"></i></button></td>
+                <td>
+                    <button type="button" class="btn btn-danger btn-sm btn-eliminar-fila" title="Quitar línea"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`;
     }
 
@@ -505,10 +498,10 @@
                 type: 'GET',
                 data: { action: 'listar_cotizaciones' },
                 success: function(respuestaHTML) {
-                    $('.recipe-table tbody').html(respuestaHTML);
+                    $('#tbody-listado-cotizaciones').html(respuestaHTML);
                 }
             });
         }
     });
 </script>
-</body>
+<?php require_once '../template/footer.php'; ?>

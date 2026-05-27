@@ -4,6 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 // Evitar que warnings rompan el JSON
 error_reporting(E_ERROR | E_PARSE);
@@ -21,11 +22,14 @@ $action = $data['action'] ?? '';
 try {
     // Listado de categorías en HTML
     if ($action === 'listar_html') {
-        $sql = "SELECT id, nombre, descripcion FROM categorias ORDER BY id DESC";
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM categorias')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+        $sql = 'SELECT id, nombre, descripcion FROM categorias ORDER BY id DESC' . $pg->limitClause();
         $result = $conn->query($sql);
 
-        if ($result) {
-            $i = 0;
+        ob_start();
+        if ($result && $result->num_rows > 0) {
+            $i = $pg->rowNumberStart() - 1;
             while ($row = $result->fetch_assoc()) {
                 $i++;
                 echo '<tr>';
@@ -46,6 +50,8 @@ try {
         } else {
             echo '<tr><td colspan="4" class="text-center">No se encontraron categorías</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }

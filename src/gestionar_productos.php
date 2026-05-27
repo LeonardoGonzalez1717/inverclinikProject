@@ -33,13 +33,6 @@ if ($resCat) {
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Insumo
-                                </button>
-                            </div>
-                        </div>
                         <h5 class="subtitle">Lista de Productos</h5>
                         <div class="table-container">
                             <table class="recipe-table">
@@ -58,22 +51,18 @@ if ($resCat) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-productos"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <button class="btn-volver" id="btn-volver-listado">
-                            <i class="fas fa-arrow-left"></i> Volver al Listado
-                        </button>
-                        
                         <form id="form-crear">
                             <div class="row form-group">
-                                <div class="mb-3">
-                                    <label class="form-label">Nombre del Producto <span style="color: red;">*</span></label>
-                                    <input type="text" name="nombre" id="nombre" class="form-control" required 
-                                        maxlength="255">
+                                <div class="col-sm-6">
+                                    <label class="form-label" for="nombre">Nombre del Producto <span style="color: red;">*</span></label>
+                                    <input type="text" name="nombre" id="nombre" class="form-control" required maxlength="255">
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Categoría</label>
+                                <div class="col-sm-3">
+                                    <label class="form-label" for="categoria">Categoría</label>
                                     <select name="categoria" id="categoria" class="form-control">
                                         <option value=""></option>
                                         <?php foreach ($categorias as $cat): ?>
@@ -83,37 +72,43 @@ if ($resCat) {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <div class="col-sm-3">
+                                    <label class="form-label" for="tipo_genero">Tipo/Género</label>
+                                    <select name="tipo_genero" id="tipo_genero" class="form-control">
+                                        <option value="">-- Seleccione un tipo --</option>
+                                        <option value="Caballero">Caballero</option>
+                                        <option value="Dama">Dama</option>
+                                        <option value="Niño">Niño</option>
+                                        <option value="Niña">Niña</option>
+                                        <option value="Unisex">Unisex</option>
+                                    </select>
+                                </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label">Tipo/Género</label>
-                                <select name="tipo_genero" id="tipo_genero" class="form-control">
-                                    <option value="">-- Seleccione un tipo --</option>
-                                    <option value="Caballero">Caballero</option>
-                                    <option value="Dama">Dama</option>
-                                    <option value="Niño">Niño</option>
-                                    <option value="Niña">Niña</option>
-                                    <option value="Unisex">Unisex</option>
-                                </select>
+                            <div class="row form-group">
+                                <div class="col-sm-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                                    <input type="checkbox" id="activo" name="activo" value="1" checked style="width: 20px; height: 20px;">
+                                    <label for="activo" style="cursor: pointer; font-weight: bold;">
+                                        Publicar en el catálogo
+                                    </label>
+                                </div>
                             </div>
-                            <div class="mb-3" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
-                                <input type="checkbox" id="activo" name="activo" value="1" checked style="width: 20px; height: 20px;">
-                                <label for="activo" style="cursor: pointer; font-weight: bold;">
-                                    Publicar en el catálogo
-                                </label>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label" for="descripcion">Descripción</label>
+                                    <textarea name="descripcion" id="descripcion" class="form-control" rows="4"
+                                              placeholder="Descripción detallada del producto..."></textarea>
+                                </div>
+                                <div class="col-sm-6">
+                                    <label class="form-label" for="imagen">Imagen del Producto</label>
+                                    <input type="file" name="imagen" id="imagen" class="form-control" accept="image/*">
+                                    <small class="form-text text-muted">Formatos permitidos: JPG, PNG, GIF. Tamaño máximo: 5MB</small>
+                                    <div id="imagen-preview" style="margin-top: 10px;"></div>
+                                    <input type="hidden" id="imagen-actual" name="imagen_actual" value="">
+                                </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Descripción</label>
-                                <textarea name="descripcion" id="descripcion" class="form-control" rows="4" 
-                                          placeholder="Descripción detallada del producto..."></textarea>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Imagen del Producto</label>
-                                <input type="file" name="imagen" id="imagen" class="form-control" accept="image/*">
-                                <small class="form-text text-muted">Formatos permitidos: JPG, PNG, GIF. Tamaño máximo: 5MB</small>
-                                <div id="imagen-preview" style="margin-top: 10px;"></div>
-                                <input type="hidden" id="imagen-actual" name="imagen_actual" value="">
-                            </div>
+
                             <button type="submit" class="btn btn-primary">Guardar Producto</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-producto-id" name="id" value="">
@@ -136,10 +131,14 @@ function mostrarVista(vista) {
     }
 }
 
-function cargarListado() {
-    $.post('gestionar_productos_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_productos_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-productos',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -188,7 +187,8 @@ function editarProducto(data) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-productos', cargarListado);
 });
 
 // Preview de imagen

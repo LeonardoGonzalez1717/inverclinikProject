@@ -1,6 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 // Verificar y agregar columna precio_total a la tabla recetas si no existe
 $checkColumnRecetas = $conn->query("SHOW COLUMNS FROM recetas LIKE 'precio_total'");
@@ -70,7 +71,7 @@ try {
             $conn->query($sqlInsertRecetas);
         }
 
-        $sql = "
+        $sqlBase = "
             SELECT 
                 r.id,
                 r.tasa_cambiaria_id,
@@ -104,8 +105,14 @@ try {
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
             GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
-            ORDER BY r.id DESC
         ";
+
+        $total = Pagination::countFromSubquery($conn, $sqlBase);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . '
+            ORDER BY r.id DESC
+        ' . $pg->limitClause();
 
         $result = $conn->query($sql);
         $recetas = [];
@@ -115,8 +122,9 @@ try {
             }
         }
 
+        ob_start();
         if (!empty($recetas)) {
-            $i = 0;
+            $i = $pg->rowNumberStart() - 1;
             foreach ($recetas as $r) {
                 $i++;
                 $fecha = $r['creado_en'] ? date('d/m/Y H:i', strtotime($r['creado_en'])) : '';
@@ -138,8 +146,10 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="11" class="text-center">No se encontraron recetas registradas</td></tr>';
+            echo '<tr><td colspan="11" class="text-center">No se encontraron guias de corte registradas</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -183,7 +193,7 @@ try {
             }
             
             if (empty($insumos)) {
-                throw new Exception("Debes agregar al menos un insumo a la receta");
+                throw new Exception("Debes agregar al menos un insumo a la guia de corte");
             }
             
             if ($precio_total <= 0) {
@@ -279,9 +289,9 @@ try {
                 Auditoria::registrar(
                     $conn,
                     'Guia guardada: ' . $nomTxt . ' con ' . count($insumos) . ' insumo(s).',
-                    'Recetas'
+                    'Guias de corte'
                 );
-                echo json_encode(['success' => true, 'message' => 'Receta completa creada exitosamente con ' . count($insumos) . ' insumo(s)']);
+                echo json_encode(['success' => true, 'message' => 'Guia de corte completa creada exitosamente con ' . count($insumos) . ' insumo(s)']);
             } catch (Exception $e) {
                 $conn->rollback();
                 throw $e;
@@ -313,7 +323,7 @@ try {
         case 'obtener_insumos_receta':
             $id = (int) ($_POST['id'] ?? 0);
             if (!$id) {
-                echo json_encode(['success' => false, 'message' => 'ID de receta requerido', 'insumos' => []]);
+                echo json_encode(['success' => false, 'message' => 'ID de guia de corte requerido', 'insumos' => []]);
                 break;
             }
             $stmt = $conn->prepare("SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?");
@@ -321,7 +331,7 @@ try {
             $stmt->execute();
             $res = $stmt->get_result();
             if (!$res || !($receta = $res->fetch_assoc())) {
-                echo json_encode(['success' => false, 'message' => 'Receta no encontrada', 'insumos' => []]);
+                echo json_encode(['success' => false, 'message' => 'Guia de corte no encontrada', 'insumos' => []]);
                 break;
             }
             $stmt->close();
@@ -352,7 +362,7 @@ try {
 
         case 'editar':
             $id = $_POST['id'] ?? null;
-            if (!$id) throw new Exception("ID de receta requerido");
+            if (!$id) throw new Exception("ID de guia de corte requerido");
 
             $producto_id = $_POST['producto_id'] ?? null;
             $insumo_id = $_POST['insumo_id'] ?? null;
@@ -385,7 +395,7 @@ try {
             $result = $checkStmt->get_result();
             
             if ($result->num_rows > 0) {
-                throw new Exception("Ya existe otra receta con esta combinación de producto, insumo, rango de tallas y tipo de producción");
+                throw new Exception("Ya existe otra guia de corte con esta combinación de producto, insumo, rango de tallas y tipo de producción");
             }
 
             $stmt = $conn->prepare("
@@ -404,10 +414,10 @@ try {
             $stmt->close();
             Auditoria::registrar(
                 $conn,
-                'Línea de receta actualizada: id línea ' . (int) $id . ', producto_id ' . (int) $producto_id . ', insumo_id ' . (int) $insumo_id,
-                'Recetas'
+                'Línea de guia de corte actualizada: id línea ' . (int) $id . ', producto_id ' . (int) $producto_id . ', insumo_id ' . (int) $insumo_id,
+                'Guias de corte'
             );
-            echo json_encode(['success' => true, 'message' => 'Receta actualizada exitosamente']);
+            echo json_encode(['success' => true, 'message' => 'Guia de corte actualizada exitosamente']);
             break;
 
         default:
@@ -419,7 +429,9 @@ try {
         http_response_code(400);
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="10" class="text-center text-danger">Error al cargar recetas</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }
 

@@ -193,6 +193,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-orden-produccion"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -204,7 +205,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         <form id="form-crear">
                             <div class="row form-group">
                                 <div class="col-sm-6">
-                                    <label class="form-label">Receta</label>
+                                    <label class="form-label">Guia de corte</label>
                                     <select name="receta_id" id="receta_id" class="form-control" required>
                                         <option value=""></option>
                                         <?php foreach ($recetas as $r): ?>
@@ -217,7 +218,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
                                 <div class="col-sm-6">
                                     <label class="form-label">Cantidad a Producir</label>
-                                    <input type="number" step="0.01" min="0.01" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
+                                    <input type="number" step="1" min="1" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
                                 </div>
                             </div>
 
@@ -225,7 +226,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo por Unidad ($)</label>
                                     <input type="text" id="costo_por_unidad" class="form-control" readonly style="background-color: #e9ecef;">
-                                    <small class="text-muted">Costo de la receta por unidad de producto</small>
+                                    <small class="text-muted">Costo de la guia de corte por unidad de producto</small>
                                 </div>
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo Total de Producción ($)</label>
@@ -324,10 +325,14 @@ function mostrarVista(vista) {
     $('#vista-listado, #vista-crear').addClass('hidden').hide();
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
-function cargarListado() {
-    $.post('orden_produccion_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'orden_produccion_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-orden-produccion',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -505,6 +510,16 @@ $("#form-crear").on("submit", function(e) {
         }
     }
 
+    var cantidadProd = parseFloat($('#cantidad_a_producir').val()) || 0;
+    if (cantidadProd <= 0) {
+        Swal.fire({ icon: 'warning', text: 'Indique una cantidad a producir mayor a cero.' });
+        return;
+    }
+    if (Math.abs(cantidadProd - Math.round(cantidadProd)) > 1e-9) {
+        Swal.fire({ icon: 'warning', text: 'La cantidad a producir debe ser un número entero (sin decimales).' });
+        return;
+    }
+
     var datos = {
         action: idOrden ? "editar" : "crear",
         id: idOrden || null,
@@ -546,7 +561,8 @@ $("#form-crear").on("submit", function(e) {
         }
     });
 });
-cargarListado();
+cargarListado(1);
+bindCrudPagination('#paginacion-orden-produccion', cargarListado);
 
 </script>
 
