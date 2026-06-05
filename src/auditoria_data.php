@@ -3,6 +3,7 @@ session_start();
 
 require_once __DIR__ . '/../connection/connection.php';
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 if (empty($_SESSION['iduser']) || (int) ($_SESSION['role_id'] ?? 0) !== 1) {
     header('Content-Type: application/json; charset=utf-8');
@@ -32,15 +33,6 @@ function auditoria_bind_params_mysqli(mysqli_stmt $stmt, string $types, array $p
 
 try {
     if ($action === 'listar_html') {
-        header('Content-Type: text/html; charset=utf-8');
-        $limite = (int) ($_GET['limite'] ?? $_POST['limite'] ?? 500);
-        if ($limite < 1) {
-            $limite = 500;
-        }
-        if ($limite > 2000) {
-            $limite = 2000;
-        }
-
         $fechaDesde = trim((string) ($_POST['fecha_desde'] ?? $_GET['fecha_desde'] ?? ''));
         $fechaHasta = trim((string) ($_POST['fecha_hasta'] ?? $_GET['fecha_hasta'] ?? ''));
         $tipoMovimiento = trim((string) ($_POST['tipo_movimiento'] ?? $_GET['tipo_movimiento'] ?? ''));
@@ -93,13 +85,25 @@ try {
             }
         }
 
+        $whereClause = implode(' AND ', $where);
+
+        $countSql = 'SELECT COUNT(*) AS c FROM auditoria WHERE ' . $whereClause;
+        $stmtCount = $conn->prepare($countSql);
+        if (!$stmtCount) {
+            throw new Exception('No se pudo consultar la auditoría');
+        }
+        auditoria_bind_params_mysqli($stmtCount, $types, $bindParams);
+        $stmtCount->execute();
+        $total = (int) ($stmtCount->get_result()->fetch_assoc()['c'] ?? 0);
+        $stmtCount->close();
+
+        $pg = Pagination::fromInput($total, $_POST, 15, 100);
+
         $sql = 'SELECT id_evento, nombre_actor, modulo, accion, fecha_hora
                 FROM auditoria
-                WHERE ' . implode(' AND ', $where) . '
+                WHERE ' . $whereClause . '
                 ORDER BY fecha_hora DESC, id_evento DESC
-                LIMIT ?';
-        $types .= 'i';
-        $bindParams[] = $limite;
+                ' . $pg->limitClause();
 
         $stmt = $conn->prepare($sql);
         if (!$stmt) {
@@ -108,11 +112,13 @@ try {
         auditoria_bind_params_mysqli($stmt, $types, $bindParams);
         $stmt->execute();
         $res = $stmt->get_result();
-        $i = 1;
         if (!$res) {
             $stmt->close();
             throw new Exception('No se pudo consultar la auditoría');
         }
+
+        ob_start();
+        $i = $pg->rowNumberStart();
         if ($res->num_rows === 0) {
             echo '<tr><td colspan="5" class="text-center text-muted">No hay registros de auditoría.</td></tr>';
         } else {
@@ -122,7 +128,7 @@ try {
                 $actor = htmlspecialchars($row['nombre_actor'] ?? '', ENT_QUOTES, 'UTF-8');
                 $acc = htmlspecialchars($row['accion'] ?? '', ENT_QUOTES, 'UTF-8');
                 echo '<tr>';
-                echo '<td>' . (int) $i++. '</td>';
+                echo '<td>' . (int) $i++ . '</td>';
                 echo '<td>' . $fecha . '</td>';
                 echo '<td>' . $actor . '</td>';
                 echo '<td>' . ($mod !== '' ? $mod : '—') . '</td>';
@@ -131,6 +137,8 @@ try {
             }
         }
         $stmt->close();
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }

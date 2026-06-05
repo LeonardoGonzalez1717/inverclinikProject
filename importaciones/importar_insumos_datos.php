@@ -140,7 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                     $alm_res = $conn->query("SELECT id, nombre FROM almacenes");
                     $alm_map = []; while($r = $alm_res->fetch_assoc()){ $alm_map[strtolower(trim($r['nombre']))] = $r['id']; }
 
-                    $stmt = $conn->prepare("INSERT INTO insumos (nombre, unidad_medida, costo_unitario, proveedor_id, stock_minimo, stock_maximo, almacen_id, adicional) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                    $um_res = $conn->query("SELECT id, codigo FROM unidad_medida");
+                    $um_map = []; while ($r = $um_res->fetch_assoc()) { $um_map[strtolower(trim($r['codigo']))] = (int) $r['id']; }
+
+                    $stmt = $conn->prepare("INSERT INTO insumos (nombre, unidad_medida_id, costo_unitario, proveedor_id, stock_minimo, stock_maximo, almacen_id, adicional) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                     
                     for ($i = 2; $i < count($data); $i++) {
                         if (empty(trim($data[$i][0]))) continue;
@@ -151,9 +154,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
                         $s_max = $data[$i][5] ?? 0;
                         $a_id = $alm_map[strtolower(trim($data[$i][6] ?? ''))] ?? 1;
                         $adicional = (strtolower(trim($data[$i][7] ?? '')) === '1') ? 1 : 0;
+                        $cod_um = strtolower(trim($data[$i][1] ?? ''));
+                        $um_id = $um_map[$cod_um] ?? null;
+                        if ($um_id === null) {
+                            throw new Exception('Unidad de medida no reconocida en fila '.($i + 1).': '.($data[$i][1] ?? ''));
+                        }
                         
-                        $stmt->bind_param("ssdididi", 
-                            $data[$i][0], $data[$i][1], $costo, $p_id, 
+                        $stmt->bind_param("sididdii", 
+                            $data[$i][0], $um_id, $costo, $p_id, 
                             $s_min, $s_max, $a_id, $adicional
                         );
                         $stmt->execute();

@@ -23,8 +23,10 @@ if ($checkInsumoMin && $checkInsumoMin->num_rows == 0) {
 }
 
 // Insumos: stock se obtiene por AJAX (almacén del insumo)
-$sqlInsumos = "SELECT i.id, i.nombre, i.unidad_medida, i.stock_maximo
+$sqlInsumos = "SELECT i.id, i.nombre, i.costo_unitario, um.codigo AS unidad_medida,
+               COALESCE(um.permite_movimiento_decimal, 1) AS permite_movimiento_decimal, i.stock_maximo
                FROM insumos i
+               INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
                WHERE i.activo = 1
                ORDER BY i.nombre ASC";
 $resultInsumos = $conn->query($sqlInsumos);
@@ -85,7 +87,7 @@ if ($resultRecetas) {
                 <!-- <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12" style="display: flex; gap: 10px;">
                         <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Registrar Movimiento</button>
-                        <button class="btn btn-info" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima');">Ver Inventario</button>
+                        <button class="btn btn-info" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima', 1);">Ver Inventario</button>
                     </div>
                 </div> -->
 
@@ -132,6 +134,7 @@ if ($resultRecetas) {
                                         </tbody>
                                     </table>
                                 </div>
+                                <div id="paginacion-materia-prima"></div>
                             </div>
                             
                             <div class="tab-pane" id="productos" role="tabpanel">
@@ -155,6 +158,7 @@ if ($resultRecetas) {
                                         </tbody>
                                     </table>
                                 </div>
+                                <div id="paginacion-productos"></div>
                             </div>
                         </div>
                     </div>
@@ -185,9 +189,11 @@ if ($resultRecetas) {
                                                 <?php
                                                 $sm = $insumo['stock_maximo'] ?? null;
                                                 $attrMax = ($sm !== null && $sm !== '') ? htmlspecialchars((string) $sm, ENT_QUOTES, 'UTF-8') : '';
+                                                $pd = isset($insumo['permite_movimiento_decimal']) ? (int) $insumo['permite_movimiento_decimal'] : 1;
                                                 ?>
                                                 <option value="<?php echo htmlspecialchars($insumo['id']); ?>" 
                                                         data-unidad="<?php echo htmlspecialchars($insumo['unidad_medida']); ?>"
+                                                        data-permite-decimal="<?php echo $pd; ?>"
                                                         data-stock-max="<?php echo $attrMax; ?>">
                                                     <?php echo htmlspecialchars($insumo['nombre'] . ' (' . $insumo['unidad_medida'] . ')'); ?>
                                                 </option>
@@ -259,7 +265,7 @@ if ($resultRecetas) {
                             </div>
 
                             <button type="submit" class="btn btn-primary">Registrar Movimiento</button>
-                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima');">Cancelar</button>
+                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima', 1);">Cancelar</button>
                         </form>
                     </div>
                 </div>
@@ -296,6 +302,19 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
+function aplicarCantidadInputModoDecimal(permitirDecimal) {
+    var inp = $('#cantidad');
+    if (permitirDecimal) {
+        inp.attr('step', '0.01');
+        inp.attr('min', '0.01');
+        inp.attr('placeholder', 'Ej: 10.50');
+    } else {
+        inp.attr('step', '1');
+        inp.attr('min', '1');
+        inp.attr('placeholder', 'Solo números enteros');
+    }
+}
+
 function actualizarStockInfo() {
     const tipoInv = $('#tipo_inventario').val();
     const stockInfo = document.getElementById('stock-info');
@@ -305,6 +324,11 @@ function actualizarStockInfo() {
     if (tipoInv === 'materia_prima') {
         const insumoId = $('#insumo_id').val();
         if (insumoId) {
+            var opt = $('#insumo_id option:selected');
+            var permiteOpt = opt.data('permite-decimal');
+            if (permiteOpt !== undefined && permiteOpt !== '') {
+                aplicarCantidadInputModoDecimal(permiteOpt == 1 || permiteOpt === '1');
+            }
             $.post('movimientos_inventario_data.php', {
                 action: 'obtener_stock_insumo',
                 insumo_id: insumoId
@@ -313,6 +337,8 @@ function actualizarStockInfo() {
                     stockActual.textContent = parseFloat(resp.stock_actual || 0).toFixed(2);
                     unidadMedida.textContent = $('#insumo_id option:selected').data('unidad') || '';
                     stockInfo.style.display = 'block';
+                    var permite = resp.permite_movimiento_decimal == 1 || resp.permite_movimiento_decimal === undefined;
+                    aplicarCantidadInputModoDecimal(permite);
                 } else {
                     stockInfo.style.display = 'none';
                 }
@@ -340,24 +366,54 @@ function cambiarTab(tipo) {
         $('#productos').addClass('active');
     }
     
-    cargarListado(tipo);
+    cargarListado(tipo, 1);
 }
 
-function cargarListado(tipo = 'materia_prima') {
-    $.post('movimientos_inventario_data.php', { 
-        action: 'listar_html',
-        tipo_inventario: tipo
-    }, function(resp) {
-        if (tipo === 'materia_prima') {
-            $('#tbody-materia-prima').html(resp);
-        } else {
-            $('#tbody-productos').html(resp);
-        }
-    }).fail(function(xhr, status, error) {
-        if (tipo === 'materia_prima') {
-            $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">Error al cargar inventario</td></tr>');
-        } else {
-            $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">Error al cargar inventario</td></tr>');
+function cargarListado(tipo, page) {
+    tipo = tipo || tabActivo || 'materia_prima';
+    page = page || 1;
+    $.ajax({
+        url: 'movimientos_inventario_data.php',
+        type: 'POST',
+        data: {
+            action: 'listar_html',
+            tipo_inventario: tipo,
+            page: page
+        },
+        dataType: 'json',
+        success: function(resp) {
+            if (!resp || resp.success === false) {
+                var msg = resp && resp.message ? resp.message : 'Error al cargar inventario';
+                if (tipo === 'materia_prima') {
+                    $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">' + msg + '</td></tr>');
+                    $('#paginacion-materia-prima').empty();
+                } else {
+                    $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">' + msg + '</td></tr>');
+                    $('#paginacion-productos').empty();
+                }
+                return;
+            }
+            if (tipo === 'materia_prima') {
+                $('#tbody-materia-prima').html(resp.rows_html || '');
+                $('#paginacion-materia-prima').html(resp.pagination_html || '');
+            } else {
+                $('#tbody-productos').html(resp.rows_html || '');
+                $('#paginacion-productos').html(resp.pagination_html || '');
+            }
+        },
+        error: function(xhr) {
+            var msg = 'Error al cargar inventario';
+            try {
+                var j = JSON.parse(xhr.responseText);
+                if (j.message) msg = j.message;
+            } catch (err) {}
+            if (tipo === 'materia_prima') {
+                $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">' + msg + '</td></tr>');
+                $('#paginacion-materia-prima').empty();
+            } else {
+                $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">' + msg + '</td></tr>');
+                $('#paginacion-productos').empty();
+            }
         }
     });
 }
@@ -373,9 +429,14 @@ function cambiarTipoInventario() {
     if (tipo === 'materia_prima') {
         $('#campo-materia-prima').show();
         $('#insumo_id').attr('required', 'required');
+        aplicarCantidadInputModoDecimal(true);
+        if ($('#insumo_id').val()) {
+            actualizarStockInfo();
+        }
     } else if (tipo === 'productos') {
         $('#campo-productos').show();
         $('#receta_id').attr('required', 'required');
+        aplicarCantidadInputModoDecimal(false);
     }
 }
 
@@ -401,6 +462,7 @@ function actualizarStockInfoProducto() {
             $('#stock-actual').text(parseFloat(resp.stock_actual || 0).toFixed(2));
             $('#unidad-medida').text('unidades');
             $('#stock-info').show();
+            aplicarCantidadInputModoDecimal(false);
         }
     }, 'json');
 }
@@ -421,7 +483,9 @@ function limpiarFormulario() {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado('materia_prima');
+    cargarListado('materia_prima', 1);
+    bindCrudPagination('#paginacion-materia-prima', function(p) { cargarListado('materia_prima', p); });
+    bindCrudPagination('#paginacion-productos', function(p) { cargarListado('productos', p); });
 });
 
 $("#form-crear").on("submit", function(e) {
@@ -460,6 +524,23 @@ $("#form-crear").on("submit", function(e) {
     if (!cantidad || cantidad <= 0) {
         Swal.fire({ icon: 'warning', text: 'La cantidad debe ser mayor a 0' });
         return;
+    }
+
+    if (tipoInventario === 'productos') {
+        if (Math.abs(cantidad - Math.round(cantidad)) > 1e-9) {
+            Swal.fire({ icon: 'warning', text: 'Los productos terminados solo admiten cantidades enteras.' });
+            return;
+        }
+    }
+
+    if (tipoInventario === 'materia_prima') {
+        var permDec = $('#insumo_id option:selected').data('permite-decimal');
+        if (permDec === 0 || permDec === '0') {
+            if (Math.abs(cantidad - Math.round(cantidad)) > 1e-9) {
+                Swal.fire({ icon: 'warning', text: 'Esta unidad de medida solo admite cantidades enteras.' });
+                return;
+            }
+        }
     }
 
     const tipoMovimiento = $("#tipo_movimiento").val();

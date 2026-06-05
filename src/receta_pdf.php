@@ -1,7 +1,7 @@
 <?php
 /**
- * Genera un PDF de la receta: lista de insumos con cantidad, fecha de creación y espacio para firma.
- * Parámetro GET: id = ID de la receta
+ * Genera un PDF de la guia de corte: lista de insumos con cantidad, fecha de creación y espacio para firma.
+ * Parámetro GET: id = ID de la guia de corte
  */
 require_once __DIR__ . '/../connection/connection.php';
 require_once __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php';
@@ -9,11 +9,11 @@ require_once __DIR__ . '/../vendor/tecnickcom/tcpdf/tcpdf.php';
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($id <= 0) {
     header('Content-Type: text/html; charset=UTF-8');
-    echo '<p>Receta no especificada.</p>';
+    echo '<p>Guia de corte no especificada.</p>';
     exit;
 }
 
-// Datos de la receta
+// Datos de la guia de corte
 $stmt = $conn->prepare("
     SELECT 
         r.id,
@@ -38,7 +38,7 @@ $stmt->close();
 
 if (!$receta) {
     header('Content-Type: text/html; charset=UTF-8');
-    echo '<p>Receta no encontrada.</p>';
+    echo '<p>Guia de corte no encontrada.</p>';
     exit;
 }
 
@@ -46,14 +46,15 @@ $pid = (int) $receta['producto_id'];
 $rid = (int) $receta['rango_tallas_id'];
 $tid = (int) $receta['tipo_produccion_id'];
 
-// Insumos de la receta
+// Insumos de la guia de corte
 $stmt2 = $conn->prepare("
     SELECT 
         i.nombre AS insumo_nombre,
-        i.unidad_medida,
+        COALESCE(um.codigo, '') AS unidad_medida,
         rp.cantidad_por_unidad
     FROM recetas_productos rp
     INNER JOIN insumos i ON i.id = rp.insumo_id
+    LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
     WHERE rp.producto_id = ? AND rp.rango_tallas_id = ? AND rp.tipo_produccion_id = ?
     ORDER BY i.nombre
 ");
@@ -68,14 +69,14 @@ $stmt2->close();
 $conn->close();
 
 $fecha_creacion = $receta['creado_en'] ? date('d/m/Y H:i', strtotime($receta['creado_en'])) : '—';
-$titulo = 'Receta: ' . $receta['producto_nombre'] . ' — ' . $receta['rango_tallas_nombre'] . ' — ' . $receta['tipo_produccion_nombre'];
+$titulo = 'Guia de corte: ' . $receta['producto_nombre'] . ' — ' . $receta['rango_tallas_nombre'] . ' — ' . $receta['tipo_produccion_nombre'];
 
 // Crear PDF
 $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
 $pdf->SetCreator(PDF_CREATOR);
 $pdf->SetAuthor('Sistema');
 $pdf->SetTitle($titulo);
-$pdf->SetSubject('Receta de producción');
+$pdf->SetSubject('Guia de corte de producción');
 $pdf->setPrintHeader(false);
 $pdf->setPrintFooter(false);
 $pdf->SetMargins(15, 15, 15);
@@ -120,4 +121,4 @@ $pdf->SetFont('helvetica', '', 10);
 $pdf->Cell(0, 6, '_________________________', 0, 1, 'L');
 $pdf->Cell(0, 6, 'Firma y sello', 0, 1, 'L');
 
-$pdf->Output('receta_' . $id . '.pdf', 'I');
+$pdf->Output('guia_de_corte_' . $id . '.pdf', 'I');

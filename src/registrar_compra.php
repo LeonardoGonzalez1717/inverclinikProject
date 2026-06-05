@@ -11,7 +11,10 @@ if ($resultProveedores) {
     }
 }
 
-$sqlInsumos = "SELECT id, nombre, costo_unitario, unidad_medida FROM insumos ORDER BY nombre";
+$sqlInsumos = "SELECT i.id, i.nombre, i.costo_unitario, um.codigo AS unidad_medida
+               FROM insumos i
+               INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
+               ORDER BY i.nombre";
 $resultInsumos = $conn->query($sqlInsumos);
 $insumos = [];
 if ($resultInsumos) {
@@ -86,6 +89,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-compras"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -255,10 +259,14 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
-function cargarListado() {
-    $.post('registrar_compra_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'registrar_compra_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-compras',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -475,7 +483,8 @@ function cargarInsumosPorProveedor(proveedorId) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-compras', cargarListado);
     
     $('#proveedor_id').on('change', function() {
         var proveedorId = $(this).val();

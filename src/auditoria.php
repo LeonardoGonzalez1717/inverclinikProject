@@ -127,12 +127,13 @@ require_once __DIR__ . '/../template/navbar.php';
                         </tbody>
                     </table>
                 </div>
+                <div id="paginacion-auditoria"></div>
             </div>
         </div>
     </div>
 
 <script>
-function cargarAuditoria() {
+function cargarAuditoria(page) {
     var data = {
         action: 'listar_html',
         usuario: $('#filtro-usuario').val() || '',
@@ -140,32 +141,30 @@ function cargarAuditoria() {
         fecha_hasta: $('#filtro-hasta').val() || '',
         tipo_movimiento: $('#filtro-tipo').val() || ''
     };
-    $('#tbody-auditoria').html('<tr><td colspan="8" class="text-center text-muted">Cargando…</td></tr>');
-    $.post('auditoria_data.php', data, function (html) {
-        $('#tbody-auditoria').html(html);
-    }).fail(function (xhr) {
-        var msg = 'Error al cargar la auditoría.';
-        try {
-            var j = JSON.parse(xhr.responseText);
-            if (j.message) msg = j.message;
-        } catch (e) {}
-        $('#tbody-auditoria').html('<tr><td colspan="5" class="text-center text-danger">' + msg + '</td></tr>');
-    });
+    $('#tbody-auditoria').html('<tr><td colspan="5" class="text-center text-muted">Cargando…</td></tr>');
+    crudPostListadoPaginado(
+        'auditoria_data.php',
+        data,
+        '#tbody-auditoria',
+        '#paginacion-auditoria',
+        page || 1
+    );
 }
 
 $(function () {
     $('#form-filtros-auditoria').on('submit', function (e) {
         e.preventDefault();
-        cargarAuditoria();
+        cargarAuditoria(1);
     });
     $('#btn-limpiar-filtros-auditoria').on('click', function () {
         $('#filtro-usuario').val('');
         $('#filtro-desde').val('');
         $('#filtro-hasta').val('');
         $('#filtro-tipo').val('');
-        cargarAuditoria();
+        cargarAuditoria(1);
     });
-    cargarAuditoria();
+    cargarAuditoria(1);
+    bindCrudPagination('#paginacion-auditoria', cargarAuditoria);
 });
 </script>
 </body>

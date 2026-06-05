@@ -118,8 +118,13 @@ if (!$row) {
 
           <div class="mb-3">
             <label class="form-label">Contraseña</label>
-            <input type="password" name="password" class="form-control"
+            <input type="password" name="password" id="perfil_password" class="form-control"
                   placeholder="Dejar vacío si no deseas cambiarla" autocomplete="new-password">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Repetir contraseña</label>
+            <input type="password" name="password_confirm" id="perfil_password_confirm" class="form-control"
+                  placeholder="Repita la nueva contraseña" autocomplete="new-password">
           </div>
 
           <button type="submit" class="btn-editar">Guardar Cambios</button>
@@ -133,6 +138,12 @@ if (!$row) {
 <script>
   $('#form-perfil').on('submit', function(e) {
     e.preventDefault();
+    var p = ($('#perfil_password').val() || '').trim();
+    var p2 = ($('#perfil_password_confirm').val() || '').trim();
+    if (p !== p2) {
+      $('#resultadoPerfil').html('<div class="alert alert-danger">Las contraseñas no coinciden. Si no desea cambiarla, deje ambos campos vacíos.</div>');
+      return;
+    }
     $.ajax({
       url: 'perfil_data.php',
       type: 'POST',

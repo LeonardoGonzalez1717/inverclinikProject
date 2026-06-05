@@ -10,7 +10,11 @@ if ($resultProductos) {
     }
 }
 
-$sqlInsumos = "SELECT id, nombre, costo_unitario, unidad_medida FROM insumos WHERE activo = 1 ORDER BY nombre";
+$sqlInsumos = "SELECT i.id, i.nombre, i.costo_unitario, um.codigo AS unidad_medida
+               FROM insumos i
+               INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
+               WHERE i.activo = 1
+               ORDER BY i.nombre";
 $resultInsumos = $conn->query($sqlInsumos);
 $insumos = [];
 if ($resultInsumos) {
@@ -116,6 +120,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-recetas"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -179,7 +184,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <small class="form-text text-muted">Almacén al que pertenece esta receta en el inventario</small>
+                                    <small class="form-text text-muted">Almacén al que pertenece esta guia de corte en el inventario</small>
                                 </div>
                             </div>
 
@@ -254,7 +259,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         </tbody>
                                         <tfoot>
                                             <tr style="background-color: #f2f7ff; font-weight: bold;">
-                                                <td colspan="3" style="text-align: right;">Costo Total de la Receta:</td>
+                                                <td colspan="3" style="text-align: right;">Costo total de la guia de corte:</td>
                                                 <td id="costo-total-receta" style="color: #0056b3; font-size: 16px;">$0.00</td>
                                                 <td id="costo-total-receta-bs" style="color: #0056b3; font-size: 16px;">—</td>
                                                 <td></td>
@@ -394,7 +399,7 @@ function agregarInsumo() {
     }
     
     if (insumosAgregados.some(i => i.insumo_id == insumoId)) {
-        Swal.fire({ icon: 'warning', text: 'Este insumo ya fue agregado a la receta' });
+        Swal.fire({ icon: 'warning', text: 'Este insumo ya fue agregado a la guia de corte' });
         return;
     }
     
@@ -490,10 +495,14 @@ function mostrarVista(vista) {
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
-function cargarListado() {
-    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'nuevo_producto_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-recetas',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -630,7 +639,7 @@ $("#form-crear").on("submit", function(e) {
     e.preventDefault();
     
     if (insumosAgregados.length === 0) {
-        Swal.fire({ icon: 'warning', text: 'Debes agregar al menos un insumo a la receta' });
+        Swal.fire({ icon: 'warning', text: 'Debes agregar al menos un insumo a la guia de corte' });
         return;
     }
     
@@ -685,7 +694,7 @@ $("#form-crear").on("submit", function(e) {
             if (resp && resp.success) {
                 Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
@@ -699,7 +708,8 @@ $("#form-crear").on("submit", function(e) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-recetas', cargarListado);
 });
 </script>
 

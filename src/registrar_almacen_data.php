@@ -1,6 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 error_reporting(E_ERROR | E_PARSE);
 
@@ -15,9 +16,12 @@ if (empty($action)) {
 
 try {
     if ($action === 'listar_html') {
-        $sql = "SELECT id, nombre, codigo, activo FROM almacenes ORDER BY nombre ASC";
+        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM almacenes')->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+        $sql = 'SELECT id, nombre, codigo, activo FROM almacenes ORDER BY nombre ASC' . $pg->limitClause();
         $result = $conn->query($sql);
 
+        ob_start();
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
                 $act = !empty($row['activo']) ? 'Sí' : 'No';
@@ -42,6 +46,8 @@ try {
         } else {
             echo '<tr><td colspan="5" class="text-center">No hay almacenes registrados</td></tr>';
         }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
@@ -133,6 +139,8 @@ try {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     } else {
-        echo '<tr><td colspan="5" class="text-center text-danger">' . htmlspecialchars($e->getMessage()) . '</td></tr>';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
     }
 }

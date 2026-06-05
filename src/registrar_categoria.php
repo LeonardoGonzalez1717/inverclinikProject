@@ -50,6 +50,7 @@ require_once "../connection/connection.php";
                             </tbody>
                         </table>
                     </div>
+                    <div id="paginacion-categorias"></div>
                 </div>
 
                 <div id="vista-crear" class="hidden">
@@ -119,10 +120,14 @@ function mostrarVista(vista) {
     document.getElementById('vista-' + vista).classList.remove('hidden');
 }
 
-function cargarListado() {
-    $.post('registrar_categoria_data.php', {action: 'listar_html'}, function(html){
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'registrar_categoria_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-categorias',
+        page || 1
+    );
 }
 
 function limpiarFormulario() {
@@ -150,7 +155,7 @@ $("#form-categoria").on("submit", function(e) {
                 Swal.fire({ icon: 'success', text: resp.message });
                 limpiarFormulario();
                 mostrarVista('listado');
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error desconocido") });
             }
@@ -188,7 +193,7 @@ function eliminarCategoria(id){
             success: function(resp){
                 if(resp.success){
                     Swal.fire({ icon: 'success', text: resp.message });
-                    cargarListado();
+                    cargarListado(1);
                 } else {
                     Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Error desconocido") });
                 }
@@ -199,7 +204,8 @@ function eliminarCategoria(id){
 
 $(document).ready(function(){
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-categorias', cargarListado);
 });
 </script>
 

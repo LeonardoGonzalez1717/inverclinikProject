@@ -61,8 +61,8 @@ if (!$filtrar) {
 
         (SELECT COUNT(*) FROM cotizaciones WHERE status = 1) as coti_pendientes_cant,
         (SELECT IFNULL(SUM(total), 0) FROM cotizaciones WHERE status = 1) as coti_pendientes_monto,
-        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar')) as v_pendientes,
-        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar')) as ventas_pendientes_monto,
+        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso')) as v_pendientes,
+        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso')) as ventas_pendientes_monto,
 
         (SELECT COUNT(*) FROM inventario inner join insumos on inventario.tipo_item_id = insumos.id 
             WHERE tipo_item = 'insumo' AND stock_actual <= stock_minimo) as insumos_bajos,
@@ -78,8 +78,8 @@ if (!$filtrar) {
 
         (SELECT COUNT(*) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) BETWEEN ? AND ?) as coti_pendientes_cant,
         (SELECT IFNULL(SUM(total), 0) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) BETWEEN ? AND ?) as coti_pendientes_monto,
-        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha BETWEEN ? AND ?) as v_pendientes,
-        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha BETWEEN ? AND ?) as ventas_pendientes_monto,
+        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha BETWEEN ? AND ?) as v_pendientes,
+        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha BETWEEN ? AND ?) as ventas_pendientes_monto,
 
         (SELECT COUNT(*) FROM inventario inner join insumos on inventario.tipo_item_id = insumos.id 
             WHERE tipo_item = 'insumo' AND stock_actual <= stock_minimo) as insumos_bajos,
@@ -98,8 +98,8 @@ if (!$filtrar) {
 
         (SELECT COUNT(*) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) >= ?) as coti_pendientes_cant,
         (SELECT IFNULL(SUM(total), 0) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) >= ?) as coti_pendientes_monto,
-        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha >= ?) as v_pendientes,
-        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha >= ?) as ventas_pendientes_monto,
+        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha >= ?) as v_pendientes,
+        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha >= ?) as ventas_pendientes_monto,
 
         (SELECT COUNT(*) FROM inventario inner join insumos on inventario.tipo_item_id = insumos.id 
             WHERE tipo_item = 'insumo' AND stock_actual <= stock_minimo) as insumos_bajos,
@@ -119,8 +119,8 @@ if (!$filtrar) {
 
         (SELECT COUNT(*) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) <= ?) as coti_pendientes_cant,
         (SELECT IFNULL(SUM(total), 0) FROM cotizaciones WHERE status = 1 AND DATE(fecha_registro) <= ?) as coti_pendientes_monto,
-        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha <= ?) as v_pendientes,
-        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar') AND fecha <= ?) as ventas_pendientes_monto,
+        (SELECT COUNT(*) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha <= ?) as v_pendientes,
+        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE estado IN ('pendiente', 'por_pagar', 'en_proceso') AND fecha <= ?) as ventas_pendientes_monto,
 
         (SELECT COUNT(*) FROM inventario inner join insumos on inventario.tipo_item_id = insumos.id 
             WHERE tipo_item = 'insumo' AND stock_actual <= stock_minimo) as insumos_bajos,

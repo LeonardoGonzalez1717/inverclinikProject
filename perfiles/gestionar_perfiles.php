@@ -47,6 +47,7 @@ require_once('../template/header.php');
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-perfiles"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -77,8 +78,8 @@ require_once('../template/header.php');
                                 </div>
                                 <div class="col-sm-6">
                                     <label class="form-label">Repetir Contraseña <span style="color: red;">*</span></label>
-                                    <input type="password" name="password" id="password" class="form-control" 
-                                        placeholder="Dejar vacío para mantener la actual (solo al editar)">
+                                    <input type="password" name="password_confirm" id="password_confirm" class="form-control" 
+                                        placeholder="Repita la contraseña (obligatorio al crear)">
                                     <small class="form-text text-muted">Obligatorio al crear, opcional al editar</small>
                                 </div>
                             </div>
@@ -131,7 +132,8 @@ require_once('../template/header.php');
     });
 
     $(document).ready(function() {
-        cargarListado();
+        cargarListado(1);
+        bindCrudPagination('#paginacion-perfiles', cargarListado);
     });
 
     function mostrarVista(vista) {
@@ -144,6 +146,7 @@ require_once('../template/header.php');
         $('#username').val('').prop('readonly', false);
         $('#correo').val('').prop('readonly', false);
         $('#password').val('').prop('readonly', false).attr('required', true);
+        $('#password_confirm').val('').prop('readonly', false).attr('required', true);
         $('#role_id').val('');
         $('#action').val('crear');
         mostrarVista('crear');
@@ -154,21 +157,23 @@ require_once('../template/header.php');
         $('#editar-usuario-id').val('');
         $('#action').val('crear');
         $('#password').attr('required', true);
+        $('#password_confirm').attr('required', true);
 
         $('#username').prop('readonly', false);
         $('#correo').prop('readonly', false);
         $('#password').prop('readonly', false);
+        $('#password_confirm').prop('readonly', false);
 
     }
 
-    function cargarListado() {
-        $.post('gestionar_perfiles_data.php', {
-            action: 'listar_html'
-        }, function(html) {
-            $('#listaUsuarios').html(html);
-        }).fail(function() {
-            $('#listaUsuarios').html('<tr><td colspan="6" class="text-center text-danger">Error al cargar usuarios</td></tr>');
-        });
+    function cargarListado(page) {
+        crudPostListadoPaginado(
+            'gestionar_perfiles_data.php',
+            { action: 'listar_html' },
+            '#listaUsuarios',
+            '#paginacion-perfiles',
+            page || 1
+        );
     }
 
     // $.post('gestionar_perfiles_data.php', { action: 'eliminar', id: usuarioId }, function(response) {
@@ -185,12 +190,21 @@ require_once('../template/header.php');
             id: $('#editar-usuario-id').val() || null,
             username: $('#username').val(),
             password: $('#password').val(),
+            password_confirm: $('#password_confirm').val(),
             correo: $('#correo').val(),
             role_id: $('#role_id').val()
         };
 
         if (formData.action === 'editar' && !formData.password) {
             delete formData.password;
+            delete formData.password_confirm;
+        }
+
+        if (formData.action === 'crear') {
+            if (formData.password !== formData.password_confirm) {
+                $('#resultadoUsuarios').html('<div class="alert alert-danger">Las contraseñas no coinciden.</div>');
+                return;
+            }
         }
 
         $.post('gestionar_perfiles_data.php', formData, function(resp) {
@@ -199,7 +213,7 @@ require_once('../template/header.php');
                 setTimeout(function() {
                     $('#resultadoUsuarios').html('');
                     mostrarVista('listado');
-                    cargarListado();
+                    cargarListado(1);
                 }, 1500);
             } else {
                 $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');
@@ -220,7 +234,8 @@ require_once('../template/header.php');
 
                 $('#editar-usuario-id').val(user.id);
                 $('#username').val(user.username).prop('readonly', true);
-                $('#password').val('').prop('readonly', true);
+                $('#password').val('').prop('readonly', true).removeAttr('required');
+                $('#password_confirm').val('').prop('readonly', true).removeAttr('required');
                 $('#correo').val(user.correo).prop('readonly', true);
                 $('#role_id').val(user.role_id || ''); // este queda editable
                 $('#action').val('editar');
@@ -252,7 +267,7 @@ require_once('../template/header.php');
                     $('#resultadoUsuarios').html('<div class="alert alert-success">' + resp.message + '</div>');
                     setTimeout(function() {
                         $('#resultadoUsuarios').html('');
-                        cargarListado();
+                        cargarListado(1);
                     }, 1500);
                 } else {
                     $('#resultadoUsuarios').html('<div class="alert alert-danger">' + resp.message + '</div>');

@@ -18,7 +18,7 @@ if (!empty($insumo)) {
 
 if (!empty($unidad)) {
     $unidad = $conn->real_escape_string($unidad);
-    $where[] = "i.unidad_medida = '$unidad'";
+    $where[] = "um.codigo = '$unidad'";
 }
 
 if ($stock_min !== '') {
@@ -38,15 +38,17 @@ SELECT
     inv.insumo_id AS id,
     inv.ultima_actualizacion,
     i.nombre AS insumo,
-    i.unidad_medida,
+    COALESCE(um.nombre, um.codigo, '') AS unidad_medida,
     inv.stock_actual
 FROM inventario inv
-JOIN insumos i ON i.id = inv.insumo_id
+JOIN insumos i ON i.id = CASE WHEN inv.tipo_item = 'insumo' THEN inv.tipo_item_id ELSE inv.insumo_id END
+LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
 $condiciones
 ORDER BY i.nombre ASC
 ";
 
 $result = $conn->query($sql);
+$i = 1;
 ?>
 
 <div class="contenido-principal">

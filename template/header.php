@@ -43,6 +43,7 @@ require_once ROOT_PATH . '/connection/connection.php';
     <link rel="stylesheet" href="../css/sweetalert-overrides.css">
     <link rel="stylesheet" href="../assets/css/all.min.css">
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
+    <script src="../assets/js/crud_pagination.js"></script>
     <script src="../assets/js/sweetalert2.all.min.js"></script>
     <script>
         window.Swal = Swal.mixin({ confirmButtonText: 'Aceptar' });

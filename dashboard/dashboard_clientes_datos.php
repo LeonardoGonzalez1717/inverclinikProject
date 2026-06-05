@@ -13,9 +13,9 @@ $response = [];
 
 try {
     $sql_kpis = "SELECT 
-        (SELECT COUNT(*) FROM ventas WHERE cliente_id = $id_cliente AND estado IN ('pendiente', 'por_pagar')) as activos,
+        (SELECT COUNT(*) FROM ventas WHERE cliente_id = $id_cliente AND estado IN ('pendiente', 'por_pagar', 'en_proceso')) as activos,
         
-        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE cliente_id = $id_cliente AND estado IN ('pendiente', 'por_pagar')) as saldo_usd,
+        (SELECT IFNULL(SUM(total), 0) FROM ventas WHERE cliente_id = $id_cliente AND estado IN ('pendiente', 'por_pagar', 'en_proceso')) as saldo_usd,
         
         (SELECT tasa FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1) as tasa_actual,
         

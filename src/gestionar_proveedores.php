@@ -48,6 +48,7 @@ require_once "../connection/connection.php";
                                 <tbody></tbody>
                             </table>
                         </div>
+                        <div id="paginacion-proveedores"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -125,7 +126,25 @@ require_once "../connection/connection.php";
     </div>
 
 <script>
-// --- LOGICA DE INTERFAZ ---
+
+function mensajeErrorAjax(xhr, textoPorDefecto) {
+    textoPorDefecto = textoPorDefecto || 'Error de comunicación con el servidor.';
+    if (xhr.responseJSON && xhr.responseJSON.message) {
+        return xhr.responseJSON.message;
+    }
+    if (xhr.responseText) {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r && r.message) {
+                return r.message;
+            }
+        } catch (ignore) {}
+    }
+    if (xhr.status === 0) {
+        return 'No hay conexión con el servidor.';
+    }
+    return textoPorDefecto;
+}
 
 $('#btn-ir-crear').on('click', function() {
     $('#vista-listado').fadeOut(200, function() {
@@ -149,10 +168,14 @@ $('#btn-volver-listado').on('click', function() {
     });
 });
 
-function cargarListado() {
-    $.post('gestionar_proveedores_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'gestionar_proveedores_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-proveedores',
+        page || 1
+    );
 }
 
 function limpiarFormulario() {
@@ -277,14 +300,15 @@ $("#form-crear").on("submit", function(e) {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
         },
-        error: function() {
-            Swal.fire({ icon: 'error', text: "Error de comunicación con el servidor." });
+        error: function(xhr) {
+            Swal.fire({ icon: 'error', text: mensajeErrorAjax(xhr) });
         }
     });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-proveedores', cargarListado);
 });
 </script>
 
