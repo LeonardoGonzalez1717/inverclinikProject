@@ -55,7 +55,7 @@ if ($resultTipos) {
                 
                 <div class="row mb-3" id="vista-botones">
                     <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Receta</button>
+                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear nueva guia de corte</button>
                     </div>
                 </div>
 
@@ -81,10 +81,11 @@ if ($resultTipos) {
                                 </tbody>
                             </table>
                         </div>
+                        <div id="paginacion-recetas-registrar"></div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
-                        <h4 class="main-title">Crear Nueva Receta</h4>
+                        <h4 class="main-title">Crear nueva guia de corte</h4>
                         <form id="form-crear">
                             <div class="mb-3">
                                 <label class="form-label">Producto</label>
@@ -123,7 +124,7 @@ if ($resultTipos) {
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
 
                             <div class="mb-3">
-                                <h5 style="color: #0056b3; margin-bottom: 15px;">Insumos de la Receta</h5>
+                                <h5 style="color: #0056b3; margin-bottom: 15px;">Insumos de la guia de corte</h5>
                                 
                                 <div class="card" style="padding: 15px; margin-bottom: 15px; background-color: #f8f9fa;">
                                     <div class="row">
@@ -171,7 +172,7 @@ if ($resultTipos) {
                                         </tbody>
                                         <tfoot>
                                             <tr style="background-color: #f2f7ff; font-weight: bold;">
-                                                <td colspan="3" style="text-align: right;">Costo Total de la Receta:</td>
+                                                <td colspan="3" style="text-align: right;">Costo total de la guia de corte:</td>
                                                 <td id="costo-total-receta" style="color: #0056b3; font-size: 16px;">$0.00</td>
                                                 <td></td>
                                             </tr>
@@ -187,7 +188,7 @@ if ($resultTipos) {
                                 <label class="form-label">Observaciones Generales</label>
                                 <textarea name="observaciones" id="observaciones" class="form-control" rows="3"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary" id="btn-guardar-receta" disabled>Guardar Receta Completa</button>
+                            <button type="submit" class="btn btn-primary" id="btn-guardar-receta" disabled>Guardar guia de corte completa</button>
                             <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
                             <input type="hidden" id="editar-receta-id" name="id" value="">
                             <input type="hidden" id="action" value="">
@@ -216,7 +217,7 @@ function agregarInsumo() {
     }
     
     if (insumosAgregados.some(i => i.insumo_id == insumoId)) {
-        Swal.fire({ icon: 'warning', text: 'Este insumo ya fue agregado a la receta' });
+        Swal.fire({ icon: 'warning', text: 'Este insumo ya fue agregado a la guia de corte' });
         return;
     }
     
@@ -314,7 +315,7 @@ $("#form-crear").on("submit", function(e) {
     e.preventDefault();
     
     if (insumosAgregados.length === 0) {
-        Swal.fire({ icon: 'warning', text: 'Debes agregar al menos un insumo a la receta' });
+        Swal.fire({ icon: 'warning', text: 'Debes agregar al menos un insumo a la guia de corte' });
         return;
     }
     
@@ -345,7 +346,7 @@ $("#form-crear").on("submit", function(e) {
             if (resp && resp.success) {
                 Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
-                cargarListado();
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
@@ -367,10 +368,14 @@ function mostrarVista(vista) {
     }
 }
 
-function cargarListado() {
-    $.post('nuevo_producto_data.php', { action: 'listar_html' }, function(html) {
-        $('#vista-listado tbody').html(html);
-    });
+function cargarListado(page) {
+    crudPostListadoPaginado(
+        'nuevo_producto_data.php',
+        { action: 'listar_html' },
+        '#vista-listado tbody',
+        '#paginacion-recetas-registrar',
+        page || 1
+    );
     limpiarFormulario();
 }
 
@@ -400,7 +405,8 @@ function editarReceta(data) {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado();
+    cargarListado(1);
+    bindCrudPagination('#paginacion-recetas-registrar', cargarListado);
 });
 </script>
 

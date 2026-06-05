@@ -33,7 +33,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 }
 
 // Validar que el correo no exista en clientes
-$sqlCheck = "SELECT id FROM clientes WHERE email = ?";
+$sqlCheck = "SELECT id FROM clientes WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))";
 $stmtCheck = $conn->prepare($sqlCheck);
 $stmtCheck->bind_param("s", $email);
 $stmtCheck->execute();
@@ -50,6 +50,30 @@ if ($resultCheck->num_rows > 0) {
 }
 $stmtCheck->close();
 
+// Documento de identidad: no duplicar (misma cédula/RIF aunque venga en tipo + número o solo número)
+$tipo_documento = trim((string) $tipo_documento);
+$numero_documento = trim((string) $numero_documento);
+$docNormalizado = strtoupper(preg_replace('/\s+/', '', $tipo_documento . $numero_documento));
+if ($docNormalizado !== '') {
+    $sqlDoc = "SELECT id FROM clientes WHERE UPPER(REPLACE(CONCAT(TRIM(IFNULL(tipo_documento,'')), TRIM(IFNULL(numero_documento,''))), ' ', '')) = ? LIMIT 1";
+    $stmtDoc = $conn->prepare($sqlDoc);
+    if ($stmtDoc) {
+        $stmtDoc->bind_param("s", $docNormalizado);
+        $stmtDoc->execute();
+        $resDoc = $stmtDoc->get_result();
+        if ($resDoc && $resDoc->num_rows > 0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Ya existe un cliente registrado con el mismo documento de identidad.',
+            ]);
+            $stmtDoc->close();
+            mysqli_close($conn);
+            exit;
+        }
+        $stmtDoc->close();
+    }
+}
+
 // Encriptar la contraseña
 $hash = password_hash($password, PASSWORD_DEFAULT);
 
@@ -60,9 +84,9 @@ if ($checkColumn->num_rows == 0) {
     $conn->query($alterSql);
 }
 
-// Preparar valores NULL para campos opcionales
-$tipo_documento = empty($tipo_documento) ? null : $tipo_documento;
-$numero_documento = empty($numero_documento) ? null : $numero_documento;
+// Preparar valores NULL para campos opcionales (tras validación de duplicados)
+$tipo_documento = $tipo_documento === '' ? null : $tipo_documento;
+$numero_documento = $numero_documento === '' ? null : $numero_documento;
 $telefono = empty($telefono) ? null : $telefono;
 $direccion = empty($direccion) ? null : $direccion;
 

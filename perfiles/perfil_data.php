@@ -18,7 +18,13 @@ try {
         $numero_documento = trim($_POST['numero_documento'] ?? '');
         $telefono = trim($_POST['telefono'] ?? '');
         $direccion = trim($_POST['direccion'] ?? '');
-        $password = $_POST['password'] ?? '';
+        $password = trim((string) ($_POST['password'] ?? ''));
+        $password_confirm = trim((string) ($_POST['password_confirm'] ?? ''));
+        if ($password !== '' || $password_confirm !== '') {
+            if ($password === '' || $password_confirm === '' || $password !== $password_confirm) {
+                throw new Exception('Las contraseñas no coinciden o están incompletas.');
+            }
+        }
 
         if ($nombre === '' || $correo === '') {
             throw new Exception("Nombre y correo son obligatorios");
@@ -44,7 +50,7 @@ try {
             $stmt->close();
         }
 
-        if (!empty($password)) {
+        if ($password !== '') {
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $conn->prepare("UPDATE clientes SET nombre=?, email=?, tipo_documento=?, numero_documento=?, telefono=?, direccion=?, password=? WHERE id=?");
             $stmt->bind_param("sssssssi", $nombre, $correo, $tipo_documento, $numero_documento, $telefono, $direccion, $hash, $id);
@@ -74,7 +80,7 @@ try {
 
         $_SESSION['nombre_cliente'] = $nombre;
 
-        $msgPerfil = !empty($password)
+        $msgPerfil = ($password !== '')
             ? 'Perfil actualizado y contraseña modificada (cliente id ' . $id . ').'
             : 'Perfil actualizado (cliente id ' . $id . ').';
         Auditoria::registrar($conn, $msgPerfil, 'Perfil');
@@ -84,7 +90,13 @@ try {
         $id = $idStaff;
         $username = $_POST['username'] ?? '';
         $correo = $_POST['correo'] ?? '';
-        $password = $_POST['password'] ?? '';
+        $password = trim((string) ($_POST['password'] ?? ''));
+        $password_confirm = trim((string) ($_POST['password_confirm'] ?? ''));
+        if ($password !== '' || $password_confirm !== '') {
+            if ($password === '' || $password_confirm === '' || $password !== $password_confirm) {
+                throw new Exception('Las contraseñas no coinciden o están incompletas.');
+            }
+        }
 
         if (empty($username) || empty($correo)) {
             throw new Exception("Usuario y correo son obligatorios");
@@ -101,7 +113,7 @@ try {
         }
         $stmtCheck->close();
 
-        if (!empty($password)) {
+        if ($password !== '') {
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $conn->prepare("UPDATE users SET username=?, correo=?, password=? WHERE id=?");
             $stmt->bind_param("sssi", $username, $correo, $hash, $id);
@@ -117,7 +129,7 @@ try {
         $stmt->execute();
         $stmt->close();
 
-        $msgStaff = !empty($password)
+        $msgStaff = ($password !== '')
             ? 'Perfil actualizado y contraseña modificada (usuario interno id ' . $id . ').'
             : 'Perfil actualizado (usuario interno id ' . $id . ').';
         Auditoria::registrar($conn, $msgStaff, 'Perfil');

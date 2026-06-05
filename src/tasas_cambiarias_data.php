@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../connection/connection.php';
 require_once __DIR__ . '/../classes/TasaBCV.php';
+require_once __DIR__ . '/../lib/Pagination.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -17,36 +18,48 @@ if ($isCli && $action === '') {
 
 try {
     if ($action === 'listar_html') {
-        header('Content-Type: text/html; charset=utf-8');
         $fecha = $_POST['fecha'] ?? '';
         $hora = $_POST['hora'] ?? '';
 
-        $sql = "SELECT t.id, t.tasa, t.fecha_hora, t.origen 
-                FROM tasas_cambiarias t 
-                WHERE 1=1";
+        $sqlFrom = 'FROM tasas_cambiarias t WHERE 1=1';
         $params = [];
         $types = '';
 
         if ($fecha !== '') {
-            $sql .= " AND DATE(t.fecha_hora) = ?";
+            $sqlFrom .= ' AND DATE(t.fecha_hora) = ?';
             $params[] = $fecha;
             $types .= 's';
         }
         if ($hora !== '') {
-            $sql .= " AND HOUR(t.fecha_hora) = ?";
-            $params[] = $hora;
+            $sqlFrom .= ' AND HOUR(t.fecha_hora) = ?';
+            $params[] = (int) $hora;
             $types .= 'i';
         }
 
-        $sql .= " ORDER BY t.fecha_hora DESC";
+        $countSql = 'SELECT COUNT(*) AS c ' . $sqlFrom;
+        if ($params !== []) {
+            $stmtC = $conn->prepare($countSql);
+            $stmtC->bind_param($types, ...$params);
+            $stmtC->execute();
+            $total = (int) ($stmtC->get_result()->fetch_assoc()['c'] ?? 0);
+            $stmtC->close();
+        } else {
+            $cr = $conn->query($countSql);
+            $total = (int) ($cr->fetch_assoc()['c'] ?? 0);
+        }
 
-        if (!empty($params)) {
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = 'SELECT t.id, t.tasa, t.fecha_hora, t.origen ' . $sqlFrom . ' ORDER BY t.fecha_hora DESC ' . $pg->limitClause();
+
+        if ($params !== []) {
             $stmt = $conn->prepare($sql);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
         } else {
             $result = $conn->query($sql);
+            $stmt = null;
         }
 
         $rows = [];
@@ -56,22 +69,27 @@ try {
             }
         }
 
+        ob_start();
         foreach ($rows as $r) {
             $fh = date('d/m/Y H:i', strtotime($r['fecha_hora']));
             $origen = $r['origen'] === 'bcv' ? 'BCV' : 'Manual';
             echo '<tr>';
             echo '<td>' . htmlspecialchars($fh) . '</td>';
-            echo '<td>' . number_format((float)$r['tasa'], 4, ',', '.') . '</td>';
+            echo '<td>' . number_format((float) $r['tasa'], 4, ',', '.') . '</td>';
             echo '<td>' . $origen . '</td>';
-            echo '<td><button type="button" class="btn btn-sm btn-danger btn-borrar-tasa" data-id="' . (int)$r['id'] . '">Borrar</button></td>';
+            echo '<td><button type="button" class="btn btn-sm btn-danger btn-borrar-tasa" data-id="' . (int) $r['id'] . '">Borrar</button></td>';
             echo '</tr>';
         }
 
-        if (empty($rows)) {
+        if ($rows === []) {
             echo '<tr><td colspan="4" class="text-center">No hay tasas registradas para el filtro seleccionado.</td></tr>';
         }
 
-        if (isset($stmt)) $stmt->close();
+        if ($stmt) {
+            $stmt->close();
+        }
+        $rowsHtml = ob_get_clean();
+        Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }

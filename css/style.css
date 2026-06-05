@@ -34,14 +34,12 @@ body {
     font-size: 18px;
     text-align: center;
     margin-top: 0;
-    margin-bottom: 25px;
 }
 
 /* Tabla */
 .recipe-table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
     border-radius: 8px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -79,7 +77,6 @@ body {
 /* Estilo para el contenedor de la tabla */
 .table-container {
     overflow-x: auto;
-    margin-top: 20px;
 }
 
 /* Botones */
@@ -90,7 +87,6 @@ body {
     cursor: pointer;
     font-size: 16px;
     transition: background-color 0.3s ease;
-    margin-bottom: 20px;
 }
 
 .btn-success {
