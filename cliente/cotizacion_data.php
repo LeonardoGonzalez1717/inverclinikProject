@@ -13,6 +13,7 @@ switch ($action) {
                     c.codigo_cotizacion, 
                     c.codigo_presupuesto_origen, 
                     c.status,
+                    c.fecha_registro as fecha,
                     cl.nombre AS cliente_nombre, 
                     cl.telefono, 
                     cl.email, 
@@ -31,6 +32,9 @@ switch ($action) {
             while ($row = mysqli_fetch_assoc($res)) {
                 $totalFormateado = number_format($row['total'], 2);
                 $st = (int) ($row['status'] ?? 0);
+
+                $fechaFormateada = date('d/m/Y', strtotime($row['fecha']));
+                $fechaLimpia = date('Y-m-d', strtotime($row['fecha']));
                 
                 $estadoStyle = match($st) {
                     2 => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;', // Aprobada
@@ -55,7 +59,7 @@ switch ($action) {
                                     </button>";
                 }
                 
-                $html .= "<tr data-codigo='" . htmlspecialchars($row['codigo_cotizacion']) . "' data-cliente='" . htmlspecialchars($row['cliente_nombre']) . "' data-estado='" . $estTxt . "'>";
+                $html .= "<tr data-codigo='" . htmlspecialchars($row['codigo_cotizacion']) . "' data-cliente='" . htmlspecialchars($row['cliente_nombre']) . "' data-estado='" . $estTxt . "' data-fecha='" . $fechaLimpia . "'>";;
                 
                 $html .= "<td>" . $i++ . "</td>";
                 $html .= "<td nowrap><strong>" . htmlspecialchars($row['codigo_cotizacion']) . "</strong></td>";
@@ -63,6 +67,8 @@ switch ($action) {
                             <span style='font-weight: 600; color: #333;'>" . htmlspecialchars($row['cliente_nombre']) . "</span><br>
                             <small class='text-muted'>" . htmlspecialchars($row['email'] ?? 'Sin correo') . "</small>
                         </td>";
+                $html .= "<td style='font-weight:bold;'>" . $fechaFormateada . "</td>";
+
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
                 
                 $html .= "<td><span style='" . $estadoStyle . "'>" . htmlspecialchars($estTxt) . "</span></td>";

@@ -34,11 +34,11 @@
                             <div class="row">
                                 <div class="col-sm-3">
                                     <label for="filtro-codigo">Código Cotización</label>
-                                    <input type="text" id="filtro-codigo" class="form-control clase-filtro" placeholder="Ej: COT-001">
+                                    <input type="text" id="filtro-codigo" class="form-control clase-filtro" placeholder="Buscar Numero de Cotización...">
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="filtro-cliente">Cliente</label>
-                                    <input type="text" id="filtro-cliente" class="form-control clase-filtro" placeholder="Buscar cliente...">
+                                    <input type="text" id="filtro-cliente" class="form-control clase-filtro" placeholder="Buscar Cliente...">
                                 </div>
                                 <div class="col-sm-3">
                                     <label for="filtro-estado">Estado</label>
@@ -49,8 +49,18 @@
                                         <option value="Rechazada">Rechazado</option>
                                     </select>
                                 </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <label for="filtro-desde">Desde</label>
+                                    <input type="date" id="filtro-desde" class="form-control clase-filtro">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label for="filtro-hasta">Hasta</label>
+                                    <input type="date" id="filtro-hasta" class="form-control clase-filtro">
+                                </div>
                                 <div class="col-sm-2" style="margin-top: 25px;">
-                                    <button syle="" type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">Limpiar</button>
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">Limpiar</button>
                                 </div>
                             </div>
                         </div>
@@ -61,6 +71,7 @@
                                     <th style="width: 1%;">#</th>
                                     <th style="width: 15%;">Código</th>
                                     <th style="width: 35%;">Cliente</th>
+                                    <th style="width: 20%;">Fecha</th>
                                     <th style="width: 20%;">Total</th>
                                     <th style="width: 15%;">Estado</th>
                                     <th style="width: 15%;">Acciones</th>
@@ -298,6 +309,8 @@
             var codigo = $('#filtro-codigo').val().toLowerCase().trim();
             var cliente = $('#filtro-cliente').val().toLowerCase().trim();
             var estado = $('#filtro-estado').val().toLowerCase().trim();
+            var fechaDesde = $('#filtro-desde').val(); // YYYY-MM-DD
+            var fechaHasta = $('#filtro-hasta').val(); // YYYY-MM-DD
 
             $('#vista-listado table tbody tr').each(function() {
                 var fila = $(this);
@@ -305,14 +318,24 @@
                 var textoCodigo = (fila.data('codigo') || '').toString().toLowerCase();
                 var textoCliente = (fila.data('cliente') || '').toString().toLowerCase();
                 var textoEstado = (fila.data('estado') || '').toString().toLowerCase();
+                var fechaFila = fila.data('fecha'); 
 
 
                 // Condición lógica: la fila debe coincidir con los 3 filtros a la vez
                 var coincideCodigo = (codigo === "" || textoCodigo.includes(codigo));
                 var coincideCliente = (cliente === "" || textoCliente.includes(cliente));
                 var coincideEstado = (estado === "" || textoEstado.includes(estado));
+                var coincideFecha = true;
+                if (fechaFila) {
+                    if (fechaDesde !== "" && fechaFila < fechaDesde) {
+                        coincideFecha = false;
+                    }
+                    if (fechaHasta !== "" && fechaFila > fechaHasta) {
+                        coincideFecha = false;
+                    }
+                }
 
-                if (coincideCodigo && coincideCliente && coincideEstado) {
+                if (coincideCodigo && coincideCliente && coincideEstado && coincideFecha) {
                     fila.show();
                 } else {
                     fila.hide(); 
