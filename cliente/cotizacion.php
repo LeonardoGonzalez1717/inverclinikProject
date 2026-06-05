@@ -7,29 +7,59 @@
                 <h2 class="main-title">Cotizaciones</h2>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button type="button" class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Nueva Cotización
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div  aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nueva Cotización" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
+                            <div class="row">
+                                <div class="col-sm-3">
+                                    <label for="filtro-codigo">Código Cotización</label>
+                                    <input type="text" id="filtro-codigo" class="form-control clase-filtro" placeholder="Ej: COT-001">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-cliente">Cliente</label>
+                                    <input type="text" id="filtro-cliente" class="form-control clase-filtro" placeholder="Buscar cliente...">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label for="filtro-estado">Estado</label>
+                                    <select id="filtro-estado" class="form-control clase-filtro">
+                                        <option value="">Todos los estados</option>
+                                        <option value="Enviada">Enviada</option>
+                                        <option value="Aprobada">Aprobado</option>
+                                        <option value="Rechazada">Rechazado</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-2" style="margin-top: 25px;">
+                                    <button syle="" type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">Limpiar</button>
+                                </div>
                             </div>
                         </div>
                         <div class="table-container">
-                            <table class="recipe-table" id="tabla-listado-cotizaciones">
-                                <thead>
-                                    <tr>
-                                        <th>Código</th>
-                                        <th>Cliente</th>
-                                        <th>Origen</th>
-                                        <th>Total</th>
-                                        <th>Estado</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody-listado-cotizaciones">
+                        <table class="recipe-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 1%;">#</th>
+                                    <th style="width: 15%;">Código</th>
+                                    <th style="width: 35%;">Cliente</th>
+                                    <th style="width: 20%;">Total</th>
+                                    <th style="width: 15%;">Estado</th>
+                                    <th style="width: 15%;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                                 </tbody>
-                            </table>
-                        </div>
+                        </table>
+                    </div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -250,6 +280,45 @@
                 limpiarFormulario();
                 cargarProductosManuales(); 
             });
+        });
+
+        $('#btn-toggle-filtros').on('click', function() {
+            $('#panel-filtros').slideToggle(300);
+        });
+
+        $('.clase-filtro').on('keyup change', function() {
+            filtrarTabla();
+        });
+
+        function filtrarTabla() {
+            var codigo = $('#filtro-codigo').val().toLowerCase().trim();
+            var cliente = $('#filtro-cliente').val().toLowerCase().trim();
+            var estado = $('#filtro-estado').val().toLowerCase().trim();
+
+            $('#vista-listado table tbody tr').each(function() {
+                var fila = $(this);
+                
+                var textoCodigo = (fila.data('codigo') || '').toString().toLowerCase();
+                var textoCliente = (fila.data('cliente') || '').toString().toLowerCase();
+                var textoEstado = (fila.data('estado') || '').toString().toLowerCase();
+
+
+                // Condición lógica: la fila debe coincidir con los 3 filtros a la vez
+                var coincideCodigo = (codigo === "" || textoCodigo.includes(codigo));
+                var coincideCliente = (cliente === "" || textoCliente.includes(cliente));
+                var coincideEstado = (estado === "" || textoEstado.includes(estado));
+
+                if (coincideCodigo && coincideCliente && coincideEstado) {
+                    fila.show();
+                } else {
+                    fila.hide(); 
+                }
+            });
+        }
+
+        $('#btn-limpiar-filtros').on('click', function() {
+            $('.clase-filtro').val(''); 
+            filtrarTabla(); 
         });
 
         $('#btn-volver-listado').on('click', function() {
