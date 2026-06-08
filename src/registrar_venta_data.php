@@ -296,22 +296,39 @@ function validar_venta_igual_a_cotizacion_con_comprobante(mysqli $conn, int $cot
 function etiqueta_estado_venta(?string $estado): array
 {
     $e = (string) ($estado ?? '');
-    $map = [
-        'pendiente' => ['Pendiente', 'badge-secondary'],
-        'por_pagar' => ['Por pagar', 'badge-warning'],
-        'aprobado' => ['Aprobado', 'badge-success'],
-        'en_proceso' => ['En proceso', 'badge-primary'],
-        'entregado' => ['Entregado', 'badge-info'],
-        'cancelado' => ['Cancelado', 'badge-danger'],
-    ];
-    if (isset($map[$e])) {
-        return $map[$e];
-    }
-    if ($e === '') {
-        return ['—', 'badge-light'];
-    }
 
-    return [$e, 'badge-light'];
+    $baseStyle = 'font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; text-transform: capitalize;';
+
+    return match ($e) {
+        'aprobado', 'entregado' => [
+            $e === 'aprobado' ? 'Aprobado' : 'Entregado', 
+            "background-color: #198754; color: #ffffff; {$baseStyle}"
+        ],
+        'pendiente' => [
+            'Pendiente', 
+            "background-color: #fd7e14; color: #ffffff; {$baseStyle}"
+        ],
+        'en_proceso' => [
+            'En proceso', 
+            "background-color: #0d6efd; color: #ffffff; {$baseStyle}"
+        ],
+        'por_pagar' => [
+            'Por pagar', 
+            "background-color: #0dcaf0; color: #ffffff; {$baseStyle}" // Info / Cyan llamativo
+        ],
+        'cancelado' => [
+            'Cancelado', 
+            "background-color: #dc3545; color: #ffffff; {$baseStyle}"
+        ],
+        '' => [
+            '—', 
+            "background-color: #6c757d; color: #ffffff; {$baseStyle}"
+        ],
+        default => [
+            $e, 
+            "background-color: #dc3545; color: #ffffff; {$baseStyle}"
+        ]
+    };
 }
 
 /**
@@ -770,6 +787,43 @@ try {
     }
     
     if ($action === 'listar_html') {
+        $buscar_cliente = isset($_POST['buscar_cliente']) ? trim($_POST['buscar_cliente']) : '';
+        $buscar_factura = isset($_POST['buscar_factura']) ? trim($_POST['buscar_factura']) : ''; // Filtro dual
+        $estado         = isset($_POST['estado']) ? trim($_POST['estado']) : '';
+        $fecha_desde    = isset($_POST['fecha_desde']) ? trim($_POST['fecha_desde']) : '';
+        $fecha_hasta    = isset($_POST['fecha_hasta']) ? trim($_POST['fecha_hasta']) : '';
+
+        $where = [
+            "NOT (v.cotizacion_id IS NOT NULL AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar') AND v.tasa_cambiaria_id IS NULL)"
+        ];
+
+        if ($buscar_cliente !== '') {
+            $searchC = $conn->real_escape_string($buscar_cliente);
+            $where[] = "(c.nombre LIKE '%$searchC%' OR c.numero_documento LIKE '%$searchC%'";
+        }
+
+        if ($buscar_factura !== '') {
+            $searchF = $conn->real_escape_string($buscar_factura);
+            $where[] = "(v.numero_factura LIKE '%$searchF%' OR cot.codigo_cotizacion LIKE '%$searchF%')";
+        }
+
+        if ($estado !== '') {
+            $searchE = $conn->real_escape_string($estado);
+            $where[] = "v.estado = '$searchE'";
+        }
+
+        if ($fecha_desde !== '') {
+            $fDesde = $conn->real_escape_string($fecha_desde);
+            $where[] = "v.fecha >= '$fDesde'";
+        }
+
+        if ($fecha_hasta !== '') {
+            $fHasta = $conn->real_escape_string($fecha_hasta);
+            $where[] = "v.fecha <= '$fHasta'";
+        }
+
+        $fil = " WHERE " . implode(" AND ", $where);
+
         $sqlBase = "
             SELECT 
                 v.id,
@@ -789,11 +843,7 @@ try {
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
-            WHERE NOT (
-                v.cotizacion_id IS NOT NULL
-                AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar')
-                AND v.tasa_cambiaria_id IS NULL
-            )
+            " . $fil . "
             GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, v.creado_en
         ";
 
@@ -821,6 +871,7 @@ try {
                     $totalBs = (float)$v['total'] * (float)$v['tasa_venta'];
                 }
                 $totalBsTexto = $totalBs !== null ? 'Bs. ' . number_format($totalBs, 2, '.', ',') : '—';
+                [$estTxt, $estStyle] = etiqueta_estado_venta($v['estado'] ?? null);
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($v['cliente_nombre']) . '</td>';
@@ -828,19 +879,19 @@ try {
                 echo '<td>' . htmlspecialchars($v['numero_factura'] ?? '-') . '</td>';
                 $codCot = $v['codigo_cotizacion'] ?? '';
                 echo '<td>' . ($codCot !== '' && $codCot !== null ? htmlspecialchars($codCot) : '<span class="text-muted">—</span>') . '</td>';
-                echo '<td>' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
-                echo '<td>$' . number_format($v['total'], 2, '.', ',') . '</td>';
-                echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
+                echo '<td style="text-align: right;">' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
+                echo '<td style="text-align: right; font-weight: bold;">$' . number_format($v['total'], 2, '.', ',') . '</td>';
+                echo '<td style="text-align: right; font-weight: bold;"nowrap>' . htmlspecialchars($totalBsTexto) . '</td>';
                 [$estTxt, $estCls] = etiqueta_estado_venta($v['estado'] ?? null);
-                echo '<td><span class="badge ' . htmlspecialchars($estCls, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt, ENT_QUOTES, 'UTF-8') . '</span></td>';
+                echo '<td><span style="' . htmlspecialchars($estStyle, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
-                echo '<button style = "margin-left: 5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" style="margin-right: 5px;">Ver Detalle</button>';
+                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info" style="margin-right: 5px;" title="Imprimir"><i class="fas fa-print"></i></a>';
+                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" title="Ver Detalle"><i class="fas fa-eye"></i></button>';
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="10" class="text-center">No se encontraron ventas registradas</td></tr>';
+            echo '<tr><td colspan="10" class="text-center text-muted" style="padding: 20px;">No se encontraron ventas con los filtros aplicados.</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);

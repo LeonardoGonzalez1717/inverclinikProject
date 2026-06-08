@@ -6,7 +6,24 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM proveedores')->fetch_assoc()['c'] ?? 0);
+        $buscar   = isset($_POST['buscar']) ? trim($_POST['buscar']) : '';
+        $tipo_doc = isset($_POST['tipo_doc']) ? trim($_POST['tipo_doc']) : '';
+
+        $where = [];
+
+        if ($buscar !== '') {
+            $buscarEscaped = $conn->real_escape_string($buscar);
+            $where[] = "(nombre LIKE '%$buscarEscaped%' OR cedrif LIKE '%$buscarEscaped%' OR telefono LIKE '%$buscarEscaped%' OR email LIKE '%$buscarEscaped%')";
+        }
+
+        if ($tipo_doc !== '') {
+            $docEscaped = $conn->real_escape_string($tipo_doc);
+            $where[] = "cedrif LIKE '$docEscaped%'";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM proveedores" . $fil)->fetch_assoc()['c'] ?? 0);
         $pg = Pagination::fromInput($total, $_POST);
 
         $sql = "
@@ -18,6 +35,7 @@ try {
                 direccion, 
                 cedrif
             FROM proveedores
+            " . $fil . "
             ORDER BY nombre ASC
         " . $pg->limitClause();
 
@@ -28,32 +46,42 @@ try {
                 $proveedores[] = $row;
             }
         }
+        
         ob_start();
         $i = $pg->rowNumberStart() - 1;
         if (!empty($proveedores)) {
             foreach ($proveedores as $p) {
                 $i++;
+                
+                $badgeColor = (strpos(strtoupper($p['cedrif']), 'J') === 0) ? 'badge-primary' : 'badge-secondary';
+                $cedrifFormat = '<span class="badge ' . $badgeColor . '" style="padding: 4px 6px; font-family: monospace;">' . htmlspecialchars($p['cedrif']) . '</span>';
+                
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($i) . '</td>';
-                echo '<td>' . htmlspecialchars($p['cedrif']) . '</td>';
-                echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($p['telefono'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars($p['email'] ?? '-') . '</td>';
+                echo '<td>' . $i . '</td>';
+                echo '<td>' . $p['cedrif'] . '</td>';
+                echo '<td><strong>' . htmlspecialchars($p['nombre']) . '</strong></td>';
+                echo '<td nowrap>' . htmlspecialchars($p['telefono'] ?? '—') . '</td>';
+                echo '<td>' . htmlspecialchars($p['email'] ?? '—') . '</td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarProveedor(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;">Editar</button>';
-                echo '<button class="btn btn-sm btn-danger" onclick="eliminarProveedor(' . $p['id'] . ')">Eliminar</button>';
+                echo '  <button class="btn btn-sm btn-primary" title="Editar" onclick="editarProveedor(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;"><i class="fas fa-edit"></i></button>';
+                echo '  <button class="btn btn-sm btn-danger" title="Eliminar" onclick="eliminarProveedor(' . (int)$p['id'] . ')"><i class="fas fa-trash"></i></button>';
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="6" class="text-center">No se encontraron proveedores registrados</td></tr>';
+            echo '<tr>';
+            echo '  <td colspan="6" class="text-center text-muted" style="padding: 30px;">';
+            echo '      <i class="fas fa-truck-loading" style="font-size: 24px; opacity: 0.3; margin-bottom: 7px;"></i><br>';
+            echo '      No se encontraron proveedores que coincidan con la búsqueda.';
+            echo '  </td>';
+            echo '</tr>';
         }
+        
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
         exit;
     }
-
     restringirEscritura();
 
     header('Content-Type: application/json');

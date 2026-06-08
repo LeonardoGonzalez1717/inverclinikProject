@@ -9,8 +9,8 @@
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div  aria-label="Acciones de cotización">
-                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nueva Cotización" data-toggle="tooltip">
+                                <div aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Cotización" data-toggle="tooltip">
                                         <i class="fas fa-plus"></i>
                                     </button>
                                     <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
@@ -21,56 +21,59 @@
                         </div>
 
                         <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
-                            <div class="row">
+                            <div class="row" style="margin-bottom: 10px;">
                                 <div class="col-sm-3">
                                     <label for="filtro-codigo">Código Cotización</label>
                                     <input type="text" id="filtro-codigo" class="form-control clase-filtro" placeholder="Buscar Numero de Cotización...">
                                 </div>
-                                <div class="col-sm-4">
+                                <div class="col-sm-5">
                                     <label for="filtro-cliente">Cliente</label>
                                     <input type="text" id="filtro-cliente" class="form-control clase-filtro" placeholder="Buscar Cliente...">
                                 </div>
-                                <div class="col-sm-3">
+                                <div class="col-sm-4">
                                     <label for="filtro-estado">Estado</label>
                                     <select id="filtro-estado" class="form-control clase-filtro">
                                         <option value="">Todos los estados</option>
-                                        <option value="Enviada">Enviada</option>
-                                        <option value="Aprobada">Aprobado</option>
-                                        <option value="Rechazada">Rechazado</option>
+                                        <option value="1">Enviada</option>
+                                        <option value="2">Aprobado</option>
+                                        <option value="3">Rechazado</option>
                                     </select>
                                 </div>
                             </div>
                             <div class="row">
-                                <div class="col-sm-3">
+                                <div class="col-sm-4">
                                     <label for="filtro-desde">Desde</label>
                                     <input type="date" id="filtro-desde" class="form-control clase-filtro">
                                 </div>
-                                <div class="col-sm-3">
+                                <div class="col-sm-4">
                                     <label for="filtro-hasta">Hasta</label>
                                     <input type="date" id="filtro-hasta" class="form-control clase-filtro">
                                 </div>
-                                <div class="col-sm-2" style="margin-top: 25px;">
-                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">Limpiar</button>
+                                <div class="col-sm-4" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
                                 </div>
                             </div>
                         </div>
+
                         <div class="table-container">
-                        <table class="recipe-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 1%;">#</th>
-                                    <th style="width: 15%;">Código</th>
-                                    <th style="width: 35%;">Cliente</th>
-                                    <th style="width: 20%;">Fecha</th>
-                                    <th style="width: 20%;">Total</th>
-                                    <th style="width: 15%;">Estado</th>
-                                    <th style="width: 15%;">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                </tbody>
-                        </table>
-                    </div>
+                            <table class="recipe-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 1%;">#</th>
+                                        <th style="width: 15%;">Código</th>
+                                        <th style="width: 35%;">Cliente</th>
+                                        <th style="width: 15%;">Fecha</th>
+                                        <th style="width: 20%;">Total</th>
+                                        <th style="width: 15%;">Estado</th>
+                                        <th style="width: 15%;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-listado-cotizaciones">
+                                    </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     <div id="vista-crear" class="hidden">
@@ -132,7 +135,6 @@
 
                         <div id="contenedor-items" style="display: none; margin-top: 20px;">
                             <hr style="margin: 20px 0; border-color: #dee2e6;">
-
                             <h5 style="color: #0056b3; margin-bottom: 15px;">Detalle del presupuesto seleccionado</h5>
 
                             <div class="table-container">
@@ -173,7 +175,6 @@
 
 <script src="../assets/js/select2.min.js"></script>
 <script>
-
     function mostrarVista(vista) {
         if (vista === 'crear') {
             $('#vista-listado').fadeOut(200, function() {
@@ -194,17 +195,10 @@
         $('#gran-total-display').text('$' + total.toFixed(2));
     }
 
-
     function generarFilaTabla(id, nombre, tallaId, tallaNombre, cant, precio, origen) {
         let subtotal = (precio * cant).toFixed(2);
-        let badge = origen === 'manual' ? '<small style="color:#28a745; display:block;">(Venta Directa)</small>' : '';
-        
         return `
-            <tr
-                data-id-receta="${id}"
-                data-id-talla="${tallaId}"
-                data-precio-original="${precio}"
-                data-origen="${origen}">
+            <tr data-id-receta="${id}" data-id-talla="${tallaId}" data-precio-original="${precio}" data-origen="${origen}">
                 <td><strong>${nombre}</strong></td>
                 <td class="col-cant text-center" style="font-weight: bold;">${cant}</td>
                 <td class="text-muted">${tallaNombre}</td>
@@ -230,21 +224,15 @@
 
     function verDetalles(data) {
         console.log("Editando Cotización:", data);
-        
-        // 1. Limpiar tabla antes de cargar
         $('#tabla-cotizador-body').empty();
-        
-        // 2. Setear Cliente
         $('#select-cliente').val(data.id_cliente).trigger('change');
         
-        // 3. Pequeño delay para dejar que el select de presupuestos se cargue por el evento 'change' del cliente
         setTimeout(() => {
             if(data.codigo_presupuesto_origen !== 'VENTA DIRECTA'){
                 $('#select-presupuesto').val(data.codigo_presupuesto_origen).trigger('change');
             }
         }, 500);
 
-        // 4. Cargar los productos REALES de esta cotización
         $.ajax({
             url: 'cotizacion_data.php',
             type: 'GET',
@@ -253,19 +241,10 @@
             success: function(items) {
                 let html = "";
                 items.forEach(item => {
-                    html += generarFilaTabla(
-                        item.id_receta, 
-                        item.nombre_producto, 
-                        item.id_talla, 
-                        item.talla_nombre, 
-                        item.cantidad, 
-                        item.precio_unitario, 
-                        item.origen 
-                    );
+                    html += generarFilaTabla(item.id_receta, item.nombre_producto, item.id_talla, item.talla_nombre, item.cantidad, item.precio_unitario, item.origen);
                 });
                 $('#tabla-cotizador-body').html(html);
                 
-                // 5. Asignar las personalizaciones y notas guardadas
                 items.forEach((item, index) => {
                     let fila = $('#tabla-cotizador-body tr').eq(index);
                     fila.find('.perso-sel').val(item.id_personalizacion);
@@ -280,7 +259,6 @@
     }
 
     $(document).ready(function() {
-        // 1. Inicialización de complementos
         $('#select-cliente, #select-presupuesto, #manual-producto').select2();
 
         // --- LÓGICA DE NAVEGACIÓN ---
@@ -301,6 +279,7 @@
             filtrarTabla();
         });
 
+        // FILTRADO DINÁMICO REPARADO Y OPTIMIZADO
         function filtrarTabla() {
             var codigo = $('#filtro-codigo').val().toLowerCase().trim();
             var cliente = $('#filtro-cliente').val().toLowerCase().trim();
@@ -308,7 +287,7 @@
             var fechaDesde = $('#filtro-desde').val(); // YYYY-MM-DD
             var fechaHasta = $('#filtro-hasta').val(); // YYYY-MM-DD
 
-            $('#vista-listado table tbody tr').each(function() {
+            $('#tbody-listado-cotizaciones tr').each(function() {
                 var fila = $(this);
                 
                 var textoCodigo = (fila.data('codigo') || '').toString().toLowerCase();
@@ -317,18 +296,15 @@
                 var fechaFila = fila.data('fecha'); 
 
 
-                // Condición lógica: la fila debe coincidir con los 3 filtros a la vez
+                // Condición lógica: la fila debe coincidir con los 4 filtros a la vez
                 var coincideCodigo = (codigo === "" || textoCodigo.includes(codigo));
                 var coincideCliente = (cliente === "" || textoCliente.includes(cliente));
                 var coincideEstado = (estado === "" || textoEstado.includes(estado));
                 var coincideFecha = true;
+
                 if (fechaFila) {
-                    if (fechaDesde !== "" && fechaFila < fechaDesde) {
-                        coincideFecha = false;
-                    }
-                    if (fechaHasta !== "" && fechaFila > fechaHasta) {
-                        coincideFecha = false;
-                    }
+                    if (fechaDesde !== "" && fechaFila < fechaDesde) coincideFecha = false;
+                    if (fechaHasta !== "" && fechaFila > fechaHasta) coincideFecha = false;
                 }
 
                 if (coincideCodigo && coincideCliente && coincideEstado && coincideFecha) {
@@ -392,7 +368,6 @@
                 success: function(resp) {
                     let html = "";
                     resp.forEach(item => {
-                        // Usamos los datos que vienen del presupuesto
                         html += generarFilaTabla(item.id_receta, item.nombre, item.id_talla, item.talla_nombre, item.cantidad, item.precio_unitario, 'presupuesto');
                     });
                     $('#tabla-cotizador-body').html(html);
@@ -402,8 +377,6 @@
             });
         });
 
-        // --- LÓGICA DE VENTA MANUAL (La talla ya viene en la receta/producto) ---
-
         function cargarProductosManuales() {
             $.ajax({
                 url: 'cotizacion_data.php',
@@ -412,10 +385,7 @@
                 dataType: 'json',
                 success: function(resp) {
                     let options = '<option value="">Buscar producto...</option>';
-                    
-                    // Recorremos lo que trae el PHP
                     resp.forEach(p => {
-                        // Guardamos los datos importantes en atributos "data-"
                         options += `<option value="${p.id}" 
                                             data-precio="${p.precio}"
                                             data-precio-mayor="${p.mayor}" 
@@ -425,8 +395,6 @@
                                             ${p.nombre} - [Talla: ${p.talla_nombre}] ($${p.precio})
                                     </option>`;
                     });
-                    
-                    // Inyectamos las opciones en el select y refrescamos Select2
                     $('#manual-producto').html(options).trigger('change');
                 },
                 error: function() {
@@ -434,11 +402,6 @@
                 }
             });
         }
-
-        // Llamar a la función cuando se abre la vista de crear
-        $('#btn-ir-crear').on('click', function() {
-            cargarProductosManuales();
-        });
 
         window.agregarProductoManual = function() {
             let select = $("#manual-producto option:selected");
@@ -448,14 +411,13 @@
 
             let nombreLimpio = select.data('nombre'); 
             let precioDetal  = parseFloat(select.data('precio')) || 0;
-            let precioMayor  = parseFloat(select.data('precio-mayor')) || precioDetal; // Si no hay precio mayor, usa el detal
+            let precioMayor  = parseFloat(select.data('precio-mayor')) || precioDetal; 
             let tallaId      = select.data('talla-id');
             let tallaNombre  = select.data('talla-nom');
             let cantidadNueva = parseInt($('#manual-cantidad').val());
 
             if (cantidadNueva < 1) { Swal.fire({ icon: 'warning', text: "Cantidad inválida." }); return; }
 
-            // --- VALIDACIÓN DE EXISTENCIA ---
             let existe = false;
             $('#tabla-cotizador-body tr').each(function() {
                 let fila = $(this);
@@ -464,27 +426,19 @@
 
                 if (idFila == idProd && tallaFila == tallaId) {
                     existe = true;
-                    
-                    // 1. Sumar cantidades
                     let cantActual = parseInt(fila.find('.col-cant').text());
                     let cantFinal = cantActual + cantidadNueva;
-                    
-                    // 2. Determinar precio (Si >= 12, precio al mayor)
                     let precioAplicar = (cantFinal >= 12) ? precioMayor : precioDetal;
                     
-                    // 3. Actualizar la fila existente
                     fila.find('.col-cant').text(cantFinal);
-                    fila.data('precio-original', precioAplicar); // Actualizamos el data para cálculos de personalización
-                    fila.find('td:nth-child(4)').text('$' + precioAplicar.toFixed(2)); // Columna de precio base
+                    fila.data('precio-original', precioAplicar); 
+                    fila.find('td:nth-child(4)').text('$' + precioAplicar.toFixed(2)); 
                     
-                    // 4. Recalcular subtotal de la fila
-                    // Si hay personalización seleccionada, debemos sumarla
                     let costoExtra = parseFloat(fila.find('.perso-sel option:selected').data('precio')) || 0;
                     let nuevoSubtotal = (precioAplicar + costoExtra) * cantFinal;
                     
                     fila.find('.row-subtotal').text('$' + nuevoSubtotal.toFixed(2));
-                    
-                    return false; // Romper el loop .each()
+                    return false; 
                 }
             });
 

@@ -66,14 +66,43 @@ if ($resultUnidades) {
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Insumo
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de insumos">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Nuevo Insumo" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <!-- <h5 class="subtitle">Lista de Insumos</h5> -->
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-nombre">Nombre del Insumo</label>
+                                    <input type="text" id="filtro-nombre" class="form-control clase-filtro-insumo" placeholder="Buscar por nombre...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-proveedor">Proveedor</label>
+                                    <input type="text" id="filtro-proveedor" class="form-control clase-filtro-insumo" placeholder="Buscar por proveedor...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-almacen">Almacén</label>
+                                    <input type="text" id="filtro-almacen" class="form-control clase-filtro-insumo" placeholder="Buscar por almacén...">
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-8"></div>
+                                <div class="col-sm-4" style="text-align: right;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-insumo">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -235,9 +264,17 @@ function mostrarVista(vista) {
 }
 
 function cargarListado(page) {
+    // CAPTURAMOS LOS FILTROS ESPECÍFICOS DE INSUMOS
+    var params = { 
+        action: 'listar_html',
+        buscar_nombre: $('#filtro-nombre').val(),
+        buscar_proveedor: $('#filtro-proveedor').val(),
+        buscar_almacen: $('#filtro-almacen').val()
+    };
+
     crudPostListadoPaginado(
         'gestionar_insumos_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-insumos',
         page || 1
@@ -282,6 +319,31 @@ document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-insumos', cargarListado);
+    
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    var temporizadorBusqueda;
+
+    $('.clase-filtro-insumo').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+
+        clearTimeout(temporizadorBusqueda);
+        temporizadorBusqueda = setTimeout(function() {
+            cargarListado(1);
+        }, 350); // 350 milisegundos de espera
+    });
+
+    $('#btn-limpiar-filtros-insumo').on('click', function() {
+        $('#filtro-nombre').val('');
+        $('#filtro-proveedor').val('');
+        $('#filtro-almacen').val('');
+        cargarListado(1);
+    });
 });
 
 $("#form-crear").on("submit", function(e) {

@@ -80,24 +80,51 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Guia de Corte</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Guia de Corte</button>
-                    </div>
-                </div> -->
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
                         <div class="row form-group">
-                            <div class="col-sm-4">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Guia de Corte
-                                </button>
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de Guías de Corte">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Guía de Corte" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Listado" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <!-- <div class="col-sm-8">
-                                <span class="subtitle"><b>Lista de Guias de Cortes</b></span>
-                            </div> -->
+                        </div>
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-producto">Producto</label>
+                                    <input type="text" id="filtro-producto" class="form-control clase-filtro-guia" placeholder="Buscar por prenda o producto...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-talla">Rango de Tallas</label>
+                                    <input type="text" id="filtro-talla" class="form-control clase-filtro-guia" placeholder="Buscar por rango (Ej: S-M-L)...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-almacen">Almacén</label>
+                                    <input type="text" id="filtro-almacen" class="form-control clase-filtro-guia" placeholder="Buscar por almacén de destino...">
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <label for="filtro-desde">Fecha Desde</label>
+                                    <input type="date" id="filtro-desde" class="form-control clase-filtro-guia">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-hasta">Fecha Hasta</label>
+                                    <input type="date" id="filtro-hasta" class="form-control clase-filtro-guia">
+                                </div>
+                                <div class="col-sm-4" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-guia">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                         <div class="table-container">
                             <table class="recipe-table">
@@ -105,10 +132,9 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <tr>
                                         <th>#</th>
                                         <th>Producto</th>
-                                        <th>Rango de Tallas</th>
-                                        <th>Tipo de Producción</th>
+                                        <th>Tallas</th>
                                         <th>Almacén</th>
-                                        <th>Cantidad de Insumos</th>
+                                        <th>Cant. Insumos</th>
                                         <th>Costo Total</th>
                                         <th>Precio Total</th>
                                         <th>Observaciones</th>
@@ -496,9 +522,19 @@ function mostrarVista(vista) {
 }
 
 function cargarListado(page) {
+    // CAPTURAMOS TODOS LOS FILTROS, INCLUYENDO LAS NUEVAS FECHAS
+    var params = { 
+        action: 'listar_html',
+        buscar_producto: $('#filtro-producto').val(),
+        buscar_talla: $('#filtro-talla').val(),
+        buscar_almacen: $('#filtro-almacen').val(),
+        fecha_desde: $('#filtro-desde').val(),
+        fecha_hasta: $('#filtro-hasta').val()
+    };
+
     crudPostListadoPaginado(
         'nuevo_producto_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-recetas',
         page || 1
@@ -585,6 +621,7 @@ function editarReceta(data) {
     }
     mostrarVista('crear');
 }
+var temporizador
 
 $(document).ready(function() {
     $('#nuevo-insumo-id').on('change', function() {
@@ -632,6 +669,32 @@ $(document).ready(function() {
     // Porcentaje de ganancia: al cambiar, calcular precio desde el costo de la receta
     $('#porcentaje_ganancia').on('input change', function() {
         aplicarPorcentajeGanancia();
+    });
+
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filtro-guia').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    // Dentro del $(document).ready(function() { ... }) actualiza el botón de limpiar:
+    $('#btn-limpiar-filtros-guia').on('click', function() {
+        $('#filtro-producto').val('');
+        $('#filtro-talla').val('');
+        $('#filtro-almacen').val('');
+        $('#filtro-desde').val(''); // Limpia fecha desde
+        $('#filtro-hasta').val(''); // Limpia fecha hasta
+        cargarListado(1);
     });
 });
 

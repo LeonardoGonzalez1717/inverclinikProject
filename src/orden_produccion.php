@@ -39,40 +39,11 @@ if ($resultRecetas) {
     }
 }
 
-$sqlOrdenes = "
-    SELECT 
-        op.id AS orden_id,
-        p.nombre AS producto_nombre,
-        p.categoria AS producto_categoria,
-        op.cantidad_a_producir,
-        op.fecha_inicio,
-        op.fecha_fin,
-        op.estado,
-        op.observaciones,
-        r.id AS receta_id,
-        rp.producto_id,
-        rp.rango_tallas_id,
-        rp.tipo_produccion_id,
-        COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
-    FROM ordenes_produccion op
-    INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
-    INNER JOIN productos p ON rp.producto_id = p.id
-    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
-        AND r.rango_tallas_id = rp.rango_tallas_id 
-        AND r.tipo_produccion_id = rp.tipo_produccion_id
-    LEFT JOIN recetas_productos rp2 ON rp2.producto_id = rp.producto_id 
-        AND rp2.rango_tallas_id = rp.rango_tallas_id 
-        AND rp2.tipo_produccion_id = rp.tipo_produccion_id
-    LEFT JOIN insumos i ON rp2.insumo_id = i.id
-    GROUP BY op.id, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id
-    ORDER BY op.creado_en DESC
-";
-$resultOrdenes = $conn->query($sqlOrdenes);
-$ordenes = array();
-if ($resultOrdenes) {
-    while ($row = $resultOrdenes->fetch_assoc()) {
-        $ordenes[] = $row;
-    }
+// Para llenar dinámicamente el selector de categorías del filtro
+$categorias = [];
+$resCat = $conn->query("SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL AND categoria != ''");
+if ($resCat) {
+    while($c = $resCat->fetch_assoc()) { $categorias[] = $c['categoria']; }
 }
 
 $tasa_actual = null;
@@ -146,47 +117,84 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             cursor: pointer; 
             margin-bottom: 15px; 
         }
-
     </style>
 </head>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Órden de Producción</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nueva Orden</button>
-                    </div>
-                </div> -->
-
+                <h2 class="main-title">Órdenes de Producción</h2>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
                         <div class="row form-group">
-                            <div class="col-sm-4">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Orden de Producción
-                                </button>
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Orden de Producción" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
-                            <!-- <div class="col-sm-8">
-                                <h5 style="color: #0056b3; margin-bottom: 15px;">Lista de Órdenes de Produccion</h5>
-                            </div> -->
                         </div>
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-producto">Producto</label>
+                                    <input type="text" id="filtro-producto" class="form-control clase-filtro" placeholder="Buscar nombre de producto...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-categoria">Categoría</label>
+                                    <select id="filtro-categoria" class="form-control clase-filtro">
+                                        <option value="">Todas las categorías</option>
+                                        <?php foreach($categorias as $cat): ?>
+                                            <option value="<?php echo htmlspecialchars($cat); ?>"><?php echo htmlspecialchars($cat); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-estado-orden">Estado de Orden</label>
+                                    <select id="filtro-estado-orden" class="form-control clase-filtro">
+                                        <option value="">Todos los estados</option>
+                                        <option value="pendiente">Pendiente</option>
+                                        <option value="en_proceso">En Proceso</option>
+                                        <option value="finalizado">Finalizado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <label for="filtro-desde">Fecha Inicio (Desde)</label>
+                                    <input type="date" id="filtro-desde" class="form-control clase-filtro">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-hasta">Fecha Inicio (Hasta)</label>
+                                    <input type="date" id="filtro-hasta" class="form-control clase-filtro">
+                                </div>
+                                <div class="col-sm-4" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="table-container">
                             <table class="orders-table">
                                 <thead>
                                     <tr>
-                                        <th>#</th>
-                                        <th>Producto</th>
-                                        <th>Categoría</th>
-                                        <th>Cantidad</th>
-                                        <th>Costo por Unidad</th>
-                                        <th>Costo Total</th>
-                                        <th>Inicio</th>
-                                        <th>Fin</th>
-                                        <th>Estatus</th>
-                                        <th>Acciones</th>
+                                        <th style="width: 1%;">#</th>
+                                        <th style="width: 15%;">Producto</th>
+                                        <th style="width: 25%;">Categoría</th>
+                                        <th style="width: 10%;">Cantidad</th>
+                                        <th style="width: 12%;">Costo Unit.</th>
+                                        <th style="width: 12%;">Costo Total</th>
+                                        <th style="width: 10%;">Inicio</th>
+                                        <th style="width: 10%;">Fin</th>
+                                        <th style="width: 10%;">Estatus</th>
+                                        <th style="width: 5%;">Acciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -201,7 +209,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <i class="fas fa-arrow-left"></i> Volver al Listado
                         </button>
 
-                        <!-- <h4 class="subtitle">Crear Nueva Orden</h4> -->
                         <form id="form-crear">
                             <div class="row form-group">
                                 <div class="col-sm-6">
@@ -229,12 +236,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <small class="text-muted">Costo de la guia de corte por unidad de producto</small>
                                 </div>
                                 <div class="col-sm-6">
-                                    <label class="form-label">Costo Total de Producción ($)</label>
+                                    <label class="form-label">Costo Total de Production ($)</label>
                                     <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
                                     <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
                                 </div>
                             </div>
-                           
+                            
                             <div class="row form-group">
                                 <div class="col-sm-6" id="contenedor-equivalente-bs" style="display: none;">
                                     <label class="form-label">Equivalente en Bs.</label>
@@ -280,26 +287,71 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteOrden = tasaCambiariaActual;
 
-$('#btn-ir-crear').on('click', function() {
-    $('#vista-listado').fadeOut(200, function() {
-        $('#vista-crear').removeClass('hidden').fadeIn();
-        limpiarFormulario();
-        cargarStockInsumos(); 
-    });
-});
+// MODIFICADO: Ahora captura los filtros y los manda globalmente en el objeto data
+function cargarListado(page) {
+    let filtros = {
+        action: 'listar_html',
+        buscar_producto: $('#filtro-producto').val(),
+        buscar_categoria: $('#filtro-categoria').val(),
+        buscar_estado: $('#filtro-estado-orden').val(),
+        fecha_desde: $('#filtro-desde').val(),
+        fecha_hasta: $('#filtro-hasta').val()
+    };
 
-$('#btn-volver-listado').on('click', function() {
-    Swal.fire({
-        icon: 'question',
-        text: '¿Desea salir? Se perderán los cambios no guardados.',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, salir',
-        cancelButtonText: 'Cancelar'
-    }).then(function(r) {
-        if (!r.isConfirmed) return;
-        $('#vista-crear').fadeOut(200, function() {
-            $('#vista-listado').fadeIn();
-        });
+    crudPostListadoPaginado(
+        'orden_produccion_data.php',
+        filtros,
+        '#vista-listado tbody',
+        '#paginacion-orden-produccion',
+        page || 1
+    );
+    limpiarFormulario();
+}
+
+// MANEJO DE EVENTOS PARA LOS FILTROS
+$(document).ready(function() {
+    // Alternar visibilidad del panel de filtros
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    // Evento al escribir en el buscador de producto (página 1)
+    $('#filtro-producto').on('keyup', function() {
+        cargarListado(1);
+    });
+
+    // Eventos al cambiar selectores o fechas (página 1)
+    $('#filtro-categoria, #filtro-estado-orden, #filtro-desde, #filtro-hasta').on('change', function() {
+        cargarListado(1);
+    });
+
+    // Botón para limpiar filtros por completo
+    $('#btn-limpiar-filtros').on('click', function() {
+        $('#filtro-producto').val('');
+        $('#filtro-categoria').val('');
+        $('#filtro-estado-orden').val('');
+        $('#filtro-desde').val('');
+        $('#filtro-hasta').val('');
+        cargarListado(1);
+    });
+
+    // Manejo de la vista de creación
+    $('#btn-ir-crear').on('click', function() {
+        limpiarFormulario();
+        mostrarVista('crear');
+    });
+    
+    $('#btn-volver-listado').on('click', function() {
+        mostrarVista('listado');
+    });
+
+    $('#receta_id').on('change', function() {
+        calcularCostoTotal();
+        cargarStockInsumos($(this).val());
+    });
+    
+    $('#cantidad_a_producir').on('input', function() {
+        calcularCostoTotal();
     });
 });
 
@@ -307,11 +359,7 @@ function actualizarEquivalenteBs() {
     var costoTotalDolares = parseFloat($('#costo_total_produccion').val().replace(/[^0-9.-]/g, '')) || 0;
     var contenedor = $('#contenedor-equivalente-bs');
     var tasa = tasaParaEquivalenteOrden;
-    if (!tasa || tasa <= 0) {
-        contenedor.hide();
-        return;
-    }
-    if (costoTotalDolares <= 0) {
+    if (!tasa || tasa <= 0 || costoTotalDolares <= 0) {
         contenedor.hide();
         return;
     }
@@ -324,16 +372,6 @@ function actualizarEquivalenteBs() {
 function mostrarVista(vista) {
     $('#vista-listado, #vista-crear').addClass('hidden').hide();
     $('#vista-' + vista).removeClass('hidden').fadeIn(250);
-}
-function cargarListado(page) {
-    crudPostListadoPaginado(
-        'orden_produccion_data.php',
-        { action: 'listar_html' },
-        '#vista-listado tbody',
-        '#paginacion-orden-produccion',
-        page || 1
-    );
-    limpiarFormulario();
 }
 
 function calcularCostoTotal() {
@@ -408,41 +446,29 @@ function cargarStockInsumos(recetaId) {
     }, 'json');
 }
 
-$(document).ready(function() {
-    $('#receta_id').on('change', function() {
-        calcularCostoTotal();
-        cargarStockInsumos($(this).val());
-    });
-    
-    $('#cantidad_a_producir').on('input', function() {
-        calcularCostoTotal();
-    });
-});
-
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     $('#receta_id').val('');
     $('#cantidad_a_producir').val('');
     $('#costo_por_unidad').val('');
     $('#costo_total_produccion').val('');
-    $('#equivalente-bs').hide();
+    $('#contenedor-equivalente-bs').hide();
     $('#obser').val('');          
     $('#editar-orden-id').val('');
     tasaParaEquivalenteOrden = tasaCambiariaActual;
 }
+
 function formatearFecha(fecha) {
     if (!fecha || fecha === '0000-00-00') return '';
     return fecha;
 }
 
 function editarOrden(data) {
-    $('#id').val(data.id);
     $('#receta_id').val(data.receta_id);
     $('#cantidad_a_producir').val(data.cantidad_a_producir);
     $('#fecha_inicio').val(formatearFecha(data.fecha_inicio));
     $('#fecha_fin').val(formatearFecha(data.fecha_fin));
-    $('#estado').val(data.estado);
-    $('#observaciones').val(data.observaciones || '');
+    $('#obser').val(data.observaciones || '');
 
     tasaParaEquivalenteOrden = (data.tasa_orden != null && parseFloat(data.tasa_orden) > 0) ? parseFloat(data.tasa_orden) : tasaCambiariaActual;
     $('#editar-orden-id').val(data.orden_id);
@@ -490,10 +516,10 @@ function aceptarFinalizacionOrden(ordenId) {
         });
     });
 }
+
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
 });
-
 
 $("#form-crear").on("submit", function(e) {
     e.preventDefault();
@@ -502,11 +528,10 @@ $("#form-crear").on("submit", function(e) {
     var fInicio = $("#fecha_inicio").val();
     var fFin = $("#fecha_fin").val();
 
-    // VALIDACIÓN DE FECHAS
     if (fInicio && fFin) {
         if (new Date(fFin) < new Date(fInicio)) {
             Swal.fire({ icon: 'warning', text: "La fecha de fin no puede ser anterior a la fecha de inicio." });
-            return; // Detiene el envío
+            return;
         }
     }
 
@@ -538,7 +563,6 @@ $("#form-crear").on("submit", function(e) {
         dataType: "json",
         success: function(resp) {
             if (resp && resp.success) {
-                console.log(resp,"resp")
                 Swal.fire({ icon: 'success', text: resp.message });
                 mostrarVista("listado");
                 cargarListado();
@@ -547,7 +571,6 @@ $("#form-crear").on("submit", function(e) {
             }
         },
         error: function(xhr) {
-            console.error("Error:", xhr.responseText);
             try {
                 var resp = JSON.parse(xhr.responseText);
                 if (resp && resp.message) {
@@ -561,9 +584,10 @@ $("#form-crear").on("submit", function(e) {
         }
     });
 });
+
+// Inicialización de la tabla
 cargarListado(1);
 bindCrudPagination('#paginacion-orden-produccion', cargarListado);
-
 </script>
 
 <?php require_once "../template/footer.php"; ?>

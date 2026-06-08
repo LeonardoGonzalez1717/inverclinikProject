@@ -15,11 +15,38 @@ require_once "../template/header.php";
             <h2 class="main-title">Unidades de medida</h2>
             <div id="contenedor-vistas">
                 <div id="vista-listado">
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <button type="button" class="btn btn-success" id="btn-ir-crear">
-                                <i class="fas fa-plus"></i> Nueva unidad
-                            </button>
+                    <div class="row form-group">
+                        <div class="col-sm-12">
+                            <div aria-label="Acciones de Unidades de Medida">
+                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Unidad de Medida" data-toggle="tooltip">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
+                                    <i class="fas fa-filter"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                        <div class="row">
+                            <div class="col-sm-5">
+                                <label for="filtro-buscar">Buscar Unidad</label>
+                                <input type="text" id="filtro-buscar" class="form-control clase-filtro-um" placeholder="Buscar por nombre o código...">
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="filtro-decimal">Permite Decimales</label>
+                                <select id="filtro-decimal" class="form-control clase-filtro-um">
+                                    <option value="">Todos</option>
+                                    <option value="1">Sí (Ej: Metros, Kilos)</option>
+                                    <option value="0">No (Solo enteros - Ej: Unidades)</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-3" style="margin-top: 25px;">
+                                <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-um">
+                                    <i class="fas fa-eraser"></i> Limpiar
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="table-container">
@@ -79,11 +106,19 @@ function mostrarVista(v) {
     $('#vista-listado, #vista-crear').addClass('hidden').hide();
     $('#vista-' + v).removeClass('hidden').fadeIn(200);
 }
+// Variable global para evitar múltiples peticiones seguidas al servidor
+var temporizadorBusquedaUM;
 
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar: $('#filtro-buscar').val(),
+        decimal: $('#filtro-decimal').val()
+    };
+
     crudPostListadoPaginado(
         'gestionar_unidades_medida_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-unidades-medida',
         page || 1
@@ -154,6 +189,27 @@ $(function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-unidades-medida', cargarListado);
+
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filtro-um').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+        clearTimeout(temporizadorBusquedaUM);
+        temporizadorBusquedaUM = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    $('#btn-limpiar-filtros-um').on('click', function() {
+        $('#filtro-buscar').val('');
+        $('#filtro-decimal').val('');
+        cargarListado(1);
+    });
 });
 </script>
 

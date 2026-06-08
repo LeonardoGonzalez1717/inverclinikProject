@@ -67,9 +67,9 @@ switch ($action) {
                             <span style='font-weight: 600; color: #333;'>" . htmlspecialchars($row['cliente_nombre']) . "</span><br>
                             <small class='text-muted'>" . htmlspecialchars($row['email'] ?? 'Sin correo') . "</small>
                         </td>";
-                $html .= "<td style='font-weight:bold;'>" . $fechaFormateada . "</td>";
+                $html .= "<td >" . $fechaFormateada . "</td>";
 
-                $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
+                $html .= "<td style='font-weight:bold;text-align:right;'>$" . $totalFormateado . "</td>";
                 
                 $html .= "<td><span style='" . $estadoStyle . "'>" . htmlspecialchars($estTxt) . "</span></td>";
                 

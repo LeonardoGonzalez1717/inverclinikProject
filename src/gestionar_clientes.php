@@ -16,23 +16,43 @@ require_once "../connection/connection.php";
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Clientes</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Cliente</button>
-                    </div>
-                </div> -->
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Insumo
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de Clientes">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Cliente" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <!-- <h5 class="subtitle">Lista de Clientes</h5> -->
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <label for="filtro-buscar">Buscar Cliente</label>
+                                    <input type="text" id="filtro-buscar" class="form-control clase-filtro-cliente" placeholder="Buscar por nombre, cédula, RIF o teléfono...">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label for="filtro-tipo-doc">Tipo Documento</label>
+                                    <select id="filtro-tipo-doc" class="form-control clase-filtro-cliente">
+                                        <option value="">Todos</option>
+                                        <option value="V">Venezolano (V)</option>
+                                        <option value="J">Jurídico (J)</option>
+                                        <option value="E">Extranjero (E)</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-cli">
+                                        <i class="fas fa-eraser"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -56,7 +76,6 @@ require_once "../connection/connection.php";
                         <button class="btn-volver" id="btn-volver-listado">
                             <i class="fas fa-arrow-left"></i> Volver al Listado
                         </button>
-                        <!-- <h5 class="subtitle">Crear/Editar Cliente</h5> -->
                         <form id="form-crear">
                             <div class="row">
                                 <div class="col-md-4 mb-3">
@@ -143,10 +162,18 @@ $('#btn-volver-listado').on('click', function() {
     });
 });
 
+var temporizador;
+
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar: $('#filtro-buscar').val(),
+        tipo_doc: $('#filtro-tipo-doc').val()
+    };
+
     crudPostListadoPaginado(
         'gestionar_clientes_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-clientes',
         page || 1
@@ -254,6 +281,26 @@ function eliminarCliente(id) {
 document.addEventListener('DOMContentLoaded', () => {
     cargarListado(1);
     bindCrudPagination('#paginacion-clientes', cargarListado);
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filter-cliente, .clase-filtro-cliente').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    $('#btn-limpiar-filtros-cli').on('click', function() {
+        $('#filtro-buscar').val('');
+        $('#filtro-tipo-doc').val('');
+        cargarListado(1);
+    });
 });
 
 $('#nro_doc, #nro_tel').on('keypress', function(e) {
@@ -278,7 +325,7 @@ $("#form-crear").on("submit", function(e) {
     const nombre  = $("#nombre").val().trim();
 
     if (nombre === '') {
-        Swal.fire({ icon: 'warning', text: 'El nombre del proveedor es obligatorio.' });
+        Swal.fire({ icon: 'warning', text: 'El nombre del cliente es obligatorio.' }); // Corregido aquí
         return;
     }
 

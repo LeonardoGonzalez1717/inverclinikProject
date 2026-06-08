@@ -82,23 +82,60 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Registrar Venta</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Registrar Nueva Venta</button>
-                    </div>
-                </div> -->
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Registrar Nueva Venta
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Orden de Producción" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <!-- <h5 class="subtitle">Lista de Ventas</h5> -->
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-cliente">Cliente</label>
+                                    <input type="text" id="filtro-cliente" class="form-control clase-filtro-venta" placeholder="Buscar por cliente o Cédula/RIF...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-factura">Nro. Factura / Cotización</label>
+                                    <input type="text" id="filtro-factura" class="form-control clase-filtro-venta" placeholder="Buscar Nro. Factura o Cotización...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-estado">Estado de Venta</label>
+                                    <select id="filtro-estado" class="form-control clase-filtro-venta">
+                                        <option value="">Todos</option>
+                                        <option value="pendiente">Pendiente</option>
+                                        <option value="por_pagar">Por Pagar</option>
+                                        <option value="aprobado">Aprobado</option>
+                                        <option value="en_proceso">En Proceso</option>
+                                        <option value="entregado">Entregado</option>
+                                        <option value="cancelado">Cancelado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <label for="filtro-desde">Fecha Desde</label>
+                                    <input type="date" id="filtro-desde" class="form-control clase-filtro-venta">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-hasta">Fecha Hasta</label>
+                                    <input type="date" id="filtro-hasta" class="form-control clase-filtro-venta">
+                                </div>
+                                <div class="col-sm-4" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-venta">
+                                        <i class="fas fa-eraser"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -106,11 +143,11 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>#</th>
                                         <th>Cliente</th>
                                         <th>Fecha</th>
-                                        <th>Número Factura</th>
+                                        <th nowrap>Nro. Factura</th>
                                         <th>Cotización</th>
                                         <th>Cantidad</th>
                                         <th>Total</th>
-                                        <th>Total Bs.</th>
+                                        <th nowrap>Total Bs.</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -440,9 +477,18 @@ function mostrarVista(vista) {
 }
 
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar_cliente: $('#filtro-cliente').val(),
+        buscar_factura: $('#filtro-factura').val(), 
+        estado: $('#filtro-estado').val(),
+        fecha_desde: $('#filtro-desde').val(),
+        fecha_hasta: $('#filtro-hasta').val()
+    };
+
     crudPostListadoPaginado(
         'registrar_venta_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-ventas',
         page || 1
@@ -710,6 +756,23 @@ function verDetalle(ventaId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filtro-venta').on('keyup change', function() {
+        cargarListado(1);
+    });
+
+    $('#btn-limpiar-filtros-venta').on('click', function() {
+        $('#filtro-cliente').val('');
+        $('#filtro-factura').val('');
+        $('#filtro-estado').val('');
+        $('#filtro-desde').val('');
+        $('#filtro-hasta').val('');
+        cargarListado(1);
+    });
+
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-ventas', cargarListado);

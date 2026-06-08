@@ -149,6 +149,42 @@ try {
     }
     
     if ($action === 'listar_html') {
+        $buscar_proveedor = isset($_POST['buscar_proveedor']) ? trim($_POST['buscar_proveedor']) : '';
+        $buscar_factura   = isset($_POST['buscar_factura']) ? trim($_POST['buscar_factura']) : '';
+        $estado           = isset($_POST['estado']) ? trim($_POST['estado']) : '';
+        $fecha_desde      = isset($_POST['fecha_desde']) ? trim($_POST['fecha_desde']) : '';
+        $fecha_hasta      = isset($_POST['fecha_hasta']) ? trim($_POST['fecha_hasta']) : '';
+
+        $where = [];
+
+        if ($buscar_proveedor !== '') {
+            $searchP = $conn->real_escape_string($buscar_proveedor);
+            $where[] = "(p.nombre LIKE '%$searchP%' OR p.cedrif LIKE '%$searchP%')";
+        }
+
+        if ($buscar_factura !== '') {
+            $searchF = $conn->real_escape_string($buscar_factura);
+            $where[] = "c.numero_factura LIKE '%$searchF%'";
+        }
+
+        if ($estado !== '') {
+            $searchE = $conn->real_escape_string($estado);
+            $where[] = "c.estado = '$searchE'";
+        }
+
+        if ($fecha_desde !== '') {
+            $fDesde = $conn->real_escape_string($fecha_desde);
+            $where[] = "c.fecha >= '$fDesde'";
+        }
+
+        if ($fecha_hasta !== '') {
+            $fHasta = $conn->real_escape_string($fecha_hasta);
+            $where[] = "c.fecha <= '$fHasta'";
+        }
+
+        // Unimos los filtros si existen
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
         $sqlBase = "
             SELECT 
                 c.id,
@@ -165,6 +201,7 @@ try {
             INNER JOIN proveedores p ON c.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = c.tasa_cambiaria_id
             LEFT JOIN detalle_compra dc ON c.id = dc.compra_id
+            " . $fil . "
             GROUP BY c.id, c.fecha, c.numero_factura, c.total, c.estado, c.tasa_cambiaria_id, tc.tasa, p.nombre, c.creado_en
         ";
 
@@ -197,26 +234,23 @@ try {
                 echo '<td>' . htmlspecialchars($c['proveedor_nombre']) . '</td>';
                 echo '<td>' . date('d/m/Y', strtotime($c['fecha'])) . '</td>';
                 echo '<td>' . htmlspecialchars($c['numero_factura'] ?? '-') . '</td>';
-                echo '<td>' . number_format($c['cantidad_total'], 2, '.', ',') .'</td>';
+                echo '<td>' . number_format($c['cantidad_total'], 2, '.', ',') . '</td>';
                 echo '<td>$' . number_format($c['total'], 2, '.', ',') . '</td>';
                 echo '<td>' . htmlspecialchars($totalBsTexto) . '</td>';
-                $estadoBadge = '';
-                switch($c['estado']) {
-                    case 'pendiente':
-                        $estadoBadge = '<span style="color: orange; font-weight: bold;">Pendiente</span>';
-                        break;
-                    case 'recibido':
-                        $estadoBadge = '<span style="color: green; font-weight: bold;">Recibido</span>';
-                        break;
-                    case 'cancelado':
-                        $estadoBadge = '<span style="color: red; font-weight: bold;">Cancelado</span>';
-                        break;
-                    default:
-                        $estadoBadge = htmlspecialchars($c['estado']);
-                }
-                echo '<td>' . $estadoBadge . '</td>';
+                
+                $baseStyle = 'font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; text-transform: capitalize;';
+                
+                [$estTxt, $estStyle] = match($c['estado']) {
+                    'recibido'  => ['Recibido', "background-color: #198754; color: #ffffff; {$baseStyle}"], // Verde (Finalizado)
+                    'pendiente' => ['Pendiente', "background-color: #fd7e14; color: #ffffff; {$baseStyle}"], // Naranja (Espera)
+                    'cancelado' => ['Cancelado', "background-color: #dc3545; color: #ffffff; {$baseStyle}"], // Rojo (Cancelado)
+                    default     => [$c['estado'] ?? '—', "background-color: #6c757d; color: #ffffff; {$baseStyle}"]
+                };
+
+                echo '<td><span style="' . htmlspecialchars($estStyle, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt) . '</span></td>';
+                
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $c['id'] . ')">Ver Detalle</button>';
+                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $c['id'] . ')"><i class="fas fa-eye"></i> Ver Detalle</button>';
                 echo '</td>';
                 echo '</tr>';
             }

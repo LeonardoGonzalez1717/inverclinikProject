@@ -10,16 +10,35 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        // Verificar si existe la columna imagen, si no, agregarla
         $checkColumn = $conn->query("SHOW COLUMNS FROM productos LIKE 'imagen'");
         if ($checkColumn->num_rows == 0) {
             $conn->query("ALTER TABLE productos ADD COLUMN imagen VARCHAR(255) NULL AFTER descripcion");
         }
         
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM productos')->fetch_assoc()['c'] ?? 0);
-        $pg = Pagination::fromInput($total, $_POST);
+        $buscar_nombre    = isset($_POST['buscar_nombre']) ? trim($_POST['buscar_nombre']) : '';
+        $buscar_categoria = isset($_POST['buscar_categoria']) ? trim($_POST['buscar_categoria']) : '';
+        $buscar_genero    = isset($_POST['buscar_genero']) ? trim($_POST['buscar_genero']) : '';
 
-        $sql = "
+        $where = [];
+
+        if ($buscar_nombre !== '') {
+            $searchN = $conn->real_escape_string($buscar_nombre);
+            $where[] = "nombre LIKE '%$searchN%'";
+        }
+
+        if ($buscar_categoria !== '') {
+            $searchC = $conn->real_escape_string($buscar_categoria);
+            $where[] = "categoria LIKE '%$searchC%'";
+        }
+
+        if ($buscar_genero !== '') {
+            $searchG = $conn->real_escape_string($buscar_genero);
+            $where[] = "tipo_genero = '$searchG'";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
+        $sqlBase = "
             SELECT 
                 id,
                 nombre,
@@ -29,8 +48,13 @@ try {
                 imagen,
                 fecha_creacion
             FROM productos
-            ORDER BY fecha_creacion DESC, nombre ASC
-        " . $pg->limitClause();
+            " . $fil . "
+        ";
+
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM ($sqlBase) AS t")->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . " ORDER BY fecha_creacion DESC, nombre ASC " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $productos = [];
@@ -46,13 +70,27 @@ try {
                 $i++;
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
-                echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($p['categoria'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars($p['tipo_genero'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars(substr($p['descripcion'] ?? '', 0, 50)) . (strlen($p['descripcion'] ?? '') > 50 ? '...' : '') . '</td>';
-                echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y H:i', strtotime($p['fecha_creacion'])) : '-') . '</td>';
+                echo '<td><strong>' . htmlspecialchars($p['nombre']) . '</strong></td>';
+                
+                $badgeBase = 'font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; font-size: 12px;';
+                echo '<td><span >' . htmlspecialchars($p['categoria'] ?? '-') . '</span></td>';
+                
+                $genero = $p['tipo_genero'] ?? '';
+                $generoStyle = match(strtolower($genero)) {
+                    'masculino' => "background-color: #cfe2ff; color: #0a58ca; border: 1px solid #b6d4fe; {$badgeBase}",
+                    'femenino'  => "background-color: #f8d7da; color: #a51d24; border: 1px solid #f5c2c7; {$badgeBase}",
+                    'unisex'    => "background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; {$badgeBase}",
+                    default     => "background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; {$badgeBase}"
+                };
+                echo '<td><span style="' . $generoStyle . '">' . htmlspecialchars($genero ? $genero : '-') . '</span></td>';
+                
+                $descCorta = htmlspecialchars(substr($p['descripcion'] ?? '', 0, 50));
+                if (strlen($p['descripcion'] ?? '') > 50) { $descCorta .= '...'; }
+                echo '<td><span class="text-muted">' . $descCorta . '</span></td>';
+                
+                echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y h:i A', strtotime($p['fecha_creacion'])) : '-') . '</td>';
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarProducto(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
+                echo '  <button class="btn btn-sm btn-primary" onclick="editarProducto(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-edit"></i> Editar</button>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -64,7 +102,6 @@ try {
         $conn->close();
         exit;
     }
-
     restringirEscritura();
 
     header('Content-Type: application/json');
