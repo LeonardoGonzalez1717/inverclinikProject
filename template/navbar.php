@@ -26,6 +26,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <li><a href="../src/historial_movimientos.php">Historial de movimientos</a></li>
                     <li><a href="../src/registrar_compra.php">Registrar Compra</a></li>
                     <li><a href="../src/registrar_venta.php">Registrar Venta</a></li>
+                    <li><a href="../src/cuentas_por_cobrar.php">Cuentas por cobrar</a></li>
                 </ul>
                 </li>
             </ul>
@@ -36,6 +37,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <li><a href="../src/gestionar_productos.php">Gestionar Productos</a></li>
                     <li><a href="../src/gestionar_insumos.php">Gestionar Insumos</a></li>
                     <li><a href="../src/nuevo_producto.php">Guia de Corte</a></li>
+                    <li><a href="../src/registrar_rangos_tallas.php">Rangos de Tallas</a></li>
                     <li><a href="../src/registrar_categoria.php">Registrar Categoria</a></li>
                     <li><a href="../src/registrar_almacen.php">Registrar Almacén</a></li>
                     <li><a href="../src/gestionar_unidades_medida.php">Unidades de medida</a></li>
@@ -74,6 +76,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <?php } ?>
                         <?php if ($gerCom) { ?>
                             <li><a href="../src/registrar_venta.php">Registrar Venta</a></li>
+                            <li><a href="../src/cuentas_por_cobrar.php">Cuentas por cobrar</a></li>
                         <?php } ?>
                         <?php if ($gerAdm) { ?>
                             <li><a href="../src/registrar_compra.php">Registrar Compra</a></li>
@@ -128,6 +131,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <li><a href="../cliente/catalogo/catalogo.php">Ver Catálogo</a></li>
                     <li><a href="../cliente/mis_presupuestos.php">Mis presupuestos</a></li>
                     <li><a href="../cliente/mis_cotizaciones.php">Mis cotizaciones</a></li>
+                    <li><a href="../cliente/cuentas_por_pagar.php">Cuentas por pagar</a></li>
                   </ul>
                 </li>
             </ul>

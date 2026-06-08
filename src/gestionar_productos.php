@@ -10,6 +10,14 @@ if ($resCat) {
     }
 }
 
+$rangos = [];
+$resRangos = $conn->query("SELECT id, nombre_rango FROM rangos_tallas ORDER BY nombre_rango ASC");
+if ($resRangos) {
+    while ($row = $resRangos->fetch_assoc()) {
+        $rangos[] = $row;
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -42,6 +50,7 @@ if ($resCat) {
                                         <th>Nombre</th>
                                         <th>Categoría</th>
                                         <th>Tipo/Género</th>
+                                        <th>Rango de Tallas</th>
                                         <th>Descripción</th>
                                         <th>Fecha Creación</th>
                                         <th>Acciones</th>
@@ -82,6 +91,23 @@ if ($resCat) {
                                         <option value="Niña">Niña</option>
                                         <option value="Unisex">Unisex</option>
                                     </select>
+                                </div>
+                            </div>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <label class="form-label" for="rango_tallas_id">Rango de Tallas <span style="color: red;">*</span></label>
+                                    <select name="rango_tallas_id" id="rango_tallas_id" class="form-control" required>
+                                        <option value="">Seleccione un rango de tallas</option>
+                                        <?php foreach ($rangos as $rango): ?>
+                                            <option value="<?php echo (int) $rango['id']; ?>">
+                                                <?php echo htmlspecialchars($rango['nombre_rango'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        Defina el rango en <a href="registrar_rangos_tallas.php">Rangos de Tallas</a> si no aparece en la lista.
+                                    </small>
                                 </div>
                             </div>
 
@@ -148,6 +174,7 @@ function limpiarFormulario() {
     $('#nombre').val('');
     $('#categoria').val('');
     $('#tipo_genero').val('');
+    $('#rango_tallas_id').val('');
     $('#descripcion').val('');
     $('#editar-producto-id').val('');
     $('#imagen-actual').val('');
@@ -170,6 +197,7 @@ function editarProducto(data) {
     }
     $('#categoria').val(catVal);
     $('#tipo_genero').val(data.tipo_genero || '');
+    $('#rango_tallas_id').val(data.rango_tallas_id || '');
     $('#descripcion').val(data.descripcion || '');
     $('#activo').val(data.activo || '');
     $('#editar-producto-id').val(data.id);
@@ -214,6 +242,7 @@ $("#form-crear").on("submit", function(e) {
     formData.append('nombre', $("#nombre").val());
     formData.append('categoria', $("#categoria").val() || "");
     formData.append('tipo_genero', $("#tipo_genero").val() || "");
+    formData.append('rango_tallas_id', $("#rango_tallas_id").val() || "");
     formData.append('descripcion', $("#descripcion").val() || "");
     formData.append('activo', $("#activo").val() || "");
     formData.append('imagen_actual', $("#imagen-actual").val() || "");
@@ -225,6 +254,11 @@ $("#form-crear").on("submit", function(e) {
 
     if (!$("#nombre").val() || $("#nombre").val().trim() === '') {
         Swal.fire({ icon: 'warning', text: 'El nombre del producto es obligatorio' });
+        return;
+    }
+
+    if (!$("#rango_tallas_id").val()) {
+        Swal.fire({ icon: 'warning', text: 'Debe seleccionar un rango de tallas para el producto.' });
         return;
     }
 

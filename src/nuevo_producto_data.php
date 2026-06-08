@@ -43,6 +43,35 @@ if ($checkPctGanancia->num_rows == 0) {
     } catch (Exception $e) {}
 }
 
+$checkRangoProducto = $conn->query("SHOW COLUMNS FROM productos LIKE 'rango_tallas_id'");
+if ($checkRangoProducto->num_rows == 0) {
+    $conn->query(
+        'ALTER TABLE productos ADD COLUMN rango_tallas_id int(11) DEFAULT NULL AFTER tipo_genero'
+    );
+}
+
+function obtenerRangoTallasDeProducto(mysqli $conn, int $productoId): array
+{
+    $stmt = $conn->prepare('SELECT rango_tallas_id, nombre FROM productos WHERE id = ? LIMIT 1');
+    $stmt->bind_param('i', $productoId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) {
+        throw new Exception('Producto no encontrado');
+    }
+
+    $rangoId = (int) ($row['rango_tallas_id'] ?? 0);
+    if ($rangoId <= 0) {
+        throw new Exception(
+            'El producto "' . ($row['nombre'] ?? '') . '" no tiene rango de tallas. Asígnelo en Gestionar Productos.'
+        );
+    }
+
+    return ['id' => $rangoId, 'nombre' => $row['nombre'] ?? ''];
+}
+
 $action = $_POST['action'] ?? '';
 
 try {
@@ -85,7 +114,7 @@ try {
                 tp.nombre AS tipo_produccion_nombre,
                 r.observaciones,
                 r.producto_id,
-                r.rango_tallas_id,
+                COALESCE(p.rango_tallas_id, r.rango_tallas_id) AS rango_tallas_id,
                 r.tipo_produccion_id,
                 r.creado_en,
                 r.precio_detal,
@@ -96,7 +125,7 @@ try {
                 COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
             FROM recetas r
             INNER JOIN productos p ON r.producto_id = p.id
-            INNER JOIN rangos_tallas rt ON r.rango_tallas_id = rt.id
+            INNER JOIN rangos_tallas rt ON rt.id = COALESCE(p.rango_tallas_id, r.rango_tallas_id)
             INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
             LEFT JOIN almacenes a ON r.almacen_id = a.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = r.tasa_cambiaria_id
@@ -104,7 +133,7 @@ try {
                 AND rp.rango_tallas_id = r.rango_tallas_id 
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
+            GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, p.rango_tallas_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -160,8 +189,7 @@ try {
 
     switch ($action) {
         case 'crear_receta_completa':
-            $producto_id = $_POST['producto_id'] ?? null;
-            $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
+            $producto_id = (int) ($_POST['producto_id'] ?? 0);
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? 1;
             $almacen_id = !empty($_POST['almacen_id']) ? (int)$_POST['almacen_id'] : null;
             $precio_total = floatval($_POST['precio_total'] ?? 0);
@@ -180,13 +208,12 @@ try {
                 $insumos = [];
             }
             
-            if (!$producto_id) {
+            if ($producto_id <= 0) {
                 throw new Exception("Debes seleccionar un producto");
             }
-            
-            if (!$rango_tallas_id) {
-                throw new Exception("Debes seleccionar un rango de tallas");
-            }
+
+            $rangoProducto = obtenerRangoTallasDeProducto($conn, $producto_id);
+            $rango_tallas_id = $rangoProducto['id'];
             
             if (!$tipo_produccion_id) {
                 throw new Exception("Debes seleccionar un tipo de producción");
@@ -364,17 +391,18 @@ try {
             $id = $_POST['id'] ?? null;
             if (!$id) throw new Exception("ID de guia de corte requerido");
 
-            $producto_id = $_POST['producto_id'] ?? null;
+            $producto_id = (int) ($_POST['producto_id'] ?? 0);
             $insumo_id = $_POST['insumo_id'] ?? null;
-            $rango_tallas_id = $_POST['rango_tallas_id'] ?? null;
             $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? null;
             $cantidad_por_unidad = $_POST['cantidad_por_unidad'] ?? 0;
             $costo_por_unidad = $_POST['costo_por_unidad'] ?? 0;
             $observaciones = $_POST['observaciones'] ?? '';
 
-            if (!$producto_id || !$insumo_id || !$rango_tallas_id || !$tipo_produccion_id || $cantidad_por_unidad <= 0) {
+            if ($producto_id <= 0 || !$insumo_id || !$tipo_produccion_id || $cantidad_por_unidad <= 0) {
                 throw new Exception("Todos los campos son obligatorios y la cantidad debe ser mayor a 0");
             }
+
+            $rango_tallas_id = obtenerRangoTallasDeProducto($conn, $producto_id)['id'];
 
             if ($costo_por_unidad <= 0) {
                 $sqlCosto = "SELECT costo_unitario FROM insumos WHERE id = ?";

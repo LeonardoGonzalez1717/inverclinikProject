@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once '../connection/connection.php';
+require_once __DIR__ . '/../lib/CuentasPorCobrar.php';
+require_once __DIR__ . '/../lib/Auditoria.php';
 
 /** Asegura columnas de comprobante de pago en instalaciones antiguas. */
 function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
@@ -82,6 +84,55 @@ function asegurar_formas_y_forma_pago_cotizaciones(mysqli $conn): void
 
 asegurar_formas_y_forma_pago_cotizaciones($conn);
 
+function asegurar_monto_y_modalidad_cotizaciones(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $chkMod = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'modalidad_pago'");
+    if (!$chkMod || $chkMod->num_rows === 0) {
+        $conn->query(
+            "ALTER TABLE cotizaciones ADD COLUMN modalidad_pago VARCHAR(20) NOT NULL DEFAULT 'contado'
+             COMMENT 'contado o financiada' AFTER codigo_presupuesto_origen"
+        );
+    }
+
+    $chkMonto = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'comprobante_monto'");
+    if (!$chkMonto || $chkMonto->num_rows === 0) {
+        $conn->query(
+            'ALTER TABLE cotizaciones ADD COLUMN comprobante_monto DECIMAL(10,2) DEFAULT NULL
+             COMMENT \'Monto declarado en el comprobante de pago\' AFTER comprobante_fecha'
+        );
+    }
+
+    $chkPct = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'porcentaje_pago_minimo'");
+    if (!$chkPct || $chkPct->num_rows === 0) {
+        $conn->query(
+            'ALTER TABLE cotizaciones ADD COLUMN porcentaje_pago_minimo DECIMAL(5,2) DEFAULT NULL
+             COMMENT \'Porcentaje mínimo del primer pago si es financiada\' AFTER modalidad_pago'
+        );
+    }
+}
+
+function porcentaje_pago_minimo_efectivo(?float $pct): float
+{
+    $p = $pct ?? 60.0;
+    if ($p <= 0 || $p > 100) {
+        $p = 60.0;
+    }
+    return round($p, 2);
+}
+
+function monto_minimo_pago_financiado(float $total, ?float $pct): float
+{
+    return round($total * porcentaje_pago_minimo_efectivo($pct) / 100, 2);
+}
+
+asegurar_monto_y_modalidad_cotizaciones($conn);
+
 $action = $_REQUEST['action'] ?? '';
 $id_cliente = isset($_SESSION['id_cliente']) ? (int) $_SESSION['id_cliente'] : 0;
 
@@ -120,6 +171,7 @@ function etiqueta_estado_cotizacion(int $st): array
 switch ($action) {
     case 'listar_mis_cotizaciones':
         $sql = "SELECT c.id_cotizacion, c.codigo_cotizacion, c.codigo_presupuesto_origen, c.total, c.status,
+                c.modalidad_pago, c.comprobante_monto,
                 DATE_FORMAT(c.fecha_registro, '%d/%m/%Y') AS fecha,
                 c.comprobante_referencia, c.comprobante_archivo, c.comprobante_fecha
                 FROM cotizaciones c
@@ -151,6 +203,10 @@ switch ($action) {
                 $mostrarBtnCargarComprobante = ($refComp === '' || $archComp === '');
                 if ($tieneComp) {
                     $compBits = [];
+                    $montoComp = isset($row['comprobante_monto']) ? (float) $row['comprobante_monto'] : null;
+                    if ($montoComp !== null && $montoComp > 0) {
+                        $compBits[] = '<span class="text-muted small">Monto:</span> $' . number_format($montoComp, 2, '.', ',');
+                    }
                     if ($refComp !== '') {
                         $compBits[] = '<span class="text-muted small">Ref.:</span> ' . htmlspecialchars(mb_strlen($refComp) > 24 ? mb_substr($refComp, 0, 22) . '…' : $refComp);
                     }
@@ -194,9 +250,9 @@ switch ($action) {
         }
 
         $stmtCab = $conn->prepare(
-            'SELECT codigo_cotizacion, codigo_presupuesto_origen, total, status,
+            'SELECT codigo_cotizacion, codigo_presupuesto_origen, total, modalidad_pago, porcentaje_pago_minimo, status,
              DATE_FORMAT(fecha_registro, \'%d/%m/%Y\') AS fecha,
-             comprobante_referencia, comprobante_archivo,
+             comprobante_referencia, comprobante_archivo, comprobante_monto,
              DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
@@ -223,10 +279,15 @@ switch ($action) {
             'fecha' => (string) ($cabRow['fecha'] ?? ''),
             'presupuesto_origen' => $orig,
             'total' => (float) ($cabRow['total'] ?? 0),
+            'modalidad_pago' => (string) ($cabRow['modalidad_pago'] ?? 'contado'),
+            'porcentaje_pago_minimo' => ($cabRow['modalidad_pago'] ?? 'contado') === 'financiada'
+                ? porcentaje_pago_minimo_efectivo(isset($cabRow['porcentaje_pago_minimo']) ? (float) $cabRow['porcentaje_pago_minimo'] : null)
+                : null,
             'estado_texto' => $estTxt,
             'estado_class' => $estCls,
             'comprobante_referencia' => trim((string) ($cabRow['comprobante_referencia'] ?? '')),
             'comprobante_archivo' => trim((string) ($cabRow['comprobante_archivo'] ?? '')),
+            'comprobante_monto' => isset($cabRow['comprobante_monto']) ? (float) $cabRow['comprobante_monto'] : null,
             'comprobante_fecha' => (string) ($cabRow['comprobante_fecha_fmt'] ?? ''),
         ];
 
@@ -280,8 +341,8 @@ switch ($action) {
             exit;
         }
         $stmt = $conn->prepare(
-            'SELECT codigo_cotizacion, comprobante_referencia, comprobante_archivo,
-             forma_pago_id,
+            'SELECT codigo_cotizacion, total, modalidad_pago, porcentaje_pago_minimo, comprobante_monto,
+             comprobante_referencia, comprobante_archivo, forma_pago_id,
              DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
@@ -296,9 +357,23 @@ switch ($action) {
         $row = $r->fetch_assoc();
         $stmt->close();
         $fp = isset($row['forma_pago_id']) ? (int) $row['forma_pago_id'] : 0;
+        $modalidad = (string) ($row['modalidad_pago'] ?? 'contado');
+        $totalCot = (float) ($row['total'] ?? 0);
+        $montoGuardado = isset($row['comprobante_monto']) ? (float) $row['comprobante_monto'] : null;
+        $pctMin = $modalidad === 'financiada'
+            ? porcentaje_pago_minimo_efectivo(isset($row['porcentaje_pago_minimo']) ? (float) $row['porcentaje_pago_minimo'] : null)
+            : null;
+        $montoMin = $modalidad === 'financiada' ? monto_minimo_pago_financiado($totalCot, $pctMin) : $totalCot;
+
         echo json_encode([
             'id_cotizacion' => $id_cot,
             'codigo_cotizacion' => (string) ($row['codigo_cotizacion'] ?? ''),
+            'total' => $totalCot,
+            'modalidad_pago' => $modalidad,
+            'es_financiada' => $modalidad === 'financiada',
+            'porcentaje_pago_minimo' => $pctMin,
+            'monto_minimo' => $montoMin,
+            'comprobante_monto' => $montoGuardado,
             'comprobante_referencia' => (string) ($row['comprobante_referencia'] ?? ''),
             'comprobante_archivo' => (string) ($row['comprobante_archivo'] ?? ''),
             'comprobante_fecha' => (string) ($row['comprobante_fecha'] ?? ''),
@@ -316,6 +391,7 @@ switch ($action) {
         $id_cot = (int) ($_POST['id_cotizacion'] ?? 0);
         $refNueva = trim((string) ($_POST['comprobante_referencia'] ?? ''));
         $forma_id = (int) ($_POST['forma_pago_id'] ?? 0);
+        $montoPago = isset($_POST['comprobante_monto']) ? (float) str_replace(',', '.', (string) $_POST['comprobante_monto']) : 0.0;
 
         if ($id_cot <= 0) {
             echo json_encode(['error' => 'Cotización no válida']);
@@ -338,7 +414,8 @@ switch ($action) {
         $vf->close();
 
         $stmt0 = $conn->prepare(
-            'SELECT comprobante_archivo FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
+            'SELECT comprobante_archivo, total, modalidad_pago, porcentaje_pago_minimo
+             FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
         $stmt0->bind_param('ii', $id_cot, $id_cliente);
         $stmt0->execute();
@@ -351,6 +428,38 @@ switch ($action) {
         $existente = $r0->fetch_assoc();
         $stmt0->close();
         $archivoAnterior = trim((string) ($existente['comprobante_archivo'] ?? ''));
+        $totalCot = round((float) ($existente['total'] ?? 0), 2);
+        $modalidad = (string) ($existente['modalidad_pago'] ?? 'contado');
+        $esFinanciada = ($modalidad === 'financiada');
+
+        if ($montoPago <= 0) {
+            echo json_encode(['error' => 'Indique un monto de pago mayor a cero.']);
+            exit;
+        }
+        $montoPago = round($montoPago, 2);
+        if ($esFinanciada) {
+            $pctMin = porcentaje_pago_minimo_efectivo(
+                isset($existente['porcentaje_pago_minimo']) ? (float) $existente['porcentaje_pago_minimo'] : null
+            );
+            $montoMin = monto_minimo_pago_financiado($totalCot, $pctMin);
+            if ($montoPago > $totalCot) {
+                echo json_encode(['error' => 'El monto no puede superar el total de la cotización ($' . number_format($totalCot, 2, '.', ',') . ').']);
+                exit;
+            }
+            if ($montoPago + 0.009 < $montoMin) {
+                echo json_encode([
+                    'error' => 'El pago inicial debe ser al menos el ' . number_format($pctMin, 0) . '% del total ($'
+                        . number_format($montoMin, 2, '.', ',') . ').',
+                ]);
+                exit;
+            }
+        } else {
+            if (abs($montoPago - $totalCot) > 0.009) {
+                echo json_encode(['error' => 'En cotizaciones de contado el monto debe ser igual al total ($' . number_format($totalCot, 2, '.', ',') . ').']);
+                exit;
+            }
+            $montoPago = $totalCot;
+        }
 
         $subioArchivo = false;
         $nombreArchivoGuardar = $archivoAnterior;
@@ -420,21 +529,63 @@ switch ($action) {
         $refSql = $refFinal;
         $archSql = $nombreArchivoGuardar;
 
-        $stmtUp = $conn->prepare(
-            'UPDATE cotizaciones SET
-                comprobante_referencia = NULLIF(TRIM(?), \'\'),
-                comprobante_archivo = NULLIF(TRIM(?), \'\'),
-                comprobante_fecha = NOW(),
-                forma_pago_id = ?
-             WHERE id_cotizacion = ? AND id_cliente = ?'
-        );
-        $stmtUp->bind_param('ssiii', $refSql, $archSql, $forma_id, $id_cot, $id_cliente);
-        if (!$stmtUp->execute()) {
+        $conn->begin_transaction();
+
+        try {
+            $stmtUp = $conn->prepare(
+                'UPDATE cotizaciones SET
+                    comprobante_referencia = NULLIF(TRIM(?), \'\'),
+                    comprobante_archivo = NULLIF(TRIM(?), \'\'),
+                    comprobante_fecha = NOW(),
+                    comprobante_monto = ?,
+                    forma_pago_id = ?
+                 WHERE id_cotizacion = ? AND id_cliente = ?'
+            );
+            $stmtUp->bind_param('ssdiii', $refSql, $archSql, $montoPago, $forma_id, $id_cot, $id_cliente);
+            if (!$stmtUp->execute()) {
+                throw new RuntimeException('No se pudo guardar el comprobante.');
+            }
             $stmtUp->close();
-            echo json_encode(['error' => 'No se pudo guardar los datos.']);
-            exit;
+
+            $resultadoVenta = CuentasPorCobrar::procesarComprobanteCotizacion(
+                $conn,
+                $id_cot,
+                $id_cliente,
+                $montoPago,
+                $forma_id,
+                $refSql,
+                $esFinanciada,
+                $totalCot
+            );
+
+            $conn->commit();
+
+            $mensaje = 'Comprobante guardado correctamente. La venta #' . (int) $resultadoVenta['venta_id']
+                . ' fue registrada (por pagar) y quedará pendiente hasta que el equipo apruebe el pago.';
+            if ($esFinanciada) {
+                $saldo = round(max(0, $totalCot - $montoPago), 2);
+                if ($saldo > 0.009) {
+                    $mensaje .= ' Saldo estimado tras aprobación: $' . number_format($saldo, 2, '.', ',') . '.';
+                }
+            }
+
+            Auditoria::registrar(
+                $conn,
+                'Comprobante cotización #' . $id_cot . ': venta #' . (int) $resultadoVenta['venta_id']
+                    . ($resultadoVenta['cuenta_id'] ? ', cuenta por cobrar #' . (int) $resultadoVenta['cuenta_id'] : '')
+                    . '. Monto: ' . $montoPago . '.',
+                'Mis cotizaciones (cliente)'
+            );
+
+            echo json_encode([
+                'ok' => true,
+                'mensaje' => $mensaje,
+                'venta_id' => (int) $resultadoVenta['venta_id'],
+                'cuenta_id' => $resultadoVenta['cuenta_id'],
+            ]);
+        } catch (Throwable $e) {
+            $conn->rollback();
+            echo json_encode(['error' => $e->getMessage()]);
         }
-        $stmtUp->close();
-        echo json_encode(['ok' => true, 'mensaje' => 'Comprobante guardado correctamente.']);
         break;
 }

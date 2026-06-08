@@ -23,15 +23,6 @@ if ($resultInsumos) {
     }
 }
 
-$sqlRangos = "SELECT id, nombre_rango FROM rangos_tallas ORDER BY nombre_rango";
-$resultRangos = $conn->query($sqlRangos);
-$rangos = [];
-if ($resultRangos) {
-    while ($row = $resultRangos->fetch_assoc()) {
-        $rangos[] = $row;
-    }
-}
-
 $sqlTipos = "SELECT id, nombre FROM tipos_produccion ORDER BY nombre";
 $resultTipos = $conn->query($sqlTipos);
 $tipos = [];
@@ -148,17 +139,9 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                </div>
-                                <div class="col-sm-6">
-                                    <label class="form-label">Rango de Tallas</label>
-                                    <select name="rango_tallas_id" id="rango_tallas_id" class="form-control" required>
-                                        <option value="">Seleccione una Talla</option>
-                                        <?php foreach ($rangos as $r): ?>
-                                            <option value="<?php echo htmlspecialchars($r['id']); ?>">
-                                                <?php echo htmlspecialchars($r['nombre_rango']); ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
+                                    <small class="form-text text-muted">
+                                        El rango de tallas se define al crear el producto en <a href="gestionar_productos.php">Gestionar Productos</a>.
+                                    </small>
                                 </div>
                             </div>
 
@@ -541,7 +524,6 @@ function limpiarFormulario() {
 
 function editarReceta(data) {
     $('#producto_id').val(data.producto_id || '');
-    $('#rango_tallas_id').val(data.rango_tallas_id || '');
     $('#tipo_produccion_id').val(data.tipo_produccion_id || '');
     $('#almacen_id').val(data.almacen_id || '');
     $('#precio_total').val(data.precio_total || '');
@@ -644,21 +626,13 @@ $("#form-crear").on("submit", function(e) {
     }
     
     var producto_id = $("#producto_id").val();
-    var rango_tallas_id = $("#rango_tallas_id").val();
     var precio_total = parseFloat($("#precio_total").val()) || 0;
     var detal = parseFloat($("#precio_detal").val()) || 0;
     var mayor = parseFloat($("#precio_mayor").val()) || 0;
     var observaciones = $("#observaciones").val() || "";
     
-    if (!producto_id || !rango_tallas_id) {
-        var camposFaltantes = [];
-        if (!producto_id) camposFaltantes.push('Producto');
-        if (!rango_tallas_id) camposFaltantes.push('Rango de tallas');
-
-        Swal.fire({
-            icon: 'warning',
-            text: 'Faltan campos por completar: ' + camposFaltantes.join(', ')
-        });
+    if (!producto_id) {
+        Swal.fire({ icon: 'warning', text: 'Debe seleccionar un producto.' });
         return;
     }
     
@@ -674,7 +648,6 @@ $("#form-crear").on("submit", function(e) {
     var datos = {
         action: "crear_receta_completa",
         producto_id: producto_id,
-        rango_tallas_id: rango_tallas_id,
         almacen_id: almacen_id,
         precio_total: precio_total,
         porcentaje_ganancia: porcentaje_ganancia,

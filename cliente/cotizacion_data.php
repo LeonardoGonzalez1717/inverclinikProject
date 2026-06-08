@@ -3,6 +3,38 @@ session_start();
 include '../connection/connection.php';
 require_once __DIR__ . '/../lib/Auditoria.php';
 
+function asegurar_modalidad_pago_cotizaciones(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $chk = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'modalidad_pago'");
+    if (!$chk || $chk->num_rows === 0) {
+        $conn->query(
+            "ALTER TABLE cotizaciones ADD COLUMN modalidad_pago VARCHAR(20) NOT NULL DEFAULT 'contado'
+             COMMENT 'contado o financiada' AFTER codigo_presupuesto_origen"
+        );
+    }
+
+    $chkPct = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'porcentaje_pago_minimo'");
+    if (!$chkPct || $chkPct->num_rows === 0) {
+        $conn->query(
+            'ALTER TABLE cotizaciones ADD COLUMN porcentaje_pago_minimo DECIMAL(5,2) DEFAULT NULL
+             COMMENT \'Porcentaje mínimo del primer pago si es financiada\' AFTER modalidad_pago'
+        );
+    }
+}
+
+function etiqueta_modalidad_pago(?string $valor): string
+{
+    return ($valor === 'financiada') ? 'Financiada' : 'Contado';
+}
+
+asegurar_modalidad_pago_cotizaciones($conn);
+
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 switch ($action) {
@@ -12,6 +44,8 @@ switch ($action) {
                     c.id_cotizacion, 
                     c.codigo_cotizacion, 
                     c.codigo_presupuesto_origen, 
+                    c.modalidad_pago,
+                    c.porcentaje_pago_minimo,
                     c.status,
                     cl.nombre AS cliente_nombre, 
                     cl.telefono, 
@@ -56,9 +90,25 @@ switch ($action) {
                             <strong>" . htmlspecialchars($row['cliente_nombre']) . "</strong><br>
                             <small class='text-muted'>" . htmlspecialchars($row['codigo_cotizacion']) . "</small>
                         </td>";
-                $html .= "<td>" . htmlspecialchars($row['email'] ?? '') . "</td>";
+                $modTxt = etiqueta_modalidad_pago($row['modalidad_pago'] ?? 'contado');
+                if (($row['modalidad_pago'] ?? 'contado') === 'financiada' && !empty($row['porcentaje_pago_minimo'])) {
+                    $modTxt .= ' (' . number_format((float) $row['porcentaje_pago_minimo'], 0) . '% mín.)';
+                }
+                $html .= '<td>' . htmlspecialchars($modTxt) . '</td>';
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
                 $html .= '<td><span class="badge ' . $estCls . '">' . htmlspecialchars($estTxt) . '</span></td>';
+                $codigoEsc = htmlspecialchars($row['codigo_cotizacion'], ENT_QUOTES, 'UTF-8');
+                $btnEliminar = '';
+                if (in_array($st, [1, 3], true)) {
+                    $btnEliminar = "<button type='button' class='btn btn-sm btn-danger btn-eliminar-cot'
+                        data-id='" . (int) $row['id_cotizacion'] . "'
+                        data-codigo='" . $codigoEsc . "'
+                        title='Eliminar cotización'
+                        style='margin-left:5px;'>
+                        <i class='fas fa-trash'></i> Eliminar
+                    </button>";
+                }
+
                 $html .= "<td nowrap>
                             <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info'>
                                 <i class='fas fa-print'></i> Imprimir Cotización
@@ -66,6 +116,7 @@ switch ($action) {
                             <button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Ver Detalles' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
                                 Editar
                             </button>
+                            " . $btnEliminar . "
                         </td>";
                 $html .= '</tr>';
             }
@@ -196,26 +247,109 @@ switch ($action) {
     case 'guardar_cotizacion':
         restringirEscritura();
 
-        $id_cliente = $_POST['id_cliente'];
+        $id_cotizacion_edit = (int) ($_POST['id_cotizacion'] ?? 0);
+        $id_cliente = (int) ($_POST['id_cliente'] ?? 0);
         $codigo_presupuesto = $_POST['codigo_presupuesto'] ?? '';
+        $modalidad_pago = $_POST['modalidad_pago'] ?? 'contado';
+        $porcentaje_pago_minimo = isset($_POST['porcentaje_pago_minimo']) && $_POST['porcentaje_pago_minimo'] !== ''
+            ? (float) str_replace(',', '.', (string) $_POST['porcentaje_pago_minimo'])
+            : null;
         $items = json_decode($_POST['items'], true); 
         $total = $_POST['total_cotizacion'];
-        
-        if (!empty($codigo_presupuesto)) {
-            $codigo_cotizacion = str_replace("PRE", "COT", $codigo_presupuesto);
-        } else {
-            $codigo_cotizacion = "COT-MAN-" . date('His');
+
+        if (!in_array($modalidad_pago, ['contado', 'financiada'], true)) {
+            echo json_encode(['success' => false, 'mensaje' => 'Modalidad de pago inválida.']);
+            break;
         }
+
+        if ($modalidad_pago === 'financiada') {
+            if ($porcentaje_pago_minimo === null) {
+                $porcentaje_pago_minimo = 60.0;
+            }
+            if ($porcentaje_pago_minimo <= 0 || $porcentaje_pago_minimo > 100) {
+                echo json_encode(['success' => false, 'mensaje' => 'El porcentaje mínimo de pago debe estar entre 1 y 100.']);
+                break;
+            }
+            $porcentaje_pago_minimo = round($porcentaje_pago_minimo, 2);
+        } else {
+            $porcentaje_pago_minimo = null;
+        }
+        
+        if (!is_array($items) || count($items) === 0) {
+            echo json_encode(['success' => false, 'mensaje' => 'Debe incluir al menos un producto en la cotización.']);
+            break;
+        }
+
+        if ($id_cliente <= 0) {
+            echo json_encode(['success' => false, 'mensaje' => 'Cliente inválido.']);
+            break;
+        }
+
+        $orig = !empty($codigo_presupuesto) ? $codigo_presupuesto : 'VENTA DIRECTA';
+        $esEdicion = $id_cotizacion_edit > 0;
+        $codigo_cotizacion = '';
+        $id_cotizacion = 0;
 
         $conn->begin_transaction();
 
         try {
-            $stmt = $conn->prepare("INSERT INTO cotizaciones (id_cliente, codigo_cotizacion, codigo_presupuesto_origen, total, status) VALUES (?, ?, ?, ?, 1)");
-            $orig = !empty($codigo_presupuesto) ? $codigo_presupuesto : 'VENTA DIRECTA';
-            $stmt->bind_param("issd", $id_cliente, $codigo_cotizacion, $orig, $total);
-            $stmt->execute();
-            $id_cotizacion = $stmt->insert_id;
-            $stmt->close();
+            if ($esEdicion) {
+                $stmtExist = $conn->prepare(
+                    'SELECT id_cotizacion, codigo_cotizacion, status FROM cotizaciones WHERE id_cotizacion = ? LIMIT 1'
+                );
+                $stmtExist->bind_param('i', $id_cotizacion_edit);
+                $stmtExist->execute();
+                $exist = $stmtExist->get_result()->fetch_assoc();
+                $stmtExist->close();
+
+                if (!$exist) {
+                    throw new Exception('La cotización a editar no existe.');
+                }
+                if ((int) ($exist['status'] ?? 0) !== 1) {
+                    throw new Exception('Solo se pueden editar cotizaciones en estado Enviada.');
+                }
+
+                $id_cotizacion = (int) $exist['id_cotizacion'];
+                $codigo_cotizacion = (string) $exist['codigo_cotizacion'];
+
+                $stmt = $conn->prepare(
+                    'UPDATE cotizaciones
+                     SET id_cliente = ?, codigo_presupuesto_origen = ?, modalidad_pago = ?,
+                         porcentaje_pago_minimo = ?, total = ?
+                     WHERE id_cotizacion = ?'
+                );
+                $stmt->bind_param(
+                    'issddi',
+                    $id_cliente,
+                    $orig,
+                    $modalidad_pago,
+                    $porcentaje_pago_minimo,
+                    $total,
+                    $id_cotizacion
+                );
+                $stmt->execute();
+                $stmt->close();
+
+                $stmtDel = $conn->prepare('DELETE FROM cotizacion_detalles WHERE id_cotizacion = ?');
+                $stmtDel->bind_param('i', $id_cotizacion);
+                $stmtDel->execute();
+                $stmtDel->close();
+            } else {
+                if (!empty($codigo_presupuesto)) {
+                    $codigo_cotizacion = str_replace('PRE', 'COT', $codigo_presupuesto);
+                } else {
+                    $codigo_cotizacion = 'COT-MAN-' . date('His');
+                }
+
+                $stmt = $conn->prepare(
+                    "INSERT INTO cotizaciones (id_cliente, codigo_cotizacion, codigo_presupuesto_origen, modalidad_pago, porcentaje_pago_minimo, total, status)
+                     VALUES (?, ?, ?, ?, ?, ?, 1)"
+                );
+                $stmt->bind_param('isssdd', $id_cliente, $codigo_cotizacion, $orig, $modalidad_pago, $porcentaje_pago_minimo, $total);
+                $stmt->execute();
+                $id_cotizacion = (int) $stmt->insert_id;
+                $stmt->close();
+            }
 
             $stmt_det_cot = $conn->prepare("INSERT INTO cotizacion_detalles 
                 (id_cotizacion, id_receta, id_talla, id_personalizacion, cantidad, notas, precio_unitario, subtotal) 
@@ -245,9 +379,9 @@ switch ($action) {
             }
             $stmt_det_cot->close();
 
-            if (!empty($codigo_presupuesto)) {
-                $stmt_upd = $conn->prepare("UPDATE presupuestos SET status = 2 WHERE codigo_presupuesto = ?");
-                $stmt_upd->bind_param("s", $codigo_presupuesto);
+            if (!$esEdicion && !empty($codigo_presupuesto)) {
+                $stmt_upd = $conn->prepare('UPDATE presupuestos SET status = 2 WHERE codigo_presupuesto = ?');
+                $stmt_upd->bind_param('s', $codigo_presupuesto);
                 $stmt_upd->execute();
                 $stmt_upd->close();
             }
@@ -255,17 +389,114 @@ switch ($action) {
             $conn->commit();
             Auditoria::registrar(
                 $conn,
-                'Cotización creada: ' . $codigo_cotizacion . ' (id ' . (int) $id_cotizacion . '). Total: ' . $total . '.',
+                ($esEdicion ? 'Cotización actualizada: ' : 'Cotización creada: ')
+                    . $codigo_cotizacion . ' (id ' . (int) $id_cotizacion . '). Total: ' . $total . '.',
                 'Cotización (cliente)'
             );
             echo json_encode([
                 'success' => true,
-                'mensaje' => 'Cotización guardada correctamente.',
+                'mensaje' => $esEdicion
+                    ? 'Cotización actualizada correctamente.'
+                    : 'Cotización guardada correctamente.',
             ]);
 
         } catch (Exception $e) {
             $conn->rollback();
             echo json_encode(['success' => false, 'mensaje' => "Error: " . $e->getMessage()]);
+        }
+        break;
+
+    case 'eliminar_cotizacion':
+        restringirEscritura();
+
+        $id_cotizacion = (int) ($_POST['id_cotizacion'] ?? 0);
+        if ($id_cotizacion <= 0) {
+            echo json_encode(['success' => false, 'mensaje' => 'ID de cotización inválido.']);
+            break;
+        }
+
+        $stmt = $conn->prepare(
+            'SELECT id_cotizacion, codigo_cotizacion, codigo_presupuesto_origen, status, comprobante_archivo
+             FROM cotizaciones WHERE id_cotizacion = ? LIMIT 1'
+        );
+        $stmt->bind_param('i', $id_cotizacion);
+        $stmt->execute();
+        $cot = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$cot) {
+            echo json_encode(['success' => false, 'mensaje' => 'La cotización no existe.']);
+            break;
+        }
+
+        $st = (int) ($cot['status'] ?? 0);
+        if (!in_array($st, [1, 3], true)) {
+            echo json_encode([
+                'success' => false,
+                'mensaje' => 'Solo se pueden eliminar cotizaciones en estado Enviada o Rechazada.',
+            ]);
+            break;
+        }
+
+        $stmtVenta = $conn->prepare('SELECT COUNT(*) AS n FROM ventas WHERE cotizacion_id = ?');
+        $stmtVenta->bind_param('i', $id_cotizacion);
+        $stmtVenta->execute();
+        $nVentas = (int) ($stmtVenta->get_result()->fetch_assoc()['n'] ?? 0);
+        $stmtVenta->close();
+
+        if ($nVentas > 0) {
+            echo json_encode([
+                'success' => false,
+                'mensaje' => 'No se puede eliminar: la cotización ya tiene una venta asociada.',
+            ]);
+            break;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            $archivo = trim((string) ($cot['comprobante_archivo'] ?? ''));
+            if ($archivo !== '') {
+                $rutaArchivo = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'uploads'
+                    . DIRECTORY_SEPARATOR . 'comprobantes_cotizaciones' . DIRECTORY_SEPARATOR . $archivo;
+                if (is_file($rutaArchivo)) {
+                    @unlink($rutaArchivo);
+                }
+            }
+
+            $stmtDel = $conn->prepare('DELETE FROM cotizaciones WHERE id_cotizacion = ?');
+            $stmtDel->bind_param('i', $id_cotizacion);
+            $stmtDel->execute();
+            $stmtDel->close();
+
+            $origen = trim((string) ($cot['codigo_presupuesto_origen'] ?? ''));
+            if ($origen !== '' && $origen !== 'VENTA DIRECTA') {
+                $stmtCnt = $conn->prepare(
+                    'SELECT COUNT(*) AS n FROM cotizaciones WHERE codigo_presupuesto_origen = ?'
+                );
+                $stmtCnt->bind_param('s', $origen);
+                $stmtCnt->execute();
+                $quedan = (int) ($stmtCnt->get_result()->fetch_assoc()['n'] ?? 0);
+                $stmtCnt->close();
+
+                if ($quedan === 0) {
+                    $stmtRev = $conn->prepare('UPDATE presupuestos SET status = 0 WHERE codigo_presupuesto = ?');
+                    $stmtRev->bind_param('s', $origen);
+                    $stmtRev->execute();
+                    $stmtRev->close();
+                }
+            }
+
+            $conn->commit();
+            Auditoria::registrar(
+                $conn,
+                'Cotización eliminada: ' . $cot['codigo_cotizacion'] . ' (id ' . $id_cotizacion . ').',
+                'Cotización (cliente)'
+            );
+            echo json_encode(['success' => true, 'mensaje' => 'Cotización eliminada correctamente.']);
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'mensaje' => 'Error: ' . $e->getMessage()]);
         }
         break;
 }

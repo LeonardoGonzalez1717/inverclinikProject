@@ -8,6 +8,46 @@ require_once __DIR__ . '/../lib/Pagination.php';
 
 $action = $_POST['action'] ?? '';
 
+function ensureRangoTallasEnProductos(mysqli $conn): void
+{
+    $check = $conn->query("SHOW COLUMNS FROM productos LIKE 'rango_tallas_id'");
+    if ($check && $check->num_rows === 0) {
+        $conn->query(
+            'ALTER TABLE productos ADD COLUMN rango_tallas_id int(11) DEFAULT NULL AFTER tipo_genero'
+        );
+        $idx = $conn->query("SHOW INDEX FROM productos WHERE Key_name = 'rango_tallas_id'");
+        if (!$idx || $idx->num_rows === 0) {
+            $conn->query('ALTER TABLE productos ADD KEY rango_tallas_id (rango_tallas_id)');
+        }
+    }
+
+    $conn->query(
+        'UPDATE productos p
+         INNER JOIN (
+            SELECT producto_id, MIN(rango_tallas_id) AS rango_tallas_id
+            FROM recetas
+            GROUP BY producto_id
+         ) r ON r.producto_id = p.id
+         SET p.rango_tallas_id = r.rango_tallas_id
+         WHERE p.rango_tallas_id IS NULL'
+    );
+}
+
+function sincronizarRangoEnRecetas(mysqli $conn, int $productoId, int $rangoTallasId): void
+{
+    $stmtR = $conn->prepare('UPDATE recetas SET rango_tallas_id = ? WHERE producto_id = ?');
+    $stmtR->bind_param('ii', $rangoTallasId, $productoId);
+    $stmtR->execute();
+    $stmtR->close();
+
+    $stmtRp = $conn->prepare('UPDATE recetas_productos SET rango_tallas_id = ? WHERE producto_id = ?');
+    $stmtRp->bind_param('ii', $rangoTallasId, $productoId);
+    $stmtRp->execute();
+    $stmtRp->close();
+}
+
+ensureRangoTallasEnProductos($conn);
+
 try {
     if ($action === 'listar_html') {
         // Verificar si existe la columna imagen, si no, agregarla
@@ -21,15 +61,18 @@ try {
 
         $sql = "
             SELECT 
-                id,
-                nombre,
-                categoria,
-                tipo_genero,
-                descripcion,
-                imagen,
-                fecha_creacion
-            FROM productos
-            ORDER BY fecha_creacion DESC, nombre ASC
+                p.id,
+                p.nombre,
+                p.categoria,
+                p.tipo_genero,
+                p.rango_tallas_id,
+                rt.nombre_rango AS rango_tallas_nombre,
+                p.descripcion,
+                p.imagen,
+                p.fecha_creacion
+            FROM productos p
+            LEFT JOIN rangos_tallas rt ON rt.id = p.rango_tallas_id
+            ORDER BY p.fecha_creacion DESC, p.nombre ASC
         " . $pg->limitClause();
 
         $result = $conn->query($sql);
@@ -49,6 +92,7 @@ try {
                 echo '<td>' . htmlspecialchars($p['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($p['categoria'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($p['tipo_genero'] ?? '-') . '</td>';
+                echo '<td>' . htmlspecialchars($p['rango_tallas_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars(substr($p['descripcion'] ?? '', 0, 50)) . (strlen($p['descripcion'] ?? '') > 50 ? '...' : '') . '</td>';
                 echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y H:i', strtotime($p['fecha_creacion'])) : '-') . '</td>';
                 echo '<td>';
@@ -57,7 +101,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="7" class="text-center">No se encontraron productos registrados</td></tr>';
+            echo '<tr><td colspan="8" class="text-center">No se encontraron productos registrados</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
@@ -86,12 +130,17 @@ try {
             $nombre = trim($_POST['nombre'] ?? '');
             $categoria = trim($_POST['categoria'] ?? '');
             $tipo_genero = trim($_POST['tipo_genero'] ?? '');
+            $rango_tallas_id = (int) ($_POST['rango_tallas_id'] ?? 0);
             $descripcion = trim($_POST['descripcion'] ?? '');
             $activo = isset($_POST['activo']) ? 1 : 0;
             $imagen = null;
 
             if (empty($nombre)) {
                 throw new Exception("El nombre del producto es obligatorio");
+            }
+
+            if ($rango_tallas_id <= 0) {
+                throw new Exception('Debe seleccionar un rango de tallas para el producto');
             }
 
             $checkSql = "SELECT id FROM productos WHERE nombre = ?";
@@ -130,15 +179,15 @@ try {
             }
 
             $stmt = $conn->prepare("
-                INSERT INTO productos (nombre, categoria, tipo_genero, descripcion, imagen, activo)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO productos (nombre, categoria, tipo_genero, rango_tallas_id, descripcion, imagen, activo)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
             $categoria = empty($categoria) ? null : $categoria;
             $tipo_genero = empty($tipo_genero) ? null : $tipo_genero;
             $descripcion = empty($descripcion) ? null : $descripcion;
 
-            $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $activo);
+            $stmt->bind_param("sssissi", $nombre, $categoria, $tipo_genero, $rango_tallas_id, $descripcion, $imagen, $activo);
             $stmt->execute();
             $pid = (int) $conn->insert_id;
             $stmt->close();
@@ -157,6 +206,7 @@ try {
             $nombre = trim($_POST['nombre'] ?? '');
             $categoria = trim($_POST['categoria'] ?? '');
             $tipo_genero = trim($_POST['tipo_genero'] ?? '');
+            $rango_tallas_id = (int) ($_POST['rango_tallas_id'] ?? 0);
             $descripcion = trim($_POST['descripcion'] ?? '');
             $imagenActual = $_POST['imagen_actual'] ?? null;
 
@@ -164,7 +214,11 @@ try {
                 throw new Exception("El nombre del producto es obligatorio");
             }
 
-            $checkSql = "SELECT id, imagen FROM productos WHERE id = ?";
+            if ($rango_tallas_id <= 0) {
+                throw new Exception('Debe seleccionar un rango de tallas para el producto');
+            }
+
+            $checkSql = "SELECT id, imagen, rango_tallas_id FROM productos WHERE id = ?";
             $checkStmt = $conn->prepare($checkSql);
             $checkStmt->bind_param("i", $id);
             $checkStmt->execute();
@@ -222,6 +276,7 @@ try {
                 SET nombre = ?, 
                     categoria = ?, 
                     tipo_genero = ?, 
+                    rango_tallas_id = ?,
                     descripcion = ?,
                     imagen = ?
                 WHERE id = ?
@@ -231,9 +286,13 @@ try {
             $tipo_genero = empty($tipo_genero) ? null : $tipo_genero;
             $descripcion = empty($descripcion) ? null : $descripcion;
 
-            $stmt->bind_param("sssssi", $nombre, $categoria, $tipo_genero, $descripcion, $imagen, $id);
+            $stmt->bind_param("sssissi", $nombre, $categoria, $tipo_genero, $rango_tallas_id, $descripcion, $imagen, $id);
             $stmt->execute();
             $stmt->close();
+
+            if ((int) ($productoActual['rango_tallas_id'] ?? 0) !== $rango_tallas_id) {
+                sincronizarRangoEnRecetas($conn, (int) $id, $rango_tallas_id);
+            }
             Auditoria::registrar(
                 $conn,
                 'Producto actualizado: id ' . (int) $id . ' — ' . $nombre,

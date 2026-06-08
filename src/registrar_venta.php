@@ -709,10 +709,44 @@ function verDetalle(ventaId) {
     }, 'json');
 }
 
+function aprobarPagoVenta(ventaId) {
+    Swal.fire({
+        icon: 'question',
+        title: '¿Aprobar pago?',
+        text: '¿Estás seguro que el pago se hizo correctamente?',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, aprobar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#28a745'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $.post('registrar_venta_data.php', {
+            action: 'aprobar_pago_verificado',
+            venta_id: ventaId
+        }, function(resp) {
+            if (resp && resp.success) {
+                Swal.fire({ icon: 'success', text: resp.message || 'Pago aprobado.' });
+                cargarListado();
+            } else {
+                Swal.fire({ icon: 'error', text: (resp && resp.message) ? resp.message : 'No se pudo aprobar el pago.' });
+            }
+        }, 'json').fail(function() {
+            Swal.fire({ icon: 'error', text: 'Error de comunicación con el servidor.' });
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-ventas', cargarListado);
+
+    $(document).on('click', '.btn-aprobar-pago-venta', function() {
+        var ventaId = $(this).data('id');
+        if (ventaId) {
+            aprobarPagoVenta(ventaId);
+        }
+    });
 
     $('#cliente_id').on('change', function() {
         var idc = $(this).val();
