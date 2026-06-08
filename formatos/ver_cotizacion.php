@@ -1,6 +1,21 @@
 <?php
 require_once "../connection/connection.php";
 
+$chkModalidad = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'modalidad_pago'");
+if (!$chkModalidad || $chkModalidad->num_rows === 0) {
+    $conn->query(
+        "ALTER TABLE cotizaciones ADD COLUMN modalidad_pago VARCHAR(20) NOT NULL DEFAULT 'contado'
+         COMMENT 'contado o financiada' AFTER codigo_presupuesto_origen"
+    );
+}
+$chkPctMin = $conn->query("SHOW COLUMNS FROM cotizaciones LIKE 'porcentaje_pago_minimo'");
+if (!$chkPctMin || $chkPctMin->num_rows === 0) {
+    $conn->query(
+        'ALTER TABLE cotizaciones ADD COLUMN porcentaje_pago_minimo DECIMAL(5,2) DEFAULT NULL
+         COMMENT \'Porcentaje mínimo del primer pago si es financiada\' AFTER modalidad_pago'
+    );
+}
+
 $id_cotizacion = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($id_cotizacion <= 0) {
     die("Cotización no encontrada.");
@@ -101,6 +116,18 @@ $res_det = $stmtDet->get_result();
                 <h2 style="margin:0; color: #555;">COTIZACIÓN</h2>
                 <p style="margin:5px 0;"><strong>Nro:</strong> <?php echo $c['codigo_cotizacion']; ?></p>
                 <p style="margin:0;"><strong>Fecha:</strong> <?php echo date('d/m/Y', strtotime($fechaCab)); ?></p>
+                <p style="margin:0;"><strong>Modalidad de pago:</strong> <?php
+                    $mod = ($c['modalidad_pago'] ?? 'contado') === 'financiada' ? 'Financiada' : 'Contado';
+                    if (($c['modalidad_pago'] ?? 'contado') === 'financiada') {
+                        $pct = isset($c['porcentaje_pago_minimo']) && $c['porcentaje_pago_minimo'] !== ''
+                            ? (float) $c['porcentaje_pago_minimo'] : 60.0;
+                        if ($pct <= 0 || $pct > 100) {
+                            $pct = 60.0;
+                        }
+                        $mod .= ' — pago inicial mínimo ' . number_format($pct, 0) . '%';
+                    }
+                    echo $mod;
+                ?></p>
             </div>
         </div>
 

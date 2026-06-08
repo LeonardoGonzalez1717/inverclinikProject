@@ -81,6 +81,22 @@ require_once '../template/header.php';
                     
                     <form id="form-comprobante-cot" enctype="multipart/form-data">
                         <input type="hidden" name="id_cotizacion" id="form-comp-id" value="">
+                        <input type="hidden" id="comp-total-cotizacion" value="">
+                        <input type="hidden" id="comp-modalidad-pago" value="contado">
+                        <input type="hidden" id="comp-porcentaje-minimo" value="">
+                        <input type="hidden" id="comp-monto-minimo" value="">
+
+                        <div id="comp-resumen-cot" class="alert alert-light border small mb-3" style="display:none;">
+                            <div><strong>Total cotización:</strong> $<span id="comp-total-display">0.00</span></div>
+                            <div><strong>Modalidad:</strong> <span id="comp-modalidad-display">Contado</span></div>
+                            <div id="comp-ayuda-monto" class="text-muted mt-1"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="comp-monto" class="font-weight-bold">Monto del pago ($) <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control form-control-lg" id="comp-monto" name="comprobante_monto"
+                                   min="0.01" step="0.01" required>
+                        </div>
                         
                         <div class="form-group">
                             <label for="comp-forma-pago" class="font-weight-bold">Forma de pago <span class="text-danger">*</span></label>
@@ -95,6 +111,8 @@ require_once '../template/header.php';
                             <small class="form-text text-muted">Confirme que el número sea el correcto.</small>
                         </div>
                     </form>
+
+                    <div id="comp-estado-previo" class="alert" style="display:none;"></div>
                     
                     <div id="comp-mensaje" class="mt-3 alert" style="display:none;"></div>
                 </div>
@@ -116,6 +134,48 @@ require_once '../template/header.php';
             forma = forma.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
         }
         return forma === 'pago movil' || forma === 'transferencia bancaria';
+    }
+
+    function configurarCampoMontoComprobante(d) {
+        var total = parseFloat(d && d.total != null ? d.total : 0) || 0;
+        var esFinanciada = !!(d && d.es_financiada);
+        var pctMin = esFinanciada ? (parseFloat(d.porcentaje_pago_minimo) || 60) : 0;
+        var montoMin = esFinanciada
+            ? (parseFloat(d.monto_minimo) || Math.round(total * pctMin) / 100)
+            : total;
+        var montoPrev = d && d.comprobante_monto != null && parseFloat(d.comprobante_monto) > 0
+            ? parseFloat(d.comprobante_monto)
+            : montoMin;
+
+        $('#comp-total-cotizacion').val(total.toFixed(2));
+        $('#comp-modalidad-pago').val(esFinanciada ? 'financiada' : 'contado');
+        $('#comp-porcentaje-minimo').val(esFinanciada ? pctMin.toFixed(2) : '');
+        $('#comp-monto-minimo').val(esFinanciada ? montoMin.toFixed(2) : total.toFixed(2));
+        $('#comp-total-display').text(total.toFixed(2));
+        $('#comp-modalidad-display').text(esFinanciada ? ('Financiada — mín. ' + pctMin + '%') : 'Contado');
+        $('#comp-resumen-cot').show();
+
+        var $monto = $('#comp-monto');
+        $monto.attr('max', total.toFixed(2));
+        if (esFinanciada) {
+            $monto.attr('min', montoMin.toFixed(2));
+            $('#comp-ayuda-monto').text(
+                'Debe pagar al menos el ' + pctMin + '% del total ($' + montoMin.toFixed(2) + '). Puede abonar hasta $' + total.toFixed(2) + '.'
+            );
+            $monto.prop('readonly', false);
+            if (montoPrev < montoMin) {
+                montoPrev = montoMin;
+            }
+            if (montoPrev > total) {
+                montoPrev = total;
+            }
+            $monto.val(montoPrev.toFixed(2));
+        } else {
+            $monto.removeAttr('min');
+            $('#comp-ayuda-monto').text('En contado el monto debe coincidir con el total de la cotización.');
+            $monto.val(total.toFixed(2));
+            $monto.prop('readonly', true);
+        }
     }
 
     function actualizarVisibilidadReferenciaComprobanteCot() {
@@ -186,11 +246,35 @@ require_once '../template/header.php';
                 $msg.removeClass('text-success').addClass('text-danger').text('Indique el número de referencia para esta forma de pago.').show();
                 return;
             }
+            var totalCot = parseFloat($('#comp-total-cotizacion').val()) || 0;
+            var monto = parseFloat($('#comp-monto').val());
+            var esFinanciada = $('#comp-modalidad-pago').val() === 'financiada';
+            var montoMin = parseFloat($('#comp-monto-minimo').val()) || 0;
+            var pctMin = parseFloat($('#comp-porcentaje-minimo').val()) || 60;
+            if (isNaN(monto) || monto <= 0) {
+                $msg.removeClass('text-success').addClass('text-danger').text('Indique un monto de pago válido.').show();
+                return;
+            }
+            if (esFinanciada && monto + 0.009 < montoMin) {
+                $msg.removeClass('text-success').addClass('text-danger').text(
+                    'El pago inicial debe ser al menos el ' + pctMin + '% del total ($' + montoMin.toFixed(2) + ').'
+                ).show();
+                return;
+            }
+            if (esFinanciada && monto > totalCot) {
+                $msg.removeClass('text-success').addClass('text-danger').text('El monto no puede superar el total de la cotización ($' + totalCot.toFixed(2) + ').').show();
+                return;
+            }
+            if (!esFinanciada && Math.abs(monto - totalCot) > 0.009) {
+                $msg.removeClass('text-success').addClass('text-danger').text('En contado el monto debe ser igual al total ($' + totalCot.toFixed(2) + ').').show();
+                return;
+            }
             var fd = new FormData();
             fd.append('action', 'guardar_comprobante_cotizacion');
             fd.append('id_cotizacion', id);
             fd.append('forma_pago_id', $('#comp-forma-pago').val() || '');
             fd.append('comprobante_referencia', $('#comp-referencia').val() || '');
+            fd.append('comprobante_monto', monto.toFixed(2));
             $.ajax({
                 url: 'mis_cotizaciones_data.php',
                 type: 'POST',
@@ -205,6 +289,10 @@ require_once '../template/header.php';
                     }
                     if (resp && resp.ok) {
                         $('#modalComprobanteCot').modal('hide');
+                        Swal.fire({
+                            icon: 'success',
+                            text: resp.mensaje || 'Comprobante guardado correctamente.'
+                        });
                         cargarLista();
                     } else {
                         $msg.addClass('text-danger').text('Respuesta inesperada.').show();
@@ -226,6 +314,8 @@ require_once '../template/header.php';
         $('#modal-comp-cod').text(codigo);
         $('#form-comp-id').val(id);
         $('#comp-referencia').val('');
+        $('#comp-monto').val('').prop('readonly', false);
+        $('#comp-resumen-cot').hide();
         $('#comp-mensaje').hide().text('');
         $('#comp-estado-previo').hide().empty();
         poblarSelectFormasPagoCliente(function() {
@@ -241,6 +331,7 @@ require_once '../template/header.php';
                         return;
                     }
                     if (d) {
+                        configurarCampoMontoComprobante(d);
                         var fp = d.forma_pago_id != null && parseInt(d.forma_pago_id, 10) > 0 ? String(parseInt(d.forma_pago_id, 10)) : '';
                         $('#comp-forma-pago').val(fp);
                         actualizarVisibilidadReferenciaComprobanteCot();
@@ -296,14 +387,22 @@ require_once '../template/header.php';
                     info += '<div class="col-md-6 mb-2"><strong>Fecha:</strong> ' + $('<div>').text(c.fecha || '').html() + '</div>';
                     info += '<div class="col-md-6 mb-2"><strong>Presupuesto origen:</strong> ' + po + '</div>';
                     info += '<div class="col-md-6 mb-2"><strong>Estado:</strong> <span class="badge ' + (c.estado_class || 'badge-secondary') + '">' + $('<div>').text(c.estado_texto || '').html() + '</span></div>';
-                    info += '<div class="col-md-12 mb-0"><strong>Total:</strong> $' + parseFloat(c.total || 0).toFixed(2) + '</div>';
+                    info += '<div class="col-md-6 mb-2"><strong>Total:</strong> $' + parseFloat(c.total || 0).toFixed(2) + '</div>';
+                    var modTxt = (c.modalidad_pago || 'contado') === 'financiada' ? 'Financiada' : 'Contado';
+                    if ((c.modalidad_pago || 'contado') === 'financiada' && c.porcentaje_pago_minimo != null) {
+                        modTxt += ' (mín. ' + parseFloat(c.porcentaje_pago_minimo).toFixed(0) + '%)';
+                    }
+                    info += '<div class="col-md-6 mb-2"><strong>Modalidad:</strong> ' + modTxt + '</div>';
                     var refC = (c.comprobante_referencia || '').trim();
                     var archC = (c.comprobante_archivo || '').trim();
                     var fechaComp = (c.comprobante_fecha || '').trim();
-                    if (refC || archC) {
+                    if (refC || archC || (c.comprobante_monto != null && parseFloat(c.comprobante_monto) > 0)) {
                         info += '<div class="col-md-12 mt-2 pt-2 border-top"><strong>Comprobante de pago</strong>';
                         if (fechaComp) info += ' <span class="text-muted small">(' + $('<div>').text(fechaComp).html() + ')</span>';
                         info += '<div class="small mt-1">';
+                        if (c.comprobante_monto != null && parseFloat(c.comprobante_monto) > 0) {
+                            info += '<div><span class="text-muted">Monto pagado:</span> $' + parseFloat(c.comprobante_monto).toFixed(2) + '</div>';
+                        }
                         if (refC) info += '<div><span class="text-muted">Referencia:</span> ' + $('<div>').text(refC).html() + '</div>';
                         if (archC) info += '<div><a target="_blank" href="descargar_comprobante_cotizacion.php?id=' + parseInt(id, 10) + '" class="btn btn-sm btn-outline-primary mt-1">Ver archivo adjunto</a></div>';
                         info += '</div></div>';

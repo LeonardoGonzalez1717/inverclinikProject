@@ -26,6 +26,62 @@ function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 
 asegurar_venta_id_en_ordenes_produccion($conn);
 
+/**
+ * Fecha fin en listado: mismo estilo de alerta que inventario (stock mín./máx.)
+ * cuando faltan ≤5 días o la fecha ya venció. No aplica a órdenes finalizadas.
+ */
+function op_html_fecha_fin_celda(?string $fecha_fin, string $estado): string
+{
+    if ($fecha_fin === null || trim($fecha_fin) === '') {
+        return '—';
+    }
+
+    $tsFin = strtotime($fecha_fin);
+    if ($tsFin === false) {
+        return '—';
+    }
+
+    $texto = date('d/m/Y', $tsFin);
+
+    if ($estado === 'finalizado') {
+        return htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
+    }
+
+    $hoy = strtotime(date('Y-m-d'));
+    $diasRestantes = (int) floor(($tsFin - $hoy) / 86400);
+    $margenDias = 5;
+
+    $alerta = false;
+    $titulo = '';
+
+    if ($diasRestantes < 0) {
+        $alerta = true;
+        $diasVencidos = abs($diasRestantes);
+        $titulo = $diasVencidos === 1
+            ? 'La fecha fin venció hace 1 día.'
+            : 'La fecha fin venció hace ' . $diasVencidos . ' días.';
+    } elseif ($diasRestantes <= $margenDias) {
+        $alerta = true;
+        if ($diasRestantes === 0) {
+            $titulo = 'La fecha fin es hoy.';
+        } elseif ($diasRestantes === 1) {
+            $titulo = 'Falta 1 día para la fecha fin.';
+        } else {
+            $titulo = 'Faltan ' . $diasRestantes . ' días para la fecha fin.';
+        }
+    }
+
+    if (!$alerta) {
+        return htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
+    }
+
+    $estilo = 'display:block;width:100%;box-sizing:border-box;margin:-12px;padding:12px;'
+        . 'background-color:#f8d7da;color:#721c24;border-left:3px solid #dc3545;cursor:help;';
+
+    return '<span title="' . htmlspecialchars($titulo, ENT_QUOTES, 'UTF-8') . '" style="' . $estilo . '">'
+        . '<strong style="color:#721c24;">' . htmlspecialchars($texto, ENT_QUOTES, 'UTF-8') . '</strong></span>';
+}
+
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
 $action = $_POST['action'] ?? '';
@@ -129,7 +185,7 @@ try {
                 echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
                 echo '<td style="font-weight: bold;text-align:right;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
-                echo '<td>' . ($o['fecha_fin'] ? date('d/m/Y', strtotime($o['fecha_fin'])) : '—') . '</td>';
+                echo '<td>' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
                 $estadoHtml = '<span style="' . $estadoStyle . '">' . htmlspecialchars($o['estado']) . '</span>';
                 $btnFinalizar = '';
                 $btneditar = '';

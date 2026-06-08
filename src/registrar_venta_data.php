@@ -1,6 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
+require_once __DIR__ . '/../lib/CuentasPorCobrar.php';
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
 
@@ -55,6 +56,7 @@ function asegurar_enum_estado_ventas(mysqli $conn): void
         return;
     }
     $type = (string) ($row['Type'] ?? '');
+    @$conn->query("UPDATE ventas SET estado = 'por_pagar' WHERE estado = 'verificar_pago'");
     if (stripos($type, 'en_proceso') !== false) {
         return;
     }
@@ -64,6 +66,7 @@ function asegurar_enum_estado_ventas(mysqli $conn): void
 }
 
 asegurar_enum_estado_ventas($conn);
+CuentasPorCobrar::asegurarTablas($conn);
 
 function asegurar_formas_pago_y_relacion_ventas(mysqli $conn): void
 {
@@ -837,14 +840,25 @@ try {
                 COALESCE(SUM(dv.cantidad), 0) AS cantidad_total,
                 COUNT(dv.id) AS cantidad_items,
                 c.nombre AS cliente_nombre,
-                cot.codigo_cotizacion
+                cot.codigo_cotizacion,
+                cot.status AS cotizacion_status,
+                (
+                    SELECT COUNT(*)
+                    FROM cuentas_por_cobrar cxc2
+                    INNER JOIN cuentas_por_cobrar_pagos p2 ON p2.cuenta_id = cxc2.id
+                    WHERE cxc2.venta_id = v.id AND p2.aprobado = 0
+                ) AS pagos_sin_aprobar
             FROM ventas v
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
-            " . $fil . "
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, v.creado_en
+            WHERE NOT (
+                v.cotizacion_id IS NOT NULL
+                AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar')
+                AND v.tasa_cambiaria_id IS NULL
+            )
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, cot.status, v.creado_en
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -885,8 +899,17 @@ try {
                 [$estTxt, $estCls] = etiqueta_estado_venta($v['estado'] ?? null);
                 echo '<td><span style="' . htmlspecialchars($estStyle, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info" style="margin-right: 5px;" title="Imprimir"><i class="fas fa-print"></i></a>';
-                echo '<button class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')" title="Ver Detalle"><i class="fas fa-eye"></i></button>';
+                $pendienteAprobarPago = !empty($v['cotizacion_id'])
+                    && (
+                        (int) ($v['cotizacion_status'] ?? 0) === 1
+                        || (int) ($v['pagos_sin_aprobar'] ?? 0) > 0
+                    );
+                if ($pendienteAprobarPago) {
+                    echo '<button type="button" class="btn btn-sm btn-success btn-aprobar-pago-venta" data-id="' . (int) $v['id'] . '" style="margin-right:5px;">'
+                        . '<i class="fas fa-check"></i> Aprobar pago</button>';
+                }
+                echo '<a href="../formatos/ver_factura.php?id=' . $v['id'] . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i>Ver Impresión</a>';
+                echo '<button style="margin-left:5px;" class="btn btn-sm btn-primary" onclick="verDetalle(' . $v['id'] . ')">Ver Detalle</button>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -902,6 +925,43 @@ try {
     restringirEscritura();
 
     header('Content-Type: application/json');
+
+    if ($action === 'aprobar_pago_verificado') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            echo json_encode(['success' => false, 'message' => 'Método no permitido']);
+            $conn->close();
+            exit;
+        }
+
+        $ventaId = (int) ($_POST['venta_id'] ?? 0);
+        if ($ventaId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Venta no válida']);
+            $conn->close();
+            exit;
+        }
+
+        $conn->begin_transaction();
+        try {
+            $resultado = CuentasPorCobrar::aprobarPagoVerificado($conn, $ventaId);
+            $conn->commit();
+            [$estTxt] = etiqueta_estado_venta($resultado['estado'] ?? null);
+            Auditoria::registrar(
+                $conn,
+                'Pago verificado y aprobado en venta #' . $ventaId . '. Nuevo estado: ' . ($estTxt ?? $resultado['estado']) . '.',
+                'Ventas'
+            );
+            echo json_encode([
+                'success' => true,
+                'message' => 'Pago aprobado. La venta quedó en estado: ' . ($estTxt ?? $resultado['estado']) . '.',
+                'estado' => $resultado['estado'] ?? '',
+            ]);
+        } catch (Throwable $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        $conn->close();
+        exit;
+    }
 
     if ($action === 'obtener_siguiente_numero_factura') {
         $siguiente = '1';

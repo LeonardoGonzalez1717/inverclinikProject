@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS `compras` (
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `tasa_cambiaria_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`)
+  KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
+  KEY `idx_orden_produccion` (`orden_produccion_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -206,6 +207,7 @@ CREATE TABLE IF NOT EXISTS `productos` (
   `nombre` varchar(255) NOT NULL,
   `categoria` varchar(100) DEFAULT NULL,
   `tipo_genero` varchar(50) DEFAULT NULL,
+  `rango_tallas_id` int(11) DEFAULT NULL,
   `descripcion` text DEFAULT NULL,
   `imagen` varchar(255) DEFAULT NULL,
   `precio_unitario` decimal(10,2) DEFAULT 0.00,
@@ -238,10 +240,24 @@ CREATE TABLE IF NOT EXISTS `proveedores` (
 CREATE TABLE IF NOT EXISTS `rangos_tallas` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `nombre_rango` varchar(50) NOT NULL,
-  `tallas_desde` int(11) NOT NULL,
-  `tallas_hasta` int(11) NOT NULL,
   `descripcion` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `tallas`
+--
+
+CREATE TABLE IF NOT EXISTS `tallas` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `rango_tallas_id` int(11) NOT NULL,
+  `nombre` varchar(20) NOT NULL,
+  `orden` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_rango_talla` (`rango_tallas_id`,`nombre`),
+  KEY `rango_tallas_id` (`rango_tallas_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -403,14 +419,15 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `fecha` date NOT NULL,
   `numero_factura` varchar(50) DEFAULT NULL,
   `total` decimal(12,2) NOT NULL DEFAULT 0.00,
-  `estado` enum('pendiente','entregado','cancelado','aprobado','por_pagar') DEFAULT 'por_pagar',
+  `estado` enum('pendiente','entregado','cancelado','aprobado','por_pagar','en_proceso') DEFAULT 'por_pagar',
   `orden_produccion_id` int(11) DEFAULT NULL,
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `tasa_cambiaria_id` int(11) DEFAULT NULL,
   `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Referencia o número de comprobante de pago asociado a la venta',
   PRIMARY KEY (`id`),
   KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
-  KEY `cotizacion_id` (`cotizacion_id`)
+  KEY `cotizacion_id` (`cotizacion_id`),
+  KEY `idx_orden_produccion` (`orden_produccion_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -471,12 +488,15 @@ CREATE TABLE IF NOT EXISTS `cotizaciones` (
   `id_cliente` int(11) NOT NULL,
   `codigo_cotizacion` varchar(20) NOT NULL,
   `codigo_presupuesto_origen` varchar(20) DEFAULT NULL,
+  `modalidad_pago` varchar(20) NOT NULL DEFAULT 'contado' COMMENT 'contado o financiada',
+  `porcentaje_pago_minimo` decimal(5,2) DEFAULT NULL COMMENT 'Porcentaje mínimo del primer pago si es financiada',
   `total` decimal(10,2) NOT NULL,
   `status` int(11) DEFAULT 1 COMMENT '1: Enviada, 2: Aprobada/Venta, 3: Rechazada',
   `fecha_registro` timestamp NOT NULL DEFAULT current_timestamp(),
   `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Número de referencia del pago indicado por el cliente',
   `comprobante_archivo` varchar(255) DEFAULT NULL COMMENT 'Nombre de archivo en uploads/comprobantes_cotizaciones/',
   `comprobante_fecha` datetime DEFAULT NULL COMMENT 'Última carga o actualización del comprobante',
+  `comprobante_monto` decimal(10,2) DEFAULT NULL COMMENT 'Monto declarado en el comprobante de pago',
   `forma_pago_id` int(11) DEFAULT NULL COMMENT 'Forma de pago declarada al cargar comprobante',
   PRIMARY KEY (`id_cotizacion`),
   KEY `id_cliente` (`id_cliente`),
@@ -501,6 +521,48 @@ CREATE TABLE IF NOT EXISTS `cotizacion_detalles` (
   FOREIGN KEY (id_receta) REFERENCES recetas(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Cuentas por cobrar (ventas financiadas con pago inicial del cliente)
+--
+CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `venta_id` int(11) NOT NULL,
+  `cliente_id` int(11) NOT NULL,
+  `cotizacion_id` int(11) DEFAULT NULL,
+  `monto_total` decimal(12,2) NOT NULL,
+  `monto_pagado` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `saldo_pendiente` decimal(12,2) NOT NULL,
+  `estado` enum('pendiente','pagada','cancelada') NOT NULL DEFAULT 'pendiente',
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_cxc_venta` (`venta_id`),
+  KEY `idx_cxc_cliente` (`cliente_id`),
+  KEY `idx_cxc_estado` (`estado`),
+  KEY `cotizacion_id` (`cotizacion_id`),
+  CONSTRAINT `fk_cxc_venta` FOREIGN KEY (`venta_id`) REFERENCES `ventas` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_cxc_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_cxc_cotizacion` FOREIGN KEY (`cotizacion_id`) REFERENCES `cotizaciones` (`id_cotizacion`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar_pagos` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `cuenta_id` int(11) NOT NULL,
+  `monto` decimal(12,2) NOT NULL,
+  `forma_pago_id` int(11) DEFAULT NULL,
+  `referencia` varchar(120) DEFAULT NULL,
+  `observaciones` varchar(255) DEFAULT NULL,
+  `es_pago_inicial` tinyint(1) NOT NULL DEFAULT 0,
+  `origen` enum('cliente','interno') NOT NULL DEFAULT 'interno',
+  `aprobado` tinyint(1) NOT NULL DEFAULT 0 COMMENT '1=verificado por el equipo en ventas',
+  `fecha_pago` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_cxc_pagos_cuenta` (`cuenta_id`),
+  KEY `forma_pago_id` (`forma_pago_id`),
+  CONSTRAINT `fk_cxc_pagos_cuenta` FOREIGN KEY (`cuenta_id`) REFERENCES `cuentas_por_cobrar` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_cxc_pagos_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `formas_pago` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- cotizacion_id y activo ya están en CREATE TABLE ventas y productos
 
 ALTER TABLE `detalle_venta`
@@ -514,9 +576,7 @@ ALTER TABLE `detalle_venta`
 
 --
 -- Indices de la tabla `compras`
---
-ALTER TABLE `compras`
-  ADD KEY `orden_produccion_id` (`orden_produccion_id`);
+-- (idx_orden_produccion definido en CREATE TABLE `compras`)
 
 ALTER TABLE proveedores 
 ADD COLUMN cedrif VARCHAR(15) NOT NULL AFTER id;
@@ -575,6 +635,10 @@ ALTER TABLE `ordenes_produccion`
 --
 
 --
+-- Indices de la tabla `tallas`
+--
+
+--
 -- Indices de la tabla `recetas`
 --
 ALTER TABLE `recetas`
@@ -601,10 +665,10 @@ ALTER TABLE `users`
 
 --
 -- Indices de la tabla `ventas`
---
+-- (`idx_orden_produccion` definido en CREATE TABLE `ventas`)
+
 ALTER TABLE `ventas`
-  ADD KEY `cliente_id` (`cliente_id`),
-  ADD KEY `orden_produccion_id` (`orden_produccion_id`);
+  ADD KEY `cliente_id` (`cliente_id`);
 
 -- --------------------------------------------------------
 
@@ -666,6 +730,12 @@ ALTER TABLE `ordenes_produccion`
   ADD CONSTRAINT `fk_ordenes_produccion_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
+-- Filtros para la tabla `tallas`
+--
+ALTER TABLE `tallas`
+  ADD CONSTRAINT `fk_tallas_rango` FOREIGN KEY (`rango_tallas_id`) REFERENCES `rangos_tallas` (`id`) ON DELETE CASCADE;
+
+--
 -- Filtros para la tabla `recetas`
 --
 ALTER TABLE `recetas`
@@ -711,15 +781,25 @@ ALTER TABLE `ventas`
 -- Datos predeterminados: rangos de tallas
 --
 
-INSERT IGNORE INTO `rangos_tallas` (`nombre_rango`, `tallas_desde`, `tallas_hasta`, `descripcion`) VALUES
-('Talla Única', 1, 1, 'Una sola talla'),
-('Niños', 2, 14, 'Tallas infantiles'),
-('XS', 32, 34, 'Extra pequeño'),
-('S', 36, 38, 'Pequeño'),
-('M', 40, 42, 'Mediano'),
-('L', 44, 46, 'Grande'),
-('XL', 48, 50, 'Extra grande'),
-('XXL', 52, 54, 'Doble extra grande');
+INSERT IGNORE INTO `rangos_tallas` (`nombre_rango`, `descripcion`) VALUES
+('Niños', 'Tallas infantiles'),
+('Adultos', 'Tallas para adultos');
+
+INSERT IGNORE INTO `tallas` (`rango_tallas_id`, `nombre`, `orden`)
+SELECT rt.id, '2', 0 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '4', 1 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '6', 2 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '8', 3 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '10', 4 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '12', 5 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, '14', 6 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Niños'
+UNION ALL SELECT rt.id, 'XS', 0 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'S', 1 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'M', 2 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'L', 3 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'XL', 4 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'XXL', 5 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos'
+UNION ALL SELECT rt.id, 'Única', 6 FROM `rangos_tallas` rt WHERE rt.`nombre_rango` = 'Adultos';
 
 --
 -- Datos predeterminados: tipos de producción
@@ -926,7 +1006,7 @@ SELECT
   12.50,
   25.00
 FROM `productos` pr
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
 WHERE pr.`nombre` = 'Camisa Médica Unisex'
@@ -964,7 +1044,7 @@ SELECT
   14.00,
   24.00
 FROM `productos` pr
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
 WHERE pr.`nombre` = 'Pantalón Quirúrgico Unisex'
@@ -1002,7 +1082,7 @@ SELECT
   18.00,
   26.00
 FROM `productos` pr
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
 WHERE pr.`nombre` = 'Bata de Laboratorio'
@@ -1040,7 +1120,7 @@ SELECT
   4.50,
   22.00
 FROM `productos` pr
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
 WHERE pr.`nombre` = 'Gorro Quirúrgico'
@@ -1078,7 +1158,7 @@ SELECT
   3.20,
   20.00
 FROM `productos` pr
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 JOIN `almacenes` a ON a.`codigo` = 'ALM-001'
 WHERE pr.`nombre` = 'Tapabocas Reutilizable'
@@ -1094,7 +1174,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 1.70, 4.80, 8.16, 'Tela principal camisa'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Camisa Médica Unisex'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1103,7 +1183,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.20, 2.40, 0.48, 'Costura camisa'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Camisa Médica Unisex'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1112,7 +1192,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 1.90, 4.80, 9.12, 'Tela principal pantalón'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Pantalón Quirúrgico Unisex'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1121,7 +1201,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 1.00, 0.95, 0.95, 'Cierre delantero'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Cierre Nylon 60cm'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Pantalón Quirúrgico Unisex'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1130,7 +1210,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 2.40, 4.80, 11.52, 'Tela principal bata'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Bata de Laboratorio'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1139,7 +1219,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.25, 1.80, 0.45, 'Botonería frontal'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Botón Blanco 4 Huecos'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'M'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Bata de Laboratorio'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1148,7 +1228,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.35, 4.80, 1.68, 'Tela para gorro'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Gorro Quirúrgico'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1157,7 +1237,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.05, 2.40, 0.12, 'Costura gorro'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Gorro Quirúrgico'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1166,7 +1246,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.22, 4.80, 1.06, 'Tela para tapabocas'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Tela Drill Azul Marino'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Tapabocas Reutilizable'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1175,7 +1255,7 @@ INSERT INTO `recetas_productos` (`producto_id`, `insumo_id`, `rango_tallas_id`, 
 SELECT p.id, i.id, rt.id, tp.id, 0.05, 2.40, 0.12, 'Costura tapabocas'
 FROM `productos` p
 JOIN `insumos` i ON i.`nombre` = 'Hilo Poliéster Blanco'
-JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Talla Única'
+JOIN `rangos_tallas` rt ON rt.`nombre_rango` = 'Adultos'
 JOIN `tipos_produccion` tp ON tp.`nombre` = 'Detal'
 WHERE p.`nombre` = 'Tapabocas Reutilizable'
 ON DUPLICATE KEY UPDATE `cantidad_por_unidad` = VALUES(`cantidad_por_unidad`), `costo_por_unidad` = VALUES(`costo_por_unidad`);
@@ -1217,7 +1297,7 @@ JOIN `productos` pr ON pr.id = r.`producto_id`
 JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
 JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
 WHERE pr.`nombre` = 'Camisa Médica Unisex'
-  AND rt.`nombre_rango` = 'M'
+  AND rt.`nombre_rango` = 'Adultos'
   AND tp.`nombre` = 'Detal'
 ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
 
@@ -1228,7 +1308,7 @@ JOIN `productos` pr ON pr.id = r.`producto_id`
 JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
 JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
 WHERE pr.`nombre` = 'Pantalón Quirúrgico Unisex'
-  AND rt.`nombre_rango` = 'M'
+  AND rt.`nombre_rango` = 'Adultos'
   AND tp.`nombre` = 'Detal'
 ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
 
@@ -1239,7 +1319,7 @@ JOIN `productos` pr ON pr.id = r.`producto_id`
 JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
 JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
 WHERE pr.`nombre` = 'Bata de Laboratorio'
-  AND rt.`nombre_rango` = 'M'
+  AND rt.`nombre_rango` = 'Adultos'
   AND tp.`nombre` = 'Detal'
 ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
 
@@ -1250,7 +1330,7 @@ JOIN `productos` pr ON pr.id = r.`producto_id`
 JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
 JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
 WHERE pr.`nombre` = 'Gorro Quirúrgico'
-  AND rt.`nombre_rango` = 'Talla Única'
+  AND rt.`nombre_rango` = 'Adultos'
   AND tp.`nombre` = 'Detal'
 ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
 
@@ -1261,7 +1341,7 @@ JOIN `productos` pr ON pr.id = r.`producto_id`
 JOIN `rangos_tallas` rt ON rt.id = r.`rango_tallas_id`
 JOIN `tipos_produccion` tp ON tp.id = r.`tipo_produccion_id`
 WHERE pr.`nombre` = 'Tapabocas Reutilizable'
-  AND rt.`nombre_rango` = 'Talla Única'
+  AND rt.`nombre_rango` = 'Adultos'
   AND tp.`nombre` = 'Detal'
 ON DUPLICATE KEY UPDATE `stock_actual` = VALUES(`stock_actual`);
 
@@ -1320,7 +1400,7 @@ JOIN `recetas` r ON r.id = (
   JOIN `rangos_tallas` rt2 ON rt2.id = r2.rango_tallas_id
   JOIN `tipos_produccion` tp2 ON tp2.id = r2.tipo_produccion_id
   WHERE p2.nombre = 'Camisa Médica Unisex'
-    AND rt2.nombre_rango = 'M'
+    AND rt2.nombre_rango = 'Adultos'
     AND tp2.nombre = 'Detal'
   LIMIT 1
 )

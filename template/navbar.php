@@ -28,6 +28,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../src/historial_movimientos.php"><i class="fas fa-history"></i> <span>Historial Mov.</span></a></li>
                         <li><a href="../src/registrar_compra.php"><i class="fas fa-shopping-cart"></i> <span>Registrar Compra</span></a></li>
                         <li><a href="../src/registrar_venta.php"><i class="fas fa-cash-register"></i> <span>Registrar Venta</span></a></li>
+                        <li><a href="../src/cuentas_por_cobrar.php">Cuentas por cobrar</a></li>
                     </ul>
                 </li>
             </ul>
@@ -44,6 +45,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../src/gestionar_unidades_medida.php"><i class="fas fa-tape"></i> <span>Unidades de Medida</span></a></li>
                         <li><a href="../src/gestionar_proveedores.php"><i class="fas fa-truck"></i> <span>Proveedores</span></a></li>
                         <li><a href="../src/gestionar_clientes.php"><i class="fas fa-users"></i> <span>Clientes</span></a></li>
+                      <li><a href="../src/registrar_rangos_tallas.php">Rangos de Tallas</a></li>
                     </ul>
                 </li>
             </ul>
@@ -76,7 +78,8 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <li><a href="../src/historial_movimientos.php"><i class="fas fa-history"></i> <span>Historial Mov.</span></a></li>
                         <?php } ?>
                         <?php if ($gerCom) { ?>
-                            <li><a href="../src/registrar_venta.php"><i class="fas fa-cash-register"></i> <span>Registrar Venta</span></a></li>
+                            <li><a href="../src/registrar_venta.php"><i class="fas fa-cash-register"></i>Registrar Venta</a></li>
+                            <li><a href="../src/cuentas_por_cobrar.php">Cuentas por cobrar</a></li>
                         <?php } ?>
                         <?php if ($gerAdm) { ?>
                             <li><a href="../src/registrar_compra.php"><i class="fas fa-shopping-cart"></i> <span>Registrar Compra</span></a></li>
@@ -132,6 +135,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../cliente/catalogo/catalogo.php"><i class="fas fa-images"></i> <span>Ver Catálogo</span></a></li>
                         <li><a href="../cliente/mis_presupuestos.php"><i class="fas fa-wallet"></i> <span>Mis Presupuestos</span></a></li>
                         <li><a href="../cliente/mis_cotizaciones.php"><i class="fas fa-file-contract"></i> <span>Mis Cotizaciones</span></a></li>
+                      <li><a href="../cliente/cuentas_por_pagar.php">Cuentas por pagar</a></li>
                     </ul>
                 </li>
             </ul>

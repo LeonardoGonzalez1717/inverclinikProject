@@ -64,6 +64,7 @@
                                         <th style="width: 1%;">#</th>
                                         <th style="width: 15%;">Código</th>
                                         <th style="width: 35%;">Cliente</th>
+                                        <th>Modalidad pago</th>
                                         <th style="width: 15%;">Fecha</th>
                                         <th style="width: 20%;">Total</th>
                                         <th style="width: 15%;">Estado</th>
@@ -103,6 +104,23 @@
                                 <select id="select-presupuesto" class="form-control" style="width: 100%;" disabled>
                                     <option value="">Seleccione un cliente primero...</option>
                                 </select>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6 col-sm-12">
+                                <label class="form-label">Modalidad de pago <span class="text-danger">*</span></label>
+                                <select id="select-modalidad-pago" class="form-control" required>
+                                    <option value="contado">Contado</option>
+                                    <option value="financiada">Financiada</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 col-sm-12" id="grupo-porcentaje-minimo" style="display:none;">
+                                <label class="form-label">% mínimo del pago inicial <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="number" id="porcentaje-pago-minimo" class="form-control" value="60" min="1" max="100" step="0.01">
+                                   
+                                </div>
                             </div>
                         </div>
 
@@ -160,8 +178,9 @@
                                     <span style="font-weight: bold;">Total cotización:</span>
                                     <span id="gran-total-display" style="color: #0056b3; font-size: 1.1em; font-weight: bold;">$0.00</span>
                                     <span class="visible-xs-block" style="height: 10px; display: inline-block;"></span>
+                                    <input type="hidden" id="editar-cotizacion-id" value="">
                                     <button type="button" class="btn btn-success" id="btn-generar-cot" style="margin-left: 8px; margin-top: 8px;">
-                                        <i class="fas fa-save"></i> Confirmar y guardar cotización
+                                        <i class="fas fa-save"></i> <span id="btn-generar-cot-texto">Confirmar y guardar cotización</span>
                                     </button>
                                 </div>
                             </div>
@@ -225,7 +244,18 @@
     function verDetalles(data) {
         console.log("Editando Cotización:", data);
         $('#tabla-cotizador-body').empty();
+        
+        // 2. Setear modo edición, cliente y modalidad de pago
+        $('#editar-cotizacion-id').val(data.id_cotizacion || '');
+        $('#btn-generar-cot-texto').text('Guardar cambios');
         $('#select-cliente').val(data.id_cliente).trigger('change');
+        $('#select-modalidad-pago').val(data.modalidad_pago || 'contado');
+        $('#porcentaje-pago-minimo').val(
+            data.porcentaje_pago_minimo != null && data.porcentaje_pago_minimo !== ''
+                ? data.porcentaje_pago_minimo
+                : '60'
+        );
+        actualizarCampoPorcentajeMinimo();
         
         setTimeout(() => {
             if(data.codigo_presupuesto_origen !== 'VENTA DIRECTA'){
@@ -258,8 +288,21 @@
         });
     }
 
+    function actualizarCampoPorcentajeMinimo() {
+        var esFinanciada = $('#select-modalidad-pago').val() === 'financiada';
+        if (esFinanciada) {
+            $('#grupo-porcentaje-minimo').show();
+            $('#porcentaje-pago-minimo').prop('required', true);
+        } else {
+            $('#grupo-porcentaje-minimo').hide();
+            $('#porcentaje-pago-minimo').prop('required', false);
+        }
+    }
+
     $(document).ready(function() {
         $('#select-cliente, #select-presupuesto, #manual-producto').select2();
+        actualizarCampoPorcentajeMinimo();
+        $('#select-modalidad-pago').on('change', actualizarCampoPorcentajeMinimo);
 
         // --- LÓGICA DE NAVEGACIÓN ---
 
@@ -480,8 +523,13 @@
 
         
         function limpiarFormulario() {
+            $('#editar-cotizacion-id').val('');
+            $('#btn-generar-cot-texto').text('Confirmar y guardar cotización');
             $('#select-cliente').val('').trigger('change');
             $('#select-presupuesto').val('').trigger('change').prop('disabled', true);
+            $('#select-modalidad-pago').val('contado');
+            $('#porcentaje-pago-minimo').val('60');
+            actualizarCampoPorcentajeMinimo();
             $('#tabla-cotizador-body').empty();
             $('#contenedor-items').hide();
             $('#gran-total-display').text('$0.00');
@@ -493,6 +541,21 @@
             let idCliente = $('#select-cliente').val();
 
             if(!idCliente) { Swal.fire({ icon: 'warning', text: "Por favor, seleccione un cliente." }); return; }
+
+            let modalidadPago = $('#select-modalidad-pago').val();
+            if (!modalidadPago) {
+                Swal.fire({ icon: 'warning', text: 'Seleccione si la cotización será de contado o financiada.' });
+                return;
+            }
+
+            let porcentajeMinimo = null;
+            if (modalidadPago === 'financiada') {
+                porcentajeMinimo = parseFloat($('#porcentaje-pago-minimo').val());
+                if (isNaN(porcentajeMinimo) || porcentajeMinimo <= 0 || porcentajeMinimo > 100) {
+                    Swal.fire({ icon: 'warning', text: 'Indique un porcentaje mínimo de pago entre 1 y 100.' });
+                    return;
+                }
+            }
 
             $('#tabla-cotizador-body tr').each(function() {
                 let fila = $(this);
@@ -513,25 +576,69 @@
 
             if(itemsCotizacion.length === 0) { Swal.fire({ icon: 'warning', text: "Agregue al menos un producto." }); return; }
 
+            var idCotizacionEdit = $('#editar-cotizacion-id').val();
+            var payload = {
+                action: 'guardar_cotizacion',
+                id_cliente: idCliente,
+                codigo_presupuesto: $('#select-presupuesto').val(),
+                modalidad_pago: modalidadPago,
+                porcentaje_pago_minimo: porcentajeMinimo,
+                items: JSON.stringify(itemsCotizacion),
+                total_cotizacion: totalFinal
+            };
+            if (idCotizacionEdit) {
+                payload.id_cotizacion = idCotizacionEdit;
+            }
+
             $.ajax({
                 url: 'cotizacion_data.php',
                 type: 'POST',
-                data: {
-                    action: 'guardar_cotizacion',
-                    id_cliente: idCliente,
-                    codigo_presupuesto: $('#select-presupuesto').val(),
-                    items: JSON.stringify(itemsCotizacion), // Enviamos como string JSON para mayor seguridad
-                    total_cotizacion: totalFinal
-                },
+                data: payload,
                 dataType: 'json',
                 success: function(resp) {
                     if (resp.success) {
-                        Swal.fire({ icon: 'success', text: "Cotización guardada exitosamente." });
+                        Swal.fire({ icon: 'success', text: resp.mensaje || "Cotización guardada exitosamente." });
                         location.reload(); 
                     } else {
                         Swal.fire({ icon: 'error', text: "Error: " + resp.mensaje });
                     }
                 }
+            });
+        });
+
+        $(document).on('click', '.btn-eliminar-cot', function() {
+            var btn = $(this);
+            var idCot = btn.data('id');
+            var codigo = btn.data('codigo') || ('#' + idCot);
+
+            Swal.fire({
+                icon: 'warning',
+                title: '¿Eliminar cotización?',
+                text: 'Se eliminará ' + codigo + ' y todos sus detalles. Esta acción no se puede deshacer.',
+                showCancelButton: true,
+                confirmButtonText: 'Sí, eliminar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#d33'
+            }).then(function(r) {
+                if (!r.isConfirmed) return;
+
+                $.ajax({
+                    url: 'cotizacion_data.php',
+                    type: 'POST',
+                    data: { action: 'eliminar_cotizacion', id_cotizacion: idCot },
+                    dataType: 'json',
+                    success: function(resp) {
+                        if (resp.success) {
+                            Swal.fire({ icon: 'success', text: resp.mensaje || 'Cotización eliminada.' });
+                            cargarListaCotizaciones();
+                        } else {
+                            Swal.fire({ icon: 'error', text: resp.mensaje || 'No se pudo eliminar.' });
+                        }
+                    },
+                    error: function() {
+                        Swal.fire({ icon: 'error', text: 'Error de comunicación con el servidor.' });
+                    }
+                });
             });
         });
 
