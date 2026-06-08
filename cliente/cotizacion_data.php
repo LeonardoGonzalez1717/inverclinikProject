@@ -47,6 +47,7 @@ switch ($action) {
                     c.modalidad_pago,
                     c.porcentaje_pago_minimo,
                     c.status,
+                    c.fecha_registro as fecha,
                     cl.nombre AS cliente_nombre, 
                     cl.telefono, 
                     cl.email, 
@@ -59,36 +60,46 @@ switch ($action) {
 
         $res = mysqli_query($conn, $sql);
         $html = "";
+        $i = 1;
 
         if ($res && mysqli_num_rows($res) > 0) {
             while ($row = mysqli_fetch_assoc($res)) {
                 $totalFormateado = number_format($row['total'], 2);
                 $st = (int) ($row['status'] ?? 0);
-                switch ($st) {
-                    case 1:
-                        $estTxt = 'Enviada';
-                        $estCls = 'badge-warning';
-                        break;
-                    case 2:
-                        $estTxt = 'Aprobada';
-                        $estCls = 'badge-success';
-                        break;
-                    case 3:
-                        $estTxt = 'Rechazada';
-                        $estCls = 'badge-danger';
-                        break;
-                    default:
-                        $estTxt = 'Estado ' . $st;
-                        $estCls = 'badge-secondary';
-                }
+
+                $fechaFormateada = date('d/m/Y', strtotime($row['fecha']));
+                $fechaLimpia = date('Y-m-d', strtotime($row['fecha']));
+                
+                $estadoStyle = match($st) {
+                    2 => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;', // Aprobada
+                    1 => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;', // Enviada
+                    default => 'background-color: #dc3545; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;' // Rechazada
+                };
+
+                $estTxt = match($st) {
+                    2 => 'Aprobada',
+                    1 => 'Enviada',
+                    default => 'Rechazada'
+                };
+
+                
+                $botonEditar = "";
 
                 $datosJson = htmlspecialchars(json_encode($row), ENT_QUOTES, 'UTF-8');
+
+                if ($st === 1) {
+                    $botonEditar = "<button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Editar' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
+                                        <i class='fas fa-pencil'></i>
+                                    </button>";
+                }
                 
-                $html .= "<tr>";
-                $html .= "<td>" . $row['id_cotizacion'] . "</td>";
+                $html .= "<tr data-codigo='" . htmlspecialchars($row['codigo_cotizacion']) . "' data-cliente='" . htmlspecialchars($row['cliente_nombre']) . "' data-estado='" . $estTxt . "' data-fecha='" . $fechaLimpia . "'>";;
+                
+                $html .= "<td>" . $i++ . "</td>";
+                $html .= "<td nowrap><strong>" . htmlspecialchars($row['codigo_cotizacion']) . "</strong></td>";
                 $html .= "<td>
-                            <strong>" . htmlspecialchars($row['cliente_nombre']) . "</strong><br>
-                            <small class='text-muted'>" . htmlspecialchars($row['codigo_cotizacion']) . "</small>
+                            <span style='font-weight: 600; color: #333;'>" . htmlspecialchars($row['cliente_nombre']) . "</span><br>
+                            <small class='text-muted'>" . htmlspecialchars($row['email'] ?? 'Sin correo') . "</small>
                         </td>";
                 $modTxt = etiqueta_modalidad_pago($row['modalidad_pago'] ?? 'contado');
                 if (($row['modalidad_pago'] ?? 'contado') === 'financiada' && !empty($row['porcentaje_pago_minimo'])) {
@@ -110,8 +121,8 @@ switch ($action) {
                 }
 
                 $html .= "<td nowrap>
-                            <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info'>
-                                <i class='fas fa-print'></i> Imprimir Cotización
+                            <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info' title='Imprimir'>
+                                <i class='fas fa-print'></i>
                             </a>
                             <button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Ver Detalles' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
                                 Editar
