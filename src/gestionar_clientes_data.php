@@ -6,7 +6,27 @@ $action = $_POST['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM clientes')->fetch_assoc()['c'] ?? 0);
+        $buscar   = isset($_POST['buscar']) ? trim($_POST['buscar']) : '';
+        $tipo_doc = isset($_POST['tipo_doc']) ? trim($_POST['tipo_doc']) : '';
+
+        $where = [];
+
+        if ($buscar !== '') {
+            $buscarEscaped = $conn->real_escape_string($buscar);
+            $where[] = "(nombre LIKE '%$buscarEscaped%' 
+                                OR numero_documento LIKE '%$buscarEscaped%' 
+                                OR CONCAT(tipo_documento, numero_documento) LIKE '%$buscarEscaped%' 
+                                OR telefono LIKE '%$buscarEscaped%')";
+        }
+
+        if ($tipo_doc !== '') {
+            $docEscaped = $conn->real_escape_string($tipo_doc);
+            $where[] = "(tipo_documento = '$docEscaped' OR numero_documento LIKE '$docEscaped%')";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM clientes" . $fil)->fetch_assoc()['c'] ?? 0);
         $pg = Pagination::fromInput($total, $_POST);
 
         $sql = "
@@ -19,8 +39,9 @@ try {
                 email,
                 direccion
             FROM clientes
+            " . $fil . "
             ORDER BY nombre ASC
-        " . $pg->limitClause();
+            " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $clientes = [];
@@ -29,30 +50,42 @@ try {
                 $clientes[] = $row;
             }
         }
+
         ob_start();
         $i = $pg->rowNumberStart() - 1;
         if (!empty($clientes)) {
             foreach ($clientes as $c) {
                 $i++;
-                echo '<tr>';
-                echo '<td>' . htmlspecialchars($i) . '</td>';
-                $docMostrar = trim((string) ($c['tipo_documento'] ?? '')) . trim((string) ($c['numero_documento'] ?? ''));
-                if ($docMostrar === '' && !empty($c['numero_documento'])) {
-                    $docMostrar = (string) $c['numero_documento'];
+                $tipo = trim((string)($c['tipo_documento'] ?? ''));
+                $num  = trim((string)($c['numero_documento'] ?? ''));
+                $docMostrar = $tipo . $num;
+                if ($docMostrar === '' && !empty($num)) {
+                    $docMostrar = $num;
                 }
-                echo '<td>' . htmlspecialchars($docMostrar !== '' ? $docMostrar : '-') . '</td>';
-                echo '<td>' . htmlspecialchars($c['nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($c['telefono'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars($c['email'] ?? '-') . '</td>';
+                
+                $docFinal = ($docMostrar !== '') ? $docMostrar : '—';
+
+                echo '<tr>';
+                echo '<td>' . $i . '</td>';
+                echo '<td>' . htmlspecialchars($docFinal) . '</td>';
+                echo '<td><strong>' . htmlspecialchars($c['nombre']) . '</strong></td>';
+                echo '<td nowrap>' . htmlspecialchars($c['telefono'] ?? '—') . '</td>';
+                echo '<td>' . htmlspecialchars($c['email'] ?? '—') . '</td>';
                 echo '<td style="white-space: nowrap;">';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarCliente(' . htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;">Editar</button>';
-                echo '<button class="btn btn-sm btn-danger" onclick="eliminarCliente(' . $c['id'] . ')">Eliminar</button>';
+                echo '  <button class="btn btn-sm btn-primary" onclick="editarCliente(' . htmlspecialchars(json_encode($c), ENT_QUOTES, 'UTF-8') . ')" style="margin-right: 5px;"><i class="fas fa-edit"></i></button>';
+                echo '  <button class="btn btn-sm btn-danger" onclick="eliminarCliente(' . (int)$c['id'] . ')"><i class="fas fa-trash"></i></button>';
                 echo '</td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="8" class="text-center">No se encontraron clientes registrados</td></tr>';
+            echo '<tr>';
+            echo '  <td colspan="6" class="text-center text-muted" style="padding: 30px;">';
+            echo '      <i class="fas fa-users-slash" style="font-size: 24px; opacity: 0.3; margin-bottom: 7px;"></i><br>';
+            echo '      No se encontraron clientes con los criterios ingresados.';
+            echo '  </td>';
+            echo '</tr>';
         }
+        
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();

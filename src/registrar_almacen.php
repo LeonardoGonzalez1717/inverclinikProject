@@ -15,28 +15,42 @@ require_once "../connection/connection.php";
     <div class="container-wrapper">
         <div class="container-inner">
             <h2 class="main-title">Almacenes</h2>
-
-            <!-- <div class="row mb-3">
-                <div class="col-md-12">
-                    <button type="button" class="btn btn-success" onclick="mostrarVista('crear'); limpiarFormulario();">
-                        Registrar nuevo almacén
-                    </button>
-                </div>
-            </div> -->
-
             <div id="contenedor-vistas">
                 <div id="vista-listado">
                     <div class="row form-group">
-                        <div class="col-sm-4">
-                            <button class="btn btn-success" id="btn-ir-crear">
-                                <i class="fas fa-plus"></i> Crear Almacen
-                            </button>
+                        <div class="col-sm-12">
+                            <div aria-label="Acciones de Almacenes">
+                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nuevo Almacén" data-toggle="tooltip">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Almacenes" data-toggle="tooltip">
+                                    <i class="fas fa-filter"></i>
+                                </button>
+                            </div>
                         </div>
-                        <!-- <div class="col-sm-8">
-                            <h5 style="color: #0056b3; margin-bottom: 15px;">Lista de almacenes</h5>
-                        </div> -->
                     </div>
-                    <!-- <h5 class="subtitle">Lista de almacenes</h5> -->
+
+                    <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                        <div class="row">
+                            <div class="col-sm-5">
+                                <label for="filtro-buscar">Buscar Almacén</label>
+                                <input type="text" id="filtro-buscar" class="form-control clase-filtro-almacen" placeholder="Buscar por nombre o código...">
+                            </div>
+                            <div class="col-sm-4">
+                                <label for="filtro-activo">Estado</label>
+                                <select id="filtro-activo" class="form-control clase-filtro-almacen">
+                                    <option value="">Todos</option>
+                                    <option value="1">Activos</option>
+                                    <option value="0">Inactivos</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-3" style="margin-top: 25px;">
+                                <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-alm">
+                                    <i class="fas fa-eraser"></i> Limpiar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     <div class="table-container">
                         <table class="recipe-table">
                             <thead>
@@ -44,7 +58,7 @@ require_once "../connection/connection.php";
                                     <th>ID</th>
                                     <th>Nombre</th>
                                     <th>Código</th>
-                                    <!-- <th>Activo</th> -->
+                                    <th>Estado</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -132,10 +146,18 @@ function mostrarVista(vista) {
     document.getElementById('vista-' + vista).classList.remove('hidden');
 }
 
+var temporizador;
+
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar: $('#filtro-buscar').val(),
+        activo: $('#filtro-activo').val()
+    };
+
     crudPostListadoPaginado(
         'registrar_almacen_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-almacenes',
         page || 1
@@ -243,6 +265,29 @@ $(document).ready(function () {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-almacenes', cargarListado);
+
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    // Controladores de eventos para los filtros (con debounce para el input de texto)
+    $('.clase-filtro-almacen').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    // Botón de restablecimiento
+    $('#btn-limpiar-filtros-alm').on('click', function() {
+        $('#filtro-buscar').val('');
+        $('#filtro-activo').val('');
+        cargarListado(1);
+    });
 });
 </script>
 

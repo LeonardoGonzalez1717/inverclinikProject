@@ -83,20 +83,12 @@ if ($resultRecetas) {
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Inventario</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12" style="display: flex; gap: 10px;">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Registrar Movimiento</button>
-                        <button class="btn btn-info" onclick="mostrarVista('listado');cargarListado(tabActivo || 'materia_prima', 1);">Ver Inventario</button>
-                    </div>
-                </div> -->
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
                         <div class="row mb-3">
                             <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Movimiento de Inventario
+                                <button class="btn btn-success" id="btn-ir-crear" title="Crear Nuevo Movimiento de Inventario">
+                                    <i class="fas fa-plus"></i> 
                                 </button>
                             </div>
                         </div>

@@ -16,23 +16,43 @@ require_once "../connection/connection.php";
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Proveedores</h2>
-                
-                <!-- <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Proveedor</button>
-                    </div>
-                </div> -->
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Insumo
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de Proveedores">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Proveedor" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <!-- <h5 class="subtitle">Lista de Proveedores</h5> -->
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <label for="filtro-buscar">Buscar Proveedor</label>
+                                    <input type="text" id="filtro-buscar" class="form-control clase-filtro-proveedor" placeholder="Buscar por nombre, RIF, cédula, teléfono o email...">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label for="filtro-tipo-doc">Tipo Contribuyente</label>
+                                    <select id="filtro-tipo-doc" class="form-control clase-filtro-proveedor">
+                                        <option value="">Todos</option>
+                                        <option value="J">Jurídico (J)</option>
+                                        <option value="V">Venezolano (V)</option>
+                                        <option value="E">Extranjero (E)</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-prov">
+                                        <i class="fas fa-eraser"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -168,10 +188,18 @@ $('#btn-volver-listado').on('click', function() {
     });
 });
 
+var temporizador;
+
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar: $('#filtro-buscar').val(),
+        tipo_doc: $('#filtro-tipo-doc').val()
+    };
+
     crudPostListadoPaginado(
         'gestionar_proveedores_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-proveedores',
         page || 1
@@ -309,6 +337,27 @@ $("#form-crear").on("submit", function(e) {
 document.addEventListener('DOMContentLoaded', () => {
     cargarListado(1);
     bindCrudPagination('#paginacion-proveedores', cargarListado);
+
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filtro-proveedor').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    $('#btn-limpiar-filtros-prov').on('click', function() {
+        $('#filtro-buscar').val('');
+        $('#filtro-tipo-doc').val('');
+        cargarListado(1);
+    });
 });
 </script>
 

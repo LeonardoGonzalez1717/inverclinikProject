@@ -21,10 +21,32 @@ if ($checkInsumoAlmacen->num_rows == 0) {
 
 try {
     if ($action === 'listar_html') {
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM insumos')->fetch_assoc()['c'] ?? 0);
-        $pg = Pagination::fromInput($total, $_POST);
+        // 1. RECEPCIÓN DE FILTROS
+        $buscar_nombre    = isset($_POST['buscar_nombre']) ? trim($_POST['buscar_nombre']) : '';
+        $buscar_proveedor = isset($_POST['buscar_proveedor']) ? trim($_POST['buscar_proveedor']) : '';
+        $buscar_almacen   = isset($_POST['buscar_almacen']) ? trim($_POST['buscar_almacen']) : '';
 
-        $sql = "
+        $whereClauses = [];
+
+        if ($buscar_nombre !== '') {
+            $searchN = $conn->real_escape_string($buscar_nombre);
+            $whereClauses[] = "i.nombre LIKE '%$searchN%'";
+        }
+
+        if ($buscar_proveedor !== '') {
+            $searchP = $conn->real_escape_string($buscar_proveedor);
+            $whereClauses[] = "p.nombre LIKE '%$searchP%'";
+        }
+
+        if ($buscar_almacen !== '') {
+            $searchA = $conn->real_escape_string($buscar_almacen);
+            $whereClauses[] = "a.nombre LIKE '%$searchA%'";
+        }
+
+        $whereSql = !empty($whereClauses) ? " WHERE " . implode(" AND ", $whereClauses) : "";
+
+        // 2. CONSULTA BASE CON WHERE DINÁMICO
+        $sqlBase = "
             SELECT 
                 i.id,
                 i.nombre,
@@ -45,8 +67,14 @@ try {
             LEFT JOIN proveedores p ON i.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = i.tasa_cambiaria_id
             LEFT JOIN almacenes a ON i.almacen_id = a.id
-            ORDER BY i.nombre ASC
-        " . $pg->limitClause();
+            " . $whereSql . "
+        ";
+
+        // Paginación correcta sobre la consulta filtrada
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM ($sqlBase) AS t")->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = $sqlBase . " ORDER BY i.nombre ASC " . $pg->limitClause();
 
         $result = $conn->query($sql);
         $insumos = [];
@@ -55,6 +83,7 @@ try {
                 $insumos[] = $row;
             }
         }
+
         ob_start();
         $orden = $pg->rowNumberStart() - 1;
         if (!empty($insumos)) {
@@ -64,21 +93,32 @@ try {
                 $tasa = isset($insRow['tasa_insumo']) && $insRow['tasa_insumo'] !== null ? (float) $insRow['tasa_insumo'] : 0;
                 $equivBs = ($tasa > 0 && $costo > 0) ? $costo * $tasa : null;
                 $equivBsFormato = $equivBs !== null ? 'Bs. ' . number_format($equivBs, 2, '.', ',') : '-';
+                
                 $minStr = isset($insRow['stock_minimo']) && $insRow['stock_minimo'] !== null && $insRow['stock_minimo'] !== '' ? number_format((float)$insRow['stock_minimo'], 2, '.', ',') : '—';
                 $maxStr = isset($insRow['stock_maximo']) && $insRow['stock_maximo'] !== null && $insRow['stock_maximo'] !== '' ? number_format((float)$insRow['stock_maximo'], 2, '.', ',') : '—';
                 $almacenStr = isset($insRow['almacen_nombre']) && $insRow['almacen_nombre'] ? htmlspecialchars($insRow['almacen_nombre']) : '—';
+                
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars((string) $orden) . '</td>';
                 echo '<td>' . htmlspecialchars($insRow['nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($insRow['unidad_medida'] ?? '-') . '</td>';
-                echo '<td>$' . number_format($costo, 2, '.', ',') . '</td>';
-                echo '<td>' . htmlspecialchars($equivBsFormato) . '</td>';
-                echo '<td>' . htmlspecialchars($minStr) . '</td>';
-                echo '<td>' . htmlspecialchars($maxStr) . '</td>';
-                echo '<td>' . $almacenStr . '</td>';
+                echo '<td style="text-align: right;">$' . number_format($costo, 2, '.', ',') . '</td>';
+                echo '<td style="text-align: right;">' . htmlspecialchars($equivBsFormato) . '</td>';
+                echo '<td style="text-align: right;">' . htmlspecialchars($minStr) . '</td>';
+                echo '<td style="text-align: right;">' . htmlspecialchars($maxStr) . '</td>';
+                
+                $baseStyle = 'font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; text-transform: capitalize; font-size: 13px;';
+                
+                echo '<td><span >' . $almacenStr . '</span></td>';
                 echo '<td>' . htmlspecialchars($insRow['proveedor_nombre'] ?? '-') . '</td>';
+                
+                [$adiTxt, $adiStyle] = match((int)$insRow['adicional']) {
+                    1       => ['Adicional', "background-color: #0dcaf0; color: #000000; {$baseStyle}"],
+                    default => ['Regular', "background-color: #6c757d; color: #ffffff; {$baseStyle}"]
+                };
+                
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarInsumo(' . htmlspecialchars(json_encode($insRow), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
+                echo '  <button class="btn btn-sm btn-primary" onclick="editarInsumo(' . htmlspecialchars(json_encode($insRow), ENT_QUOTES, 'UTF-8') . ')" title="Editar"><i class="fas fa-edit"></i></button>';
                 echo '</td>';
                 echo '</tr>';
             }

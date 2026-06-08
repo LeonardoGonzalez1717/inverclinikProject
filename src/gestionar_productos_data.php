@@ -50,16 +50,35 @@ ensureRangoTallasEnProductos($conn);
 
 try {
     if ($action === 'listar_html') {
-        // Verificar si existe la columna imagen, si no, agregarla
         $checkColumn = $conn->query("SHOW COLUMNS FROM productos LIKE 'imagen'");
         if ($checkColumn->num_rows == 0) {
             $conn->query("ALTER TABLE productos ADD COLUMN imagen VARCHAR(255) NULL AFTER descripcion");
         }
         
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM productos')->fetch_assoc()['c'] ?? 0);
-        $pg = Pagination::fromInput($total, $_POST);
+        $buscar_nombre    = isset($_POST['buscar_nombre']) ? trim($_POST['buscar_nombre']) : '';
+        $buscar_categoria = isset($_POST['buscar_categoria']) ? trim($_POST['buscar_categoria']) : '';
+        $buscar_genero    = isset($_POST['buscar_genero']) ? trim($_POST['buscar_genero']) : '';
 
-        $sql = "
+        $where = [];
+
+        if ($buscar_nombre !== '') {
+            $searchN = $conn->real_escape_string($buscar_nombre);
+            $where[] = "nombre LIKE '%$searchN%'";
+        }
+
+        if ($buscar_categoria !== '') {
+            $searchC = $conn->real_escape_string($buscar_categoria);
+            $where[] = "categoria LIKE '%$searchC%'";
+        }
+
+        if ($buscar_genero !== '') {
+            $searchG = $conn->real_escape_string($buscar_genero);
+            $where[] = "tipo_genero = '$searchG'";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
+        $sqlBase = "
             SELECT 
                 p.id,
                 p.nombre,
@@ -96,7 +115,7 @@ try {
                 echo '<td>' . htmlspecialchars(substr($p['descripcion'] ?? '', 0, 50)) . (strlen($p['descripcion'] ?? '') > 50 ? '...' : '') . '</td>';
                 echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y H:i', strtotime($p['fecha_creacion'])) : '-') . '</td>';
                 echo '<td>';
-                echo '<button class="btn btn-sm btn-primary" onclick="editarProducto(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')">Editar</button>';
+                echo '  <button class="btn btn-sm btn-primary" onclick="editarProducto(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-edit"></i> Editar</button>';
                 echo '</td>';
                 echo '</tr>';
             }
@@ -108,7 +127,6 @@ try {
         $conn->close();
         exit;
     }
-
     restringirEscritura();
 
     header('Content-Type: application/json');

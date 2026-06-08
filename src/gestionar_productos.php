@@ -32,16 +32,51 @@ if ($resRangos) {
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Gestión de Productos</h2>
-                
-                <div class="row mb-3" id="vista-botones">
-                    <div class="col-md-12">
-                        <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">Crear Nuevo Producto</button>
-                    </div>
-                </div>
-
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <h5 class="subtitle">Lista de Productos</h5>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de productos">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nuevo Producto" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-nombre">Nombre del Producto</label>
+                                    <input type="text" id="filtro-nombre" class="form-control clase-filtro-producto" placeholder="Buscar por nombre...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-categoria">Categoría</label>
+                                    <input type="text" id="filtro-categoria" class="form-control clase-filtro-producto" placeholder="Buscar por categoría...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-genero">Género / Tipo</label>
+                                    <select id="filtro-genero" class="form-control clase-filtro-producto">
+                                        <option value="">Todos</option>
+                                        <option value="Unisex">Unisex</option>
+                                        <option value="Masculino">Masculino</option>
+                                        <option value="Femenino">Femenino</option>
+                                        <option value="Niño/Niña">Niño/Niña</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-8"></div>
+                                <div class="col-sm-4" style="text-align: right;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-producto">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -64,6 +99,9 @@ if ($resRangos) {
                     </div>
 
                     <div id="vista-crear" class="hidden">
+                        <button class="btn-volver" id="btn-volver-listado">
+                            <i class="fas fa-arrow-left"></i> Volver al Listado
+                        </button>
                         <form id="form-crear">
                             <div class="row form-group">
                                 <div class="col-sm-6">
@@ -124,7 +162,7 @@ if ($resRangos) {
                                 <div class="col-sm-6">
                                     <label class="form-label" for="descripcion">Descripción</label>
                                     <textarea name="descripcion" id="descripcion" class="form-control" rows="4"
-                                              placeholder="Descripción detallada del producto..."></textarea>
+                                            placeholder="Descripción detallada del producto..."></textarea>
                                 </div>
                                 <div class="col-sm-6">
                                     <label class="form-label" for="imagen">Imagen del Producto</label>
@@ -157,10 +195,41 @@ function mostrarVista(vista) {
     }
 }
 
+$('#btn-ir-crear').on('click', function() {
+    $('#vista-listado').fadeOut(200, function() {
+        $('#vista-crear').removeClass('hidden').fadeIn();
+        limpiarFormulario();
+    });
+});
+
+$('#btn-volver-listado').on('click', function() {
+    Swal.fire({
+        icon: 'question',
+        text: '¿Desea salir? Se perderán los cambios no guardados.',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, salir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(r) {
+        if (!r.isConfirmed) return;
+        $('#vista-crear').fadeOut(200, function() {
+            $('#vista-listado').fadeIn();
+        });
+    });
+});
+
+var temporizador;
+
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar_nombre: $('#filtro-nombre').val(),
+        buscar_categoria: $('#filtro-categoria').val(),
+        buscar_genero: $('#filtro-genero').val()
+    };
+
     crudPostListadoPaginado(
         'gestionar_productos_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-productos',
         page || 1
@@ -217,6 +286,29 @@ document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-productos', cargarListado);
+
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    $('.clase-filtro-producto').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    $('#btn-limpiar-filtros-producto').on('click', function() {
+        $('#filtro-nombre').val('');
+        $('#filtro-categoria').val('');
+        $('#filtro-genero').val('');
+        cargarListado(1);
+    });
 });
 
 // Preview de imagen
