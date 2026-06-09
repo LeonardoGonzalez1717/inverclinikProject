@@ -29,6 +29,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../src/registrar_compra.php"><i class="fas fa-shopping-cart"></i> <span>Registrar Compra</span></a></li>
                         <li><a href="../src/registrar_venta.php"><i class="fas fa-cash-register"></i> <span>Registrar Venta</span></a></li>
                         <li><a href="../src/cuentas_por_cobrar.php">Cuentas por cobrar</a></li>
+                        <li><a href="../src/historial_talleres.php">Historial Talleres</a></li>
                     </ul>
                 </li>
             </ul>

@@ -64,7 +64,7 @@
                                         <th style="width: 1%;">#</th>
                                         <th style="width: 15%;">Código</th>
                                         <th style="width: 35%;">Cliente</th>
-                                        <th>Modalidad pago</th>
+                                        <th style="width: 15%;" nowrap>Metodo Pago</th>
                                         <th style="width: 15%;">Fecha</th>
                                         <th style="width: 20%;">Total</th>
                                         <th style="width: 15%;">Estado</th>

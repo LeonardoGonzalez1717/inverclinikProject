@@ -76,7 +76,7 @@ function op_html_fecha_fin_celda(?string $fecha_fin, string $estado): string
     }
 
     $estilo = 'display:block;width:100%;box-sizing:border-box;margin:-12px;padding:12px;'
-        . 'background-color:#f8d7da;color:#721c24;border-left:3px solid #dc3545;cursor:help;';
+        . 'color:#721c24;';
 
     return '<span title="' . htmlspecialchars($titulo, ENT_QUOTES, 'UTF-8') . '" style="' . $estilo . '">'
         . '<strong style="color:#721c24;">' . htmlspecialchars($texto, ENT_QUOTES, 'UTF-8') . '</strong></span>';
@@ -167,15 +167,24 @@ try {
             foreach ($ordenes as $o) {
                 $i++;
                 $estadoStyle = match($o['estado']) {
-                    'finalizado' => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;',
-                    'pendiente' => 'background-color: #fd7e14; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;',
-                    'en_proceso' => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;',
-                    default => 'background-color: #dc3545; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block;'
+                    'finalizado' => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
+                    'pendiente'  => 'background-color: #fd7e14; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
+                    'en_proceso' => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
+                    'en_taller'  => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;', // Morado
+                    'en_empresa' => 'background-color: #0dcaf0; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;', // Azul claro
+                    default      => 'background-color: #dc3545; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;'
+                };
+
+                $estadoTexto = match($o['estado']) {
+                    'en_taller'  => 'Taller',
+                    'en_empresa' => 'Recibido',
+                    default      => ucfirst($o['estado']) 
                 };
                 
                 $costoPorUnidad = floatval($o['costo_por_unidad'] ?? 0);
-                $cantidad = floatval($o['cantidad_a_producir'] ?? 0);
-                $costoTotal = $costoPorUnidad * $cantidad;
+                $cantidad       = floatval($o['cantidad_a_producir'] ?? 0);
+                $costoTotal     = $costoPorUnidad * $cantidad;
+
                 
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
@@ -185,16 +194,19 @@ try {
                 echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
                 echo '<td style="font-weight: bold;text-align:right;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
-                echo '<td>' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
-                $estadoHtml = '<span style="' . $estadoStyle . '">' . htmlspecialchars($o['estado']) . '</span>';
+                echo '<td style="font-weight: bold">' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
+                
+                $estadoHtml = '<span style="' . $estadoStyle . '">' . htmlspecialchars($estadoTexto) . '</span>';
                 $btnFinalizar = '';
                 $btneditar = '';
+                $btnTalleres = '';
                 if ($o['estado'] !== 'finalizado') {
-                    $btnFinalizar = ' <button class="btn btn-sm btn-success" title="Finalizar Orden de Producción" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')" style="margin-bottom: 0px !important;"><i class="fas fa-check-double"></i></button>';
+                    $btnFinalizar = '<button class="btn btn-sm btn-success" title="Finalizar Orden de Producción" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')"><i class="fas fa-check-double"></i></button>';
                     $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
+                    $btnTalleres = '<button class="btn btn-sm btn-info" title="Asignar / Ver Talleres" onclick="abrirModalTalleres(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-warehouse"></i></button>';
                 }
-                echo '<td>' . $estadoHtml . '</td>';
-                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btneditar . $btnFinalizar . '</div></td>';
+                echo '<td nowrap>' . $estadoHtml . '</td>';
+                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
                 echo '</tr>';
             }
         } else {
@@ -203,6 +215,114 @@ try {
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
         $conn->close();
+        exit;
+    }
+
+    if ($action === 'obtener_historial_talleres') {
+        $orden_id = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
+
+        if ($orden_id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'ID de orden no válido.']);
+            exit;
+        }
+
+        $statusQuery = $conn->query("SELECT estado FROM ordenes_produccion WHERE id = $orden_id");
+        $orden_status = ($statusQuery && $row = $statusQuery->fetch_assoc()) ? $row['estado'] : '';
+
+        $sql = "SELECT 
+                    ot.id,
+                    ot.taller_id,
+                    t.nombre AS taller_nombre,
+                    ot.observaciones, 
+                    DATE_FORMAT(ot.fecha_asignacion, '%d/%m/%Y %h:%i %p') AS fecha_despacho,
+                    DATE_FORMAT(ot.fecha_entrega, '%d/%m/%Y %h:%i %p') AS fecha_retorno
+                FROM ordenes_talleres ot
+                INNER JOIN talleres t ON ot.taller_id = t.id
+                WHERE ot.orden_produccion_id = $orden_id
+                ORDER BY ot.id ASC";
+
+        $result = $conn->query($sql);
+        $historial = [];
+
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $historial[] = $row;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'orden_status' => $orden_status,
+            'historial' => $historial
+        ]);
+        exit;
+    }
+
+    if ($action === 'enviar_a_taller') {
+        $orden_id    = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
+        $taller_id   = isset($_POST['taller_id']) ? (int)$_POST['taller_id'] : 0;
+        $descripcion = isset($_POST['observaciones']) ? $conn->real_escape_string(trim($_POST['observaciones'])) : '';
+
+        if ($orden_id <= 0 || $taller_id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios para el despacho.']);
+            exit;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            $sqlInsert = "INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, observaciones, fecha_asignacion, recibido) 
+                        VALUES ($orden_id, $taller_id, '$descripcion', NOW(), 0)";
+            
+            if (!$conn->query($sqlInsert)) {
+                throw new Exception("Error al insertar el registro del taller.");
+            }
+
+            $sqlUpdate = "UPDATE ordenes_produccion SET estado = 'en_taller' WHERE id = $orden_id";
+            if (!$conn->query($sqlUpdate)) {
+                throw new Exception("Error al actualizar el estado de la orden principal.");
+            }
+
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Enviado al taller correctamente.']);
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($action === 'registrar_retorno_taller') {
+        $historial_id = isset($_POST['historial_id']) ? (int)$_POST['historial_id'] : 0;
+        $orden_id     = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
+
+        if ($historial_id <= 0 || $orden_id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'IDs de referencia no válidos.']);
+            exit;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            $sqlReturn = "UPDATE ordenes_talleres 
+                        SET recibido = 1, fecha_entrega = NOW() 
+                        WHERE id = $historial_id";
+            
+            if (!$conn->query($sqlReturn)) {
+                throw new Exception("Error al asentar el retorno en la base de datos.");
+            }
+
+            $sqlUpdateStatus = "UPDATE ordenes_produccion SET estado = 'en_empresa' WHERE id = $orden_id";
+            if (!$conn->query($sqlUpdateStatus)) {
+                throw new Exception("Error al actualizar el estado de la orden.");
+            }
+
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Mercancía recibida correctamente.']);
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
         exit;
     }
 

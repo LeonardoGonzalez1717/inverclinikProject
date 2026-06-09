@@ -31,13 +31,10 @@ if ($rfp) {
         <div class="container-wrapper">
             <div class="container-inner">
                 <h2 class="main-title">Cuentas por cobrar</h2>
-                <p class="text-muted">
-                    Ventas financiadas con pago inicial del cliente. Registre abonos hasta cubrir el total de la venta.
-                </p>
 
                 <div class="row mb-3">
+                    <label for="filtro-estado" class="col-md-1">Mostrar</label>
                     <div class="col-md-4">
-                        <label for="filtro-estado">Mostrar</label>
                         <select id="filtro-estado" class="form-control">
                             <option value="pendiente">Solo pendientes</option>
                             <option value="pagada">Solo pagadas</option>
@@ -45,6 +42,8 @@ if ($rfp) {
                         </select>
                     </div>
                 </div>
+                <p class="text-muted"> Ventas financiadas con pago inicial del cliente. Registre abonos hasta cubrir el total de la venta. </p>
+
 
                 <div class="table-container">
                     <table class="recipe-table">

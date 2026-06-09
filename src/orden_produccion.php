@@ -39,7 +39,13 @@ if ($resultRecetas) {
     }
 }
 
-// Para llenar dinámicamente el selector de categorías del filtro
+// NUEVO: Obtener los talleres activos para cargarlos en el select dinámico
+$talleres_disponibles = [];
+$resTalleres = $conn->query("SELECT id, nombre FROM talleres ORDER BY nombre ASC");
+if ($resTalleres) {
+    while($t = $resTalleres->fetch_assoc()) { $talleres_disponibles[] = $t; }
+}
+
 $categorias = [];
 $resCat = $conn->query("SELECT DISTINCT categoria FROM productos WHERE categoria IS NOT NULL AND categoria != ''");
 if ($resCat) {
@@ -117,6 +123,24 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             cursor: pointer; 
             margin-bottom: 15px; 
         }
+
+        /* NUEVO: Estilos estéticos para las secciones de los Talleres dentro del Modal */
+        .seccion-taller-card {
+            background: #f8f9fa;
+            border-left: 4px solid #6c757d;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .seccion-taller-card.activa {
+            border-left-color: #0275d8;
+            background: #f0f7ff;
+        }
+        .seccion-taller-card.completada {
+            border-left-color: #5cb85c;
+            background: #f4faf4;
+        }
     </style>
 </head>
 <body>
@@ -160,7 +184,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <option value="">Todos los estados</option>
                                         <option value="pendiente">Pendiente</option>
                                         <option value="en_proceso">En Proceso</option>
-                                        <option value="finalizado">Finalizado</option>
+                                        <option value="taller">En Taller</option> <option value="revision">En Revisión</option> <option value="finalizado">Finalizado</option>
                                     </select>
                                 </div>
                             </div>
@@ -283,11 +307,62 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         </div>
     </div>
 
+    <div class="modal fade" id="modalTalleres" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h5 class="modal-title" id="modalTalleresTitle">Asignación de Talleres</h5>
+                </div>
+                <div class="modal-body">
+                    <div id="cronologia-talleres"></div>
+                    <div id="seccion-nuevo-taller" style="display:none; border: 1px dashed #0056b3; padding: 15px; border-radius: 8px; margin-top: 15px; background: #fafcff;">
+                        <h6 style="color: #0056b3; font-weight: bold;"><i class="fas fa-plus-circle"></i>&nbsp; Asignar Siguiente Taller</h6>
+                        <hr style="margin-top: 5px; margin-bottom: 10px;">
+                        <form id="form-nuevo-taller">
+                            <div class="row">
+                                <div class="col-sm-6 form-group">
+                                    <label>Seleccionar Taller</label>
+                                    <select id="taller_id_select" class="form-control" required>
+                                        <option value="">Seleccione un Taller</option>
+                                        <?php foreach($talleres_disponibles as $taller): ?>
+                                            <option value="<?php echo $taller['id']; ?>"><?php echo htmlspecialchars($taller['nombre']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Descripción del Trabajo</label>
+                                <textarea id="descripcion_trabajo_input" class="form-control" rows="2" placeholder="Especificaciones detalladas para el taller..."></textarea>
+                            </div>
+                            <button type="button" class="btn btn-primary btn-sm" id="btn-guardar-envio-taller">
+                                Enviar al Taller
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="modal-footer" style=" background: #f1f1f1;">
+                    <div>
+                        <button type="button" class="btn btn-info" id="btn-anexar-otro-taller" style="display:none;">
+                            <i class="fas fa-plus"></i> Siguiente Taller 
+                        </button>
+                        <button type="button" class="btn btn-success" id="btn-marcar-orden-lista" style="display:none;">
+                            <i class="fas fa-check-double"></i> Marcar Orden como Lista
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteOrden = tasaCambiariaActual;
+var ordenActualId = null;
 
-// MODIFICADO: Ahora captura los filtros y los manda globalmente en el objeto data
 function cargarListado(page) {
     let filtros = {
         action: 'listar_html',
@@ -308,24 +383,20 @@ function cargarListado(page) {
     limpiarFormulario();
 }
 
-// MANEJO DE EVENTOS PARA LOS FILTROS
 $(document).ready(function() {
     // Alternar visibilidad del panel de filtros
     $('#btn-toggle-filtros').on('click', function() {
         $('#panel-filtros').slideToggle(200);
     });
 
-    // Evento al escribir en el buscador de producto (página 1)
     $('#filtro-producto').on('keyup', function() {
         cargarListado(1);
     });
 
-    // Eventos al cambiar selectores o fechas (página 1)
     $('#filtro-categoria, #filtro-estado-orden, #filtro-desde, #filtro-hasta').on('change', function() {
         cargarListado(1);
     });
 
-    // Botón para limpiar filtros por completo
     $('#btn-limpiar-filtros').on('click', function() {
         $('#filtro-producto').val('');
         $('#filtro-categoria').val('');
@@ -335,7 +406,6 @@ $(document).ready(function() {
         cargarListado(1);
     });
 
-    // Manejo de la vista de creación
     $('#btn-ir-crear').on('click', function() {
         limpiarFormulario();
         mostrarVista('crear');
@@ -353,7 +423,151 @@ $(document).ready(function() {
     $('#cantidad_a_producir').on('input', function() {
         calcularCostoTotal();
     });
+
+    $('#btn-anexar-otro-taller').on('click', function() {
+        $('#form-nuevo-taller')[0].reset();
+        $('#seccion-nuevo-taller').slideDown(250);
+        $(this).hide(); 
+    });
+
+    $('#btn-guardar-envio-taller').on('click', function() {
+        var tallerId = $('#taller_id_select').val();
+        var descripcion = $('#descripcion_trabajo_input').val(); 
+
+        if(!tallerId) {
+            Swal.fire({ icon: 'warning', text: 'Por favor seleccione un taller.' });
+            return;
+        }
+
+        $.post('orden_produccion_data.php', {
+            action: 'enviar_a_taller',
+            orden_id: ordenActualId,
+            taller_id: tallerId,
+            observaciones: descripcion
+        }, function(resp) {
+            if(resp && resp.success) {
+                Swal.fire({ icon: 'success', text: resp.message || 'Enviado al taller correctamente.' });
+                $('#seccion-nuevo-taller').hide();
+                abrirModalTalleres(ordenActualId); 
+                cargarListado(); 
+            } else {
+                Swal.fire({ icon: 'error', text: resp.message || 'Error al enviar al taller.' });
+            }
+        }, 'json');
+    });
+
+    $('#btn-marcar-orden-lista').on('click', function() {
+        $('#modalTalleres').modal('hide');
+        aceptarFinalizacionOrden(ordenActualId);
+    });
 });
+
+function abrirModalTalleres(orden) {
+    if(!orden) return;
+    
+    var ordenId = (typeof orden === 'object') ? orden.orden_id : orden;
+    ordenActualId = ordenId;
+    
+    $('#btn-anexar-otro-taller').hide();
+    $('#btn-marcar-orden-lista').hide();
+    $('#seccion-nuevo-taller').hide();
+    $('#cronologia-talleres').html('<p class="text-center"><i class="fas fa-spinner fa-spin"></i>&nbsp; Cargando historial de la orden...</p>');
+
+    $('#modalTalleres').modal('show');
+
+    $.post('orden_produccion_data.php', {
+        action: 'obtener_historial_talleres',
+        orden_id: ordenId
+    }, function(resp) {
+        if(resp && resp.success) {
+            var historial = resp.historial || [];
+            var ordenEstado = resp.orden_status;
+            var html = '';
+
+            if(historial.length === 0) {
+                html = `<div class="alert alert-info text-center">
+                            <i class="fas fa-info-circle"></i>&nbsp;  Esta orden no ha sido enviada a ningún taller aún.
+                        </div>`;
+                $('#btn-anexar-otro-taller').text('Asignar Taller').show();
+            } else {
+                var totalElementos = historial.length;
+                var ultimoTrabajoCompletado = true;
+
+                historial.forEach(function(item, index) {
+                    var esUltimo = (index === totalElementos - 1);
+                    var cardClass = 'seccion-taller-card';
+                    var badgeStatus = '';
+                    var botonAccion = '';
+
+                    if(item.fecha_retorno) {
+                        cardClass += ' completada';
+                        badgeStatus = '<span class="badge badge-success float-right"><i class="fas fa-check"></i> Trabajo Completado</span>';
+                    } else {
+                        cardClass += ' activa';
+                        badgeStatus = '<span class="badge badge-success float-right"><i class="fas fa-clock"></i> En Proceso</span>';
+                        ultimoTrabajoCompletado = false;
+
+                        botonAccion = `
+                            <div class="text-right">
+                                <button type="button" class="btn btn-success btn-sm" onclick="registrarRetornoTaller(${item.id})">
+                                    <i class="fas fa-undo"></i> Recepion de Mercancía
+                                </button>
+                            </div>`;
+                    }
+
+                    html += `
+                    <div class="${cardClass}">
+                        ${badgeStatus}
+                        <h6 style="font-weight:bold; color:#333;">Taller ${index + 1}: ${item.taller_nombre}</h6>
+                        <p style="margin-bottom:5px; font-size:14px;"><strong>Especificaciones:</strong> ${item.observaciones || '<i>Sin observaciones</i>'}</p>
+                        <small class="text-muted">Despachado: ${item.fecha_despacho} ${item.fecha_retorno ? ' | Retornado: ' + item.fecha_retorno : ''}</small>
+                        ${botonAccion}
+                    </div>`;
+                });
+
+                // REGLA CLAVE: Si el último taller ya retornó mercancía, habilitamos los caminos finales en el footer
+                if(ultimoTrabajoCompletado) {
+                    $('#btn-anexar-otro-taller').text('Asignar Taller').show();
+                    $('#btn-marcar-orden-lista').show();
+                }
+            }
+
+            $('#cronologia-talleres').html(html);
+        } else {
+            $('#cronologia-talleres').html('<div class="alert alert-danger">Error al cargar la información.</div>');
+        }
+    }, 'json');
+}
+
+// NUEVO: Cambiar estado del registro intermedio a Recibido
+function registrarRetornoTaller(historialId) {
+    if(!historialId) return;
+
+    Swal.fire({
+        title: '¿Confirmar recepción?',
+        text: 'Al aceptar registrará el retorno físico de las prendas a la empresa y pasará a revisión.',
+        icon: 'info',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, recibir',
+        cancelButtonText: 'Cancelar'
+    }).then(function(result) {
+        if(result.isConfirmed) {
+            $.post('orden_produccion_data.php', {
+                action: 'registrar_retorno_taller',
+                historial_id: historialId,
+                orden_id: ordenActualId
+            }, function(resp) {
+                if(resp && resp.success) {
+                    Swal.fire({ icon: 'success', text: resp.message || 'Retorno registrado con éxito.' });
+                    abrirModalTalleres(ordenActualId); // Refresca el modal para mutar a modo lectura y activar el "+" o "Marcar Lista"
+                    cargarListado(); // Sincroniza la tabla de fondo
+                } else {
+                    Swal.fire({ icon: 'error', text: resp.message || 'Error al procesar el retorno.' });
+                }
+            }, 'json');
+        }
+    });
+}
 
 function actualizarEquivalenteBs() {
     var costoTotalDolares = parseFloat($('#costo_total_produccion').val().replace(/[^0-9.-]/g, '')) || 0;
@@ -585,7 +799,6 @@ $("#form-crear").on("submit", function(e) {
     });
 });
 
-// Inicialización de la tabla
 cargarListado(1);
 bindCrudPagination('#paginacion-orden-produccion', cargarListado);
 </script>

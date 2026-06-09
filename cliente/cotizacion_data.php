@@ -106,8 +106,9 @@ switch ($action) {
                     $modTxt .= ' (' . number_format((float) $row['porcentaje_pago_minimo'], 0) . '% mín.)';
                 }
                 $html .= '<td>' . htmlspecialchars($modTxt) . '</td>';
+                $html .= '<td>' . $fechaFormateada . '</td>';
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
-                $html .= '<td><span class="badge ' . $estCls . '">' . htmlspecialchars($estTxt) . '</span></td>';
+                $html .= '<td><span style="' . $estadoStyle . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 $codigoEsc = htmlspecialchars($row['codigo_cotizacion'], ENT_QUOTES, 'UTF-8');
                 $btnEliminar = '';
                 if (in_array($st, [1, 3], true)) {
@@ -116,7 +117,7 @@ switch ($action) {
                         data-codigo='" . $codigoEsc . "'
                         title='Eliminar cotización'
                         style='margin-left:5px;'>
-                        <i class='fas fa-trash'></i> Eliminar
+                        <i class='fas fa-trash'></i>
                     </button>";
                 }
 
@@ -124,10 +125,8 @@ switch ($action) {
                             <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info' title='Imprimir'>
                                 <i class='fas fa-print'></i>
                             </a>
-                            <button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Ver Detalles' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
-                                Editar
-                            </button>
                             " . $btnEliminar . "
+                            " . $botonEditar . "
                         </td>";
                 $html .= '</tr>';
             }

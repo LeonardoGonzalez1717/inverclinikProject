@@ -76,6 +76,56 @@ if ($resultRecetas) {
             cursor: pointer; 
             margin-bottom: 15px; 
         }
+
+        #inventario-tabs {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 25px;
+            border-radius: 8px 8px 0 0;
+            padding: 6px 6px 0 6px;
+        }
+
+        #inventario-tabs .nav-item {
+            padding: 0 4px;
+        }
+
+        #inventario-tabs .nav-link {
+            color: #495057;
+            font-weight: 600;
+            font-size: 15px;
+            border: none;
+            background: transparent;
+            padding: 12px 20px;
+            border-radius: 6px 6px 0 0;
+            transition: all 0.25s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        #inventario-tabs .nav-link:hover {
+            color: #0056b3;
+            background-color: #e9ecef;
+            border-radius: 6px 6px 0 0;
+        }
+
+        /* Pestaña Activa */
+        #inventario-tabs .nav-link.active {
+            color: #ffffff !important;
+            background-color: #0056b3 !important; /* Azul corporativo */
+            border-radius: 6px 6px 0 0;
+            box-shadow: 0 -4px 10px rgba(0, 86, 179, 0.15);
+        }
+
+        /* Iconos dentro de las pestañas */
+        #inventario-tabs .nav-link i {
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+
+        #inventario-tabs .nav-link.active i {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -93,8 +143,8 @@ if ($resultRecetas) {
                             </div>
                         </div>
 
-                        <ul class="nav nav-tabs" id="inventario-tabs">
-                            <li class="nav-item" >
+                        <ul class="nav nav-tabs nav-justified" id="inventario-tabs">
+                            <li class="nav-item">
                                 <button class="nav-link active" id="materia-prima-tab" type="button" onclick="cambiarTab('materia_prima');">
                                     Materia Prima (Insumos)
                                 </button>
@@ -114,7 +164,7 @@ if ($resultRecetas) {
                                         <thead>
                                             <tr>
                                                 <th>#</th>
-                                                <th>Última Actualización</th>
+                                                <th>Última Act.</th>
                                                 <th>Insumo</th>
                                                 <th>Almacén</th>
                                                 <th>Stock Actual</th>
@@ -136,10 +186,10 @@ if ($resultRecetas) {
                                         <thead>
                                             <tr>
                                                 <th>#</th>
-                                                <th>Última Actualización</th>
+                                                <th>Última Act.</th>
                                                 <th>Producto</th>
                                                 <th>Rango Tallas</th>
-                                                <th>Tipo Producción</th>
+                                                <!-- <th>Tipo Producción</th> -->
                                                 <th>Stock Actual</th>
                                                 <th>Stock Mín.</th>
                                                 <th>Stock Máx.</th>
