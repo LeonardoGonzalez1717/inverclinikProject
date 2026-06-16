@@ -65,6 +65,34 @@ class CuentasPorCobrar
             );
             $conn->query('UPDATE cuentas_por_cobrar_pagos SET aprobado = 1');
         }
+
+        self::corregirPagosInternosPendientes($conn);
+    }
+
+    /** Abonos del equipo deben contar al saldo; corrige registros anteriores mal marcados. */
+    private static function corregirPagosInternosPendientes(mysqli $conn): void
+    {
+        $res = $conn->query(
+            "SELECT DISTINCT cuenta_id FROM cuentas_por_cobrar_pagos WHERE origen = 'interno' AND aprobado = 0"
+        );
+        if (!$res || $res->num_rows === 0) {
+            return;
+        }
+
+        $cuentas = [];
+        while ($row = $res->fetch_assoc()) {
+            $cuentas[] = (int) $row['cuenta_id'];
+        }
+
+        $conn->query(
+            "UPDATE cuentas_por_cobrar_pagos SET aprobado = 1 WHERE origen = 'interno' AND aprobado = 0"
+        );
+
+        foreach ($cuentas as $cuentaId) {
+            if ($cuentaId > 0) {
+                self::recalcularTotalesCuenta($conn, $cuentaId);
+            }
+        }
     }
 
     public static function obtenerVentaIdPorCotizacion(mysqli $conn, int $idCotizacion): ?int
@@ -246,7 +274,9 @@ class CuentasPorCobrar
         }
         $vf->close();
 
-        $aprobado = 0;
+        // Abonos registrados por el equipo (interno) aplican de inmediato al saldo.
+        // Los del cliente quedan pendientes de verificación (aprobado = 0).
+        $aprobado = $origen === 'interno' ? 1 : 0;
         $stmtP = $conn->prepare(
             'INSERT INTO cuentas_por_cobrar_pagos
                 (cuenta_id, monto, forma_pago_id, referencia, observaciones, es_pago_inicial, origen, aprobado)
@@ -262,6 +292,89 @@ class CuentasPorCobrar
 
         self::recalcularTotalesCuenta($conn, $cuentaId);
         self::sincronizarEstadoVenta($conn, (int) $cuenta['venta_id']);
+    }
+
+    /**
+     * Registra cuenta por cobrar al facturar desde administración si el monto pagado es menor al total.
+     *
+     * @return int|null ID de la cuenta creada, o null si el pago cubre el total
+     */
+    public static function crearCuentaPorCobrarDesdeVentaAdmin(
+        mysqli $conn,
+        int $ventaId,
+        int $clienteId,
+        ?int $cotizacionId,
+        float $total,
+        float $montoPagado,
+        int $formaPagoId,
+        string $referencia
+    ): ?int {
+        self::asegurarTablas($conn);
+
+        $total = round($total, 2);
+        $montoPagado = round($montoPagado, 2);
+
+        if ($montoPagado < 0) {
+            throw new RuntimeException('El monto pagado no puede ser negativo.');
+        }
+        if ($montoPagado > $total + 0.009) {
+            throw new RuntimeException('El monto pagado no puede superar el total de la venta.');
+        }
+        if ($montoPagado >= $total - 0.009) {
+            return null;
+        }
+
+        if (self::obtenerCuentaIdPorVenta($conn, $ventaId) !== null) {
+            throw new RuntimeException('Esta venta ya tiene una cuenta por cobrar asociada.');
+        }
+
+        $cotParam = ($cotizacionId !== null && $cotizacionId > 0) ? $cotizacionId : 0;
+        $pagadoInicial = 0.0;
+        $saldoInicial = $total;
+        $estado = 'pendiente';
+
+        $stmt = $conn->prepare(
+            'INSERT INTO cuentas_por_cobrar
+                (venta_id, cliente_id, cotizacion_id, monto_total, monto_pagado, saldo_pendiente, estado)
+             VALUES (?, ?, NULLIF(?, 0), ?, ?, ?, ?)'
+        );
+        $stmt->bind_param(
+            'iiiddds',
+            $ventaId,
+            $clienteId,
+            $cotParam,
+            $total,
+            $pagadoInicial,
+            $saldoInicial,
+            $estado
+        );
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('No se pudo crear la cuenta por cobrar: ' . $err);
+        }
+        $cuentaId = (int) $conn->insert_id;
+        $stmt->close();
+
+        if ($montoPagado > 0.009) {
+            $aprobado = 1;
+            $stmtP = $conn->prepare(
+                'INSERT INTO cuentas_por_cobrar_pagos
+                    (cuenta_id, monto, forma_pago_id, referencia, es_pago_inicial, origen, aprobado)
+                 VALUES (?, ?, ?, NULLIF(TRIM(?), \'\'), 1, \'interno\', ?)'
+            );
+            $stmtP->bind_param('idisi', $cuentaId, $montoPagado, $formaPagoId, $referencia, $aprobado);
+            if (!$stmtP->execute()) {
+                $err = $stmtP->error;
+                $stmtP->close();
+                throw new RuntimeException('No se pudo registrar el pago inicial: ' . $err);
+            }
+            $stmtP->close();
+        }
+
+        self::recalcularTotalesCuenta($conn, $cuentaId);
+
+        return $cuentaId;
     }
 
     public static function aprobarPagoVerificado(mysqli $conn, int $ventaId): array

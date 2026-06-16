@@ -106,8 +106,9 @@ switch ($action) {
                     $modTxt .= ' (' . number_format((float) $row['porcentaje_pago_minimo'], 0) . '% mín.)';
                 }
                 $html .= '<td>' . htmlspecialchars($modTxt) . '</td>';
+                $html .= '<td nowrap>' . htmlspecialchars($fechaFormateada) . '</td>';
                 $html .= "<td style='font-weight:bold; color:#005bbe;'>$" . $totalFormateado . "</td>";
-                $html .= '<td><span class="badge ' . $estCls . '">' . htmlspecialchars($estTxt) . '</span></td>';
+                $html .= '<td><span style="' . $estadoStyle . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 $codigoEsc = htmlspecialchars($row['codigo_cotizacion'], ENT_QUOTES, 'UTF-8');
                 $btnEliminar = '';
                 if (in_array($st, [1, 3], true)) {
@@ -132,7 +133,7 @@ switch ($action) {
                 $html .= '</tr>';
             }
         } else {
-            $html = "<tr><td colspan='6' style='text-align:center;'>No hay cotizaciones disponibles.</td></tr>";
+            $html = "<tr><td colspan='8' style='text-align:center;'>No hay cotizaciones disponibles.</td></tr>";
         }
 
         echo $html;
