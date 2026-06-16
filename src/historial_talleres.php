@@ -2,6 +2,15 @@
 require_once "../template/header.php";
 require_once "../connection/connection.php";
 require_once "../template/navbar.php";
+
+// Obtenemos los talleres disponibles para el filtro desplegable
+$talleres_disponibles = [];
+$resTalleres = $conn->query("SELECT id, nombre FROM talleres ORDER BY nombre ASC");
+if ($resTalleres) {
+    while ($t = $resTalleres->fetch_assoc()) {
+        $talleres_disponibles[] = $t;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -9,14 +18,14 @@ require_once "../template/navbar.php";
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historial de movimientos</title>
+    <title>Historial de Movimientos en Talleres</title>
     <link rel="stylesheet" href="../css/movimientos_inventario.css">
 </head>
 <body>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Historial de Movimientos</h2>
+                <h2 class="main-title">Historial de Talleres Externos</h2>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
                         <div class="row form-group">
@@ -28,28 +37,28 @@ require_once "../template/navbar.php";
                                 </div>
                             </div>
                         </div>
-                        <p class="text-muted">Todos los movimientos registrados en inventario (insumos y productos terminados).</p>
 
                         <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
                             <div class="row" style="margin-bottom: 10px;">
                                 <div class="col-sm-4">
-                                    <label for="filtro-item">Producto / Insumo</label>
-                                    <input type="text" id="filtro-item" class="form-control clase-filtro" placeholder="Buscar por nombre...">
-                                </div>
-                                <div class="col-sm-4">
-                                    <label for="filtro-tipo-item">Tipo de Ítem</label>
-                                    <select id="filtro-tipo-item" class="form-control clase-filtro">
-                                        <option value="">Todos</option>
-                                        <option value="insumo">Insumo</option>
-                                        <option value="producto">Producto</option>
+                                    <label for="filtro-taller">Taller Destino</label>
+                                    <select id="filtro-taller" class="form-control clase-filtro">
+                                        <option value=""> Todos los Talleres </option>
+                                        <?php foreach($talleres_disponibles as $taller): ?>
+                                            <option value="<?php echo $taller['id']; ?>"><?php echo htmlspecialchars($taller['nombre']); ?></option>
+                                        <?php endforeach; ?>
                                     </select>
                                 </div>
                                 <div class="col-sm-4">
-                                    <label for="filtro-tipo-movimiento">Movimiento</label>
-                                    <select id="filtro-tipo-movimiento" class="form-control clase-filtro">
+                                    <label for="filtro-orden">N° Orden de Producción</label>
+                                    <input type="number" id="filtro-orden" class="form-control clase-filtro">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-estatus">Estatus en Tránsito</label>
+                                    <select id="filtro-estatus" class="form-control clase-filtro">
                                         <option value="">Todos</option>
-                                        <option value="entrada">Entrada</option>
-                                        <option value="salida">Salida</option>
+                                        <option value="afuera">En Taller (Afuera)</option>
+                                        <option value="recibido">Recibido (En Planta)</option>
                                     </select>
                                 </div>
                             </div>
@@ -75,20 +84,19 @@ require_once "../template/navbar.php";
                                 <thead>
                                     <tr>
                                         <th style="width: 1%;">#</th>
-                                        <th style="width: 14%;">Fecha</th>
-                                        <th style="width: 10%;" nowrap>Tipo ítem</th>
-                                        <th style="width: 25%;">Ítem</th>
-                                        <th style="width: 12%; text-align: center;" nowrap>Último Mov.</th>
-                                        <th style="width: 13%; text-align: center;" nowrap>Origen Mov.</th>
-                                        <th style="width: 10%;">Cantidad</th>
-                                        <th style="width: 15%;">Observaciones</th>
+                                        <th style="width: 8%;" nowrap>N° Orden</th>
+                                        <th style="width: 18%;">Taller</th>
+                                        <th style="width: 14%;">Fecha Despacho</th>
+                                        <th style="width: 14%;">Fecha Retorno</th>
+                                        <th style="width: 15%; text-align: center;">Estatus Tránsito</th>
+                                        <th style="width: 30%;">Especificaciones / Observaciones</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tbody-historial">
+                                <tbody id="tbody-historial-talleres">
                                 </tbody>
                             </table>
                         </div>
-                        <div id="paginacion-historial"></div>
+                        <div id="paginacion-historial-talleres"></div>
                     </div>
                 </div>
             </div>
@@ -96,45 +104,49 @@ require_once "../template/navbar.php";
     </div>
 
 <script>
-function cargarHistorial(page) {
+function cargarHistorialTalleres(page) {
     let params = { 
         action: 'listar_html',
-        buscar_item: $('#filtro-item').val(),
-        tipo_item: $('#filtro-tipo-item').val(),
-        tipo_movimiento: $('#filtro-tipo-movimiento').val(),
+        taller_id: $('#filtro-taller').val(),
+        orden_id: $('#filtro-orden').val(),
+        estatus_transito: $('#filtro-estatus').val(),
         fecha_desde: $('#filtro-desde').val(),
         fecha_hasta: $('#filtro-hasta').val()
     };
 
+    // Reutiliza tu función global de peticiones paginadas
     crudPostListadoPaginado(
-        'historial_movimientos_data.php',
+        'historial_talleres_data.php',
         params,
-        '#tbody-historial',
-        '#paginacion-historial',
+        '#tbody-historial-talleres',
+        '#paginacion-historial-talleres',
         page || 1
     );
 }
 
 $(function() {
+    // Inicialización del listado
+    cargarHistorialTalleres(1);
+    bindCrudPagination('#paginacion-historial-talleres', cargarHistorialTalleres);
 
-    cargarHistorial(1);
-    bindCrudPagination('#paginacion-historial', cargarHistorial);
-
+    // Animación de filtros
     $('#btn-toggle-filtros').on('click', function() {
         $('#panel-filtros').slideToggle(200);
     });
 
+    // Filtros en tiempo real
     $('.clase-filtro').on('keyup change', function() {
-        cargarHistorial(1);
+        cargarHistorialTalleres(1);
     });
 
+    // Limpiador del formulario
     $('#btn-limpiar-filtros').on('click', function() {
-        $('#filtro-item').val('');
-        $('#filtro-tipo-item').val('');
-        $('#filtro-tipo-movimiento').val('');
+        $('#filtro-taller').val('');
+        $('#filtro-orden').val('');
+        $('#filtro-estatus').val('');
         $('#filtro-desde').val('');
         $('#filtro-hasta').val('');
-        cargarHistorial(1);
+        cargarHistorialTalleres(1);
     });
 });
 </script>

@@ -117,7 +117,7 @@ switch ($action) {
                         data-codigo='" . $codigoEsc . "'
                         title='Eliminar cotización'
                         style='margin-left:5px;'>
-                        <i class='fas fa-trash'></i> Eliminar
+                        <i class='fas fa-trash'></i>
                     </button>";
                 }
 
@@ -125,10 +125,8 @@ switch ($action) {
                             <a href='../formatos/ver_cotizacion.php?id=" . $row['id_cotizacion'] . "' target='_blank' class='btn btn-sm btn-info' title='Imprimir'>
                                 <i class='fas fa-print'></i>
                             </a>
-                            <button class='btn btn-sm btn-primary' onclick='verDetalles($datosJson)' title='Ver Detalles' style='background:#005bbe; border:none; color:white; padding:5px 10px; border-radius:3px; cursor:pointer; margin-left:5px;'>
-                                Editar
-                            </button>
                             " . $btnEliminar . "
+                            " . $botonEditar . "
                         </td>";
                 $html .= '</tr>';
             }

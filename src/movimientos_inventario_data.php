@@ -180,11 +180,11 @@ try {
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['insumo_nombre'] . ' (' . $inv['unidad_medida'] . ')') . '</td>';
                     echo '<td>' . htmlspecialchars($inv['almacen_nombre'] ?? '—') . '</td>';
-                    echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
+                    echo '<td style="text-align: right;">' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
                     $min = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null ? number_format((float) $inv['stock_minimo'], 2, '.', ',') : '—';
                     $max = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null ? number_format((float) $inv['stock_maximo'], 2, '.', ',') : '—';
-                    echo '<td>' . $min . '</td>';
-                    echo '<td>' . $max . '</td>';
+                    echo '<td style="text-align: right;">' . $min . '</td>';
+                    echo '<td style="text-align: right;">' . $max . '</td>';
                     echo '</tr>';
                 }
             } else {
@@ -281,12 +281,12 @@ try {
                     echo '<td>' . htmlspecialchars($inv['fecha_actualizacion']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['producto_nombre']) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['rango_tallas_nombre']) . '</td>';
-                    echo '<td>' . htmlspecialchars($inv['tipo_produccion_nombre']) . '</td>';
-                    echo '<td>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
+                    // echo '<td>' . htmlspecialchars($inv['tipo_produccion_nombre']) . '</td>';
+                    echo '<td style="text-align: right;>' . mov_inv_html_stock_actual_celda($inv['stock_actual'] ?? 0, $inv['stock_minimo'] ?? null, $inv['stock_maximo'] ?? null) . '</td>';
                     $minReceta = isset($inv['stock_minimo']) && $inv['stock_minimo'] !== null && $inv['stock_minimo'] !== '' ? number_format((float) $inv['stock_minimo'], 2, '.', ',') : '—';
                     $maxReceta = isset($inv['stock_maximo']) && $inv['stock_maximo'] !== null && $inv['stock_maximo'] !== '' ? number_format((float) $inv['stock_maximo'], 2, '.', ',') : '—';
-                    echo '<td>' . htmlspecialchars($minReceta) . '</td>';
-                    echo '<td>' . htmlspecialchars($maxReceta) . '</td>';
+                    echo '<td style="text-align: right;>' . htmlspecialchars($minReceta) . '</td>';
+                    echo '<td style="text-align: right;>' . htmlspecialchars($maxReceta) . '</td>';
                     echo '<td>' . htmlspecialchars($inv['almacen_nombre'] ?? '—') . '</td>';
                     echo '</tr>';
                 }
