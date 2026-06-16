@@ -15,26 +15,33 @@ require_once "../connection/connection.php";
     <div class="container-wrapper">
         <div class="container-inner">
             <h2 class="main-title">Registrar Categoría</h2>
-
-            <!-- <div class="row mb-3">
-                <div class="col-md-12">
-                    <button class="btn btn-success" onclick="mostrarVista('crear');limpiarFormulario();">
-                        Registrar Nueva Categoría
-                    </button>
-                </div>
-            </div> -->
-
             <div id="contenedor-vistas">
                 <div id="vista-listado">
                     <div class="row form-group">
-                        <div class="col-sm-4">
-                            <button class="btn btn-success" id="btn-ir-crear">
-                                <i class="fas fa-plus"></i> Crear Categoria
-                            </button>
+                        <div class="col-sm-12">
+                            <div aria-label="Acciones de Categorías">
+                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Categoría" data-toggle="tooltip">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Categorías" data-toggle="tooltip">
+                                    <i class="fas fa-filter"></i>
+                                </button>
+                            </div>
                         </div>
-                        <!-- <div class="col-sm-8">
-                            <h5 style="color: #0056b3; margin-bottom: 15px;">Lista de Categorías</h5>
-                        </div> -->
+                    </div>
+
+                    <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <label for="filtro-nombre">Buscar Categoría</label>
+                                <input type="text" id="filtro-nombre" class="form-control clase-filtro-categoria" placeholder="Buscar por nombre o descripción de la categoría...">
+                            </div>
+                            <div class="col-sm-4" style="margin-top: 25px;">
+                                <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-cat">
+                                    <i class="fas fa-eraser"></i> Limpiar Filtros
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table class="recipe-table">
@@ -120,10 +127,19 @@ function mostrarVista(vista) {
     document.getElementById('vista-' + vista).classList.remove('hidden');
 }
 
+// Variable global para el delay del teclado
+var temporizadorBusquedaCategorias;
+
 function cargarListado(page) {
+    // ENVIAMOS EL PARÁMETRO DE BÚSQUEDA AL BACKEND
+    var params = { 
+        action: 'listar_html',
+        buscar: $('#filtro-nombre').val()
+    };
+
     crudPostListadoPaginado(
         'registrar_categoria_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-categorias',
         page || 1
@@ -206,6 +222,29 @@ $(document).ready(function(){
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-categorias', cargarListado);
+
+    // Alternar visibilidad del panel
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    // Escucha del teclado con Debounce de 350ms
+    $('.clase-filtro-categoria').on('change keyup', function(e) {
+        if (e.type === 'change') {
+            cargarListado(1);
+            return;
+        }
+        clearTimeout(temporizadorBusquedaCategorias);
+        temporizadorBusquedaCategorias = setTimeout(function() {
+            cargarListado(1);
+        }, 350);
+    });
+
+    // Botón para restaurar el listado
+    $('#btn-limpiar-filtros-cat').on('click', function() {
+        $('#filtro-nombre').val('');
+        cargarListado(1);
+    });
 });
 </script>
 

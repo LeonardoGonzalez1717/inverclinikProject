@@ -3,22 +3,25 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 260px;
-  height: 100vh; /* Cambiamos 100% por 100vh para asegurar el alto de pantalla */
+  width: 65px;
+  height: 100vh;
   background: linear-gradient(to bottom, #005bbe, #003a7e);
   color: #fff;
-  padding: 20px;
+  padding: 20px 10px;
   box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  
-  /* === ESTO ARREGLA EL SCROLL === */
-  overflow-y: auto;  /* Permite scroll vertical si el contenido excede el alto */
-  overflow-x: hidden; /* Evita que aparezca scroll horizontal */
-  /* justify-content:flex-start ; */
+  overflow: hidden; 
+  z-index: 1000;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease;
 }
 
-/* Opcional: Para que la barra de scroll no se vea fea (estilo moderno) */
+/* === ESTADO EXPANDIDO=== */
+.sidebar:hover {
+  width: 260px; 
+  padding: 20px; 
+}
+
 .sidebar::-webkit-scrollbar {
   width: 5px;
 }
@@ -27,28 +30,54 @@
   border-radius: 10px;
 }
 
-/* === LOGO === */
 .logo {
   text-align: center;
   margin-bottom: 30px;
+  white-space: nowrap; 
 }
 
 .logo a {
-  font-size: 1.8em; /* antes 1.6em */
+  font-size: 1.6em;
   font-weight: bold;
   color: #ffffff;
   text-decoration: none;
   display: inline-block;
+  transition: font-size 0.3s ease;
+}
+
+.sidebar:not(:hover) .logo a {
+  font-size: 1.1em; 
+}
+
+/* === CONTENEDOR DE NAVEGACIÓN === */
+nav {
+  flex: 1;           
+  overflow-y: auto;   
+  overflow-x: hidden;
+  padding-right: 5px; 
+  transition: padding 0.3s ease;
+}
+
+.sidebar:not(:hover) nav::-webkit-scrollbar {
+  width: 0px;
+}
+
+nav::-webkit-scrollbar {
+  width: 5px;
+}
+nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 nav ul {
   list-style: none;
   padding: 0;
-  /* margin-top: 30px; */
 }
 
 nav ul li {
   margin-bottom: 15px;
+  white-space: nowrap;
 }
 
 nav ul li a {
@@ -59,7 +88,7 @@ nav ul li a {
   display: block;
   border-radius: 4px;
   font-size: 1.1em;
-  transition: background-color 0.3s, color 0.3s;
+  transition: background-color 0.3s, color 0.3s, text-align 0.3s, padding 0.3s;
 }
 
 nav ul li a:hover {
@@ -67,7 +96,54 @@ nav ul li a:hover {
   color: #f3c924;
 }
 
-/* === DROPDOWN === */
+/* === CONTROL DE ÍCONOS Y TEXTOS === */
+
+nav ul li a i, 
+.collapsible-toggle i,
+.perfil button i,
+.logout-btn i {
+  margin-right: 12px;
+  font-size: 1.2em;
+  display: inline-block;
+  width: 20px;
+  text-align: center;
+  transition: margin 0.3s ease;
+}
+
+.sidebar:not(:hover) nav ul li a span,
+.sidebar:not(:hover) .collapsible-toggle span,
+.sidebar:not(:hover) .perfil button span,
+.sidebar:not(:hover) .logout-btn span,
+.sidebar:not(:hover) .logo a span {
+  opacity: 0;
+  display: none;
+}
+
+.sidebar:not(:hover) nav ul li a i,
+.sidebar:not(:hover) .collapsible-toggle i,
+.sidebar:not(:hover) .perfil button i,
+.sidebar:not(:hover) .logout-btn i {
+  margin-right: 0; 
+}
+
+.sidebar:not(:hover) .collapsible-toggle,
+.sidebar:not(:hover) .logout-btn,
+.sidebar:not(:hover) .perfil button {
+  text-align: center;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.sidebar:not(:hover) nav ul li a {
+  text-align: center;
+  padding: 10px;
+}
+
+.sidebar:not(:hover) .collapsible-content li {
+  padding-left: 0;
+}
+
+/* === DROPDOWN (COLAPSABLES) === */
 .collapsible-toggle {
   background-color: transparent;
   color: #ffffff;
@@ -77,20 +153,25 @@ nav ul li a:hover {
   font-size: 1em;
   border-radius: 4px;
   cursor: pointer;
-  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s, padding 0.3s, text-align 0.3s;
   position: relative;
   text-align: left;
   padding-right: 35px;
+  white-space: nowrap; /* Mantiene el texto del botón en una sola línea */
 }
 
 .collapsible-toggle::after {
   content: '▼';
   position: absolute;
-  right: 10px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%) rotate(0deg);
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, opacity 0.2s ease;
   font-size: 0.8em;
+}
+
+.sidebar:not(:hover) .collapsible-toggle::after {
+  opacity: 0;
 }
 
 .collapsible.open .collapsible-toggle::after {
@@ -113,11 +194,14 @@ nav ul li a:hover {
 }
 
 .collapsible.open .collapsible-content {
-  max-height: 500px;
+  max-height: 600px;
 }
+
 .collapsible-content li {
   padding-left: 20px;
+  transition: padding 0.3s ease;
 }
+
 .collapsible-content li a {
   background-color: transparent;
   color: #ffffff;
@@ -128,7 +212,7 @@ nav ul li a:hover {
   text-decoration: none;
   display: block;
   margin-top: 8px;
-  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s, padding 0.3s;
 }
 
 .collapsible-content li a:hover {
@@ -137,29 +221,37 @@ nav ul li a:hover {
   border-color: #f3c924;
 }
 
-/* === BOTONES DE PERFIL === */
+/* === BOTONES DE PERFIL Y LOGOUT === */
 .perfil {
-  margin-top: auto;
+  margin-top: 15px; 
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1); /* Línea sutil divisoria */
   display: flex;
   flex-direction: column;
   gap: 10px;
+  background: transparent;
+  white-space: nowrap; /* Evita saltos de línea extraños en los botones del pie */
 }
 
-.perfil button {
+.perfil button, .logout-btn {
   background-color: transparent;
   color: #ffffff;
   border: 1px solid #ffffff;
   padding: 10px;
-  margin-top: 5px;
   cursor: pointer;
   width: 100%;
   font-size: 1em;
   border-radius: 4px;
-  transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+  transition: background-color 0.3s, color 0.3s, border-color 0.3s, padding 0.3s, text-align 0.3s;
+  text-align: left; /* Alineación limpia para el modo abierto */
 }
 
-.perfil button:hover {
-  background-color: rgba(243, 201, 36, 0.2);
-  color: #f3c924;
-  border-color: #f3c924;
+.logout-btn:hover {
+  background-color: rgba(243, 36, 36, 0.2);
+  color: #ee0000;
+  border-color: #ff0000;
+}
+
+.logout-btn {
+  margin-top: 5px;
 }

@@ -88,6 +88,41 @@ try {
             }
         }
 
+        $buscar_producto = isset($_POST['buscar_producto']) ? trim($_POST['buscar_producto']) : '';
+        $buscar_talla    = isset($_POST['buscar_talla']) ? trim($_POST['buscar_talla']) : '';
+        $buscar_almacen  = isset($_POST['buscar_almacen']) ? trim($_POST['buscar_almacen']) : '';
+        $fecha_desde     = isset($_POST['fecha_desde']) ? trim($_POST['fecha_desde']) : '';
+        $fecha_hasta     = isset($_POST['fecha_hasta']) ? trim($_POST['fecha_hasta']) : '';
+
+        $where = [];
+
+        if ($buscar_producto !== '') {
+            $prodEscaped = $conn->real_escape_string($buscar_producto);
+            $where[] = "p.nombre LIKE '%$prodEscaped%'";
+        }
+
+        if ($buscar_talla !== '') {
+            $tallaEscaped = $conn->real_escape_string($buscar_talla);
+            $where[] = "rt.nombre_rango LIKE '%$tallaEscaped%'";
+        }
+
+        if ($buscar_almacen !== '') {
+            $almacenEscaped = $conn->real_escape_string($buscar_almacen);
+            $where[] = "a.nombre LIKE '%$almacenEscaped%'";
+        }
+
+        if ($fecha_desde !== '') {
+            $desdeEscaped = $conn->real_escape_string($fecha_desde);
+            $where[] = "DATE(r.creado_en) >= '$desdeEscaped'";
+        }
+
+        if ($fecha_hasta !== '') {
+            $hastaEscaped = $conn->real_escape_string($fecha_hasta);
+            $where[] = "DATE(r.creado_en) <= '$hastaEscaped'";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
         // Migrar datos si la tabla está vacía
         $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
         $row = $checkRecetas->fetch_assoc();
@@ -161,7 +196,6 @@ try {
                 echo '<td>' .$i. '</td>';
                 echo '<td>' . htmlspecialchars($r['producto_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['rango_tallas_nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($r['tipo_produccion_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($r['almacen_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($r['cantidad_insumos']) . '</td>';
                 echo '<td>$' . number_format($r['costo_total'] ?? 0, 2, '.', ',') . '</td>';

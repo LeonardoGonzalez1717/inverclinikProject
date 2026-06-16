@@ -17,10 +17,19 @@ body {
   height: 100vh;
 }
 
-/* Panel principal */
+/* Panel principal adaptativo */
 .main-content {
-  margin-left: 240px;
+  margin-left: 65px; /* 1. Por defecto toma el espacio de la barra delgada */
   padding: 30px;
+  
+  /* 2. Sincroniza la animación con el mismo tiempo y suavidad que el navbar */
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+}
+
+/* 3. Cuando el mouse se pose sobre la barra, empujamos el contenido */
+.sidebar:hover ~ .main-content,
+.sidebar:hover + .main-content {
+  margin-left: 260px; /* Espacio exacto de la barra abierta */
 }
 
 /* Panel de alertas */

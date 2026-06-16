@@ -16,31 +16,56 @@ if (empty($action)) {
 
 try {
     if ($action === 'listar_html') {
-        $total = (int) ($conn->query('SELECT COUNT(*) AS c FROM almacenes')->fetch_assoc()['c'] ?? 0);
+        $buscar = isset($_POST['buscar']) ? trim($_POST['buscar']) : '';
+        $activo = isset($_POST['activo']) ? trim($_POST['activo']) : '';
+
+        $where = [];
+
+        if ($buscar !== '') {
+            $buscarEscaped = $conn->real_escape_string($buscar);
+            $where[] = "(nombre LIKE '%$buscarEscaped%' OR codigo LIKE '%$buscarEscaped%')";
+        }
+
+        if ($activo !== '') {
+            $activoEscaped = (int)$activo;
+            $where[] = "activo = $activoEscaped";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM almacenes" . $fil)->fetch_assoc()['c'] ?? 0);
         $pg = Pagination::fromInput($total, $_POST);
-        $sql = 'SELECT id, nombre, codigo, activo FROM almacenes ORDER BY nombre ASC' . $pg->limitClause();
+        
+        $sql = "SELECT id, nombre, codigo, activo FROM almacenes" . $fil . " ORDER BY nombre ASC" . $pg->limitClause();
         $result = $conn->query($sql);
 
         ob_start();
         if ($result && $result->num_rows > 0) {
+            $i = $pg->rowNumberStart() - 1;
             while ($row = $result->fetch_assoc()) {
-                $act = !empty($row['activo']) ? 'Sí' : 'No';
-                $cod = $row['codigo'] !== null && $row['codigo'] !== '' ? htmlspecialchars($row['codigo']) : '—';
+                $i++;
+                $cod = ($row['codigo'] !== null && $row['codigo'] !== '') ? htmlspecialchars($row['codigo']) : '—';
+                
+                $estadoBadge = !empty($row['activo']) 
+                    ? '<span style="padding: 4px 8px; background-color: #28a745; color: #fff; border-radius: 15px;">Activo</span>' 
+                    : '<span style="padding: 4px 8px; background-color: #dc3545; color: #fff; border-radius: 15px;">Inactivo</span>';
+
                 $onclick = 'editarAlmacen('
                     . (int) $row['id'] . ', '
                     . json_encode($row['nombre'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ', '
                     . json_encode($row['codigo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) . ', '
                     . (!empty($row['activo']) ? 1 : 0)
                     . ')';
+                    
                 echo '<tr>';
-                echo '<td>' . (int) $row['id'] . '</td>';
-                echo '<td>' . htmlspecialchars($row['nombre']) . '</td>';
+                echo '<td>' . $i . '</td>';
+                echo '<td><strong>' . htmlspecialchars($row['nombre']) . '</strong></td>';
                 echo '<td>' . $cod . '</td>';
-                // echo '<td>' . $act . '</td>';
-                echo '<td>'
-                    . '<button type="button" class="btn btn-sm btn-primary" onclick=\'' . $onclick . '\'>Editar</button> '
-                    . '<button type="button" class="btn btn-sm btn-danger" onclick="eliminarAlmacen(' . (int) $row['id'] . ')">Eliminar</button>'
-                    . '</td>';
+                echo '<td>' . $estadoBadge . '</td>';
+                echo '<td>';
+                echo '  <button type="button" class="btn btn-sm btn-primary" title="Editar" onclick=\'' . $onclick . '\'><i class="fas fa-edit"></i></button> ';
+                echo '  <button type="button" class="btn btn-sm btn-danger" title="Eliminar" onclick="eliminarAlmacen(' . (int) $row['id'] . ')"><i class="fas fa-trash"></i></button>';
+                echo '</td>';
                 echo '</tr>';
             }
         } else {

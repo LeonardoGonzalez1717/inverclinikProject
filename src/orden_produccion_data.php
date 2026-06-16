@@ -141,6 +141,32 @@ $action = $_POST['action'] ?? '';
 try {
     if ($action === 'listar_html') {
 
+        $buscar_producto  = isset($_POST['buscar_producto']) ? $conn->real_escape_string(trim($_POST['buscar_producto'])) : '';
+        $buscar_categoria = isset($_POST['buscar_categoria']) ? $conn->real_escape_string(trim($_POST['buscar_categoria'])) : '';
+        $buscar_estado    = isset($_POST['buscar_estado']) ? $conn->real_escape_string(trim($_POST['buscar_estado'])) : '';
+        $fecha_desde      = isset($_POST['fecha_desde']) ? $conn->real_escape_string(trim($_POST['fecha_desde'])) : '';
+        $fecha_hasta      = isset($_POST['fecha_hasta']) ? $conn->real_escape_string(trim($_POST['fecha_hasta'])) : '';
+
+        $where = [];
+
+        if ($buscar_producto !== '') {
+            $where[] = "p.nombre LIKE '%$buscar_producto%'";
+        }
+        if ($buscar_categoria !== '') {
+            $where[] = "p.categoria = '$buscar_categoria'";
+        }
+        if ($buscar_estado !== '') {
+            $where[] = "op.estado = '$buscar_estado'";
+        }
+        if ($fecha_desde !== '') {
+            $where[] = "op.fecha_inicio >= '$fecha_desde'";
+        }
+        if ($fecha_hasta !== '') {
+            $where[] = "op.fecha_inicio <= '$fecha_hasta'";
+        }
+
+        $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
+
         $sqlBase = "
             SELECT 
                 op.id AS orden_id,
@@ -172,6 +198,7 @@ try {
                 AND rp2.rango_tallas_id = rp.rango_tallas_id 
                 AND rp2.tipo_produccion_id = rp.tipo_produccion_id
             LEFT JOIN insumos i ON rp2.insumo_id = i.id
+            $fil
             GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, op.talla_id, t.nombre, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
         ";
 
@@ -210,18 +237,20 @@ try {
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($o['talla_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
-                echo '<td>' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
-                echo '<td>$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
-                echo '<td style="font-weight: bold; color: #0056b3;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
+                echo '<td style="text-align: right;">' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
+                echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
+                echo '<td style="font-weight: bold;text-align:right;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
                 echo '<td>' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
                 $estadoHtml = '<span style="' . $estadoStyle . '">' . htmlspecialchars($o['estado']) . '</span>';
                 $btnFinalizar = '';
+                $btneditar = '';
                 if ($o['estado'] !== 'finalizado') {
-                    $btnFinalizar = ' <button class="btn btn-sm btn-success" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')">Orden Finalizada</button>';
+                    $btnFinalizar = ' <button class="btn btn-sm btn-success" title="Finalizar Orden de Producción" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')" style="margin-bottom: 0px !important;"><i class="fas fa-check-double"></i></button>';
+                    $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
                 }
                 echo '<td>' . $estadoHtml . '</td>';
-                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;"><button class="btn btn-sm btn-primary" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')">Editar</button>' . $btnFinalizar . '</div></td>';
+                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btneditar . $btnFinalizar . '</div></td>';
                 echo '</tr>';
             }
         } else {

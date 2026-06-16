@@ -62,14 +62,55 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
 
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
-                        <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Nueva Compra
-                                </button>
+                        <div class="row form-group">
+                            <div class="col-sm-12">
+                                <div aria-label="Acciones de compras">
+                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Compra" data-toggle="tooltip">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        <!-- <h5 class="subtitle">Lista de Compras</h5> -->
+
+                        <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
+                            <div class="row" style="margin-bottom: 10px;">
+                                <div class="col-sm-4">
+                                    <label for="filtro-proveedor">Proveedor</label>
+                                    <input type="text" id="filtro-proveedor" class="form-control clase-filtro-compra" placeholder="Buscar por proveedor o RIF...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-factura">Nro. Factura</label>
+                                    <input type="text" id="filtro-factura" class="form-control clase-filtro-compra" placeholder="Buscar Nro. Factura...">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-estado">Estado de Compra</label>
+                                    <select id="filtro-estado" class="form-control clase-filtro-compra">
+                                        <option value="">Todos</option>
+                                        <option value="pendiente">Pendiente</option>
+                                        <option value="recibido">Recibido</option>
+                                        <option value="cancelado">Cancelado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-sm-4">
+                                    <label for="filtro-desde">Fecha Desde</label>
+                                    <input type="date" id="filtro-desde" class="form-control clase-filtro-compra">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="filtro-hasta">Fecha Hasta</label>
+                                    <input type="date" id="filtro-hasta" class="form-control clase-filtro-compra">
+                                </div>
+                                <div class="col-sm-4" style="margin-top: 25px;">
+                                    <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-compra">
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div class="table-container">
                             <table class="recipe-table">
                                 <thead>
@@ -77,7 +118,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>#</th>
                                         <th>Proveedor</th>
                                         <th>Fecha</th>
-                                        <th>Número Factura</th>
+                                        <th>Nro. Factura</th>
                                         <th>Cantidad</th>
                                         <th>Total</th>
                                         <th>Total Bs.</th>
@@ -260,9 +301,18 @@ function mostrarVista(vista) {
 }
 
 function cargarListado(page) {
+    var params = { 
+        action: 'listar_html',
+        buscar_proveedor: $('#filtro-proveedor').val(),
+        buscar_factura: $('#filtro-factura').val(),
+        estado: $('#filtro-estado').val(),
+        fecha_desde: $('#filtro-desde').val(),
+        fecha_hasta: $('#filtro-hasta').val()
+    };
+
     crudPostListadoPaginado(
         'registrar_compra_data.php',
-        { action: 'listar_html' },
+        params,
         '#vista-listado tbody',
         '#paginacion-compras',
         page || 1
@@ -485,6 +535,27 @@ document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-compras', cargarListado);
+
+    
+    // DENTRO DE TU document.addEventListener('DOMContentLoaded', function() { ... }) AGREGA ESTO:
+    $('#btn-toggle-filtros').on('click', function() {
+        $('#panel-filtros').slideToggle(200);
+    });
+
+    // Escuchar cambios en los filtros para recargar al escribir o seleccionar
+    $('.clase-filtro-compra').on('change keyup', function(e) {
+        if (e.type === 'keyup' && e.key !== 'Enter') return; // Que busque al dar Enter o al cambiar select/dates
+        cargarListado(1);
+    });
+
+    $('#btn-limpiar-filtros-compra').on('click', function() {
+        $('#filtro-proveedor').val('');
+        $('#filtro-factura').val('');
+        $('#filtro-estado').val('');
+        $('#filtro-desde').val('');
+        $('#filtro-hasta').val('');
+        cargarListado(1);
+    });
     
     $('#proveedor_id').on('change', function() {
         var proveedorId = $(this).val();
