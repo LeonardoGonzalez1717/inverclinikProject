@@ -168,8 +168,11 @@ switch ($action) {
             );
 
             $mensaje = 'Abono registrado correctamente.';
-            if ((float) ($info['saldo_pendiente'] ?? 0) <= 0.009) {
+            $saldoRestante = (float) ($info['saldo_pendiente'] ?? 0);
+            if ($saldoRestante <= 0.009) {
                 $mensaje .= ' La cuenta quedó pagada y la venta fue marcada como aprobada.';
+            } else {
+                $mensaje .= ' Saldo pendiente: $' . number_format($saldoRestante, 2, '.', ',') . '.';
             }
 
             echo json_encode([

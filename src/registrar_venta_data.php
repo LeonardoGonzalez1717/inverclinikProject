@@ -629,7 +629,7 @@ try {
         }
 
         $chk = $conn->prepare(
-            'SELECT id_cliente, comprobante_referencia, comprobante_archivo,
+            'SELECT id_cliente, comprobante_referencia, comprobante_archivo, comprobante_monto,
              forma_pago_id,
              DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
@@ -690,6 +690,7 @@ try {
         $archivoCorto = $nomArch !== '' ? basename(str_replace('\\', '/', $nomArch)) : '';
 
         $fpId = isset($cinfo['forma_pago_id']) ? (int) $cinfo['forma_pago_id'] : 0;
+        $montoComp = isset($cinfo['comprobante_monto']) ? (float) $cinfo['comprobante_monto'] : null;
 
         echo json_encode([
             'success' => true,
@@ -697,6 +698,7 @@ try {
             'productos' => $productos,
             'tiene_comprobante' => $tiene_comprobante,
             'forma_pago_id' => $fpId > 0 ? $fpId : null,
+            'comprobante_monto' => ($montoComp !== null && $montoComp > 0) ? $montoComp : null,
             'comprobante_referencia' => $refComp,
             'tiene_archivo_comprobante' => $nomArch !== '',
             'comprobante_archivo_nombre' => $archivoCorto,
@@ -1147,6 +1149,19 @@ try {
             $precio_unitario = floatval($producto['precio_unitario'] ?? 0);
             $total += $cantidad * $precio_unitario;
         }
+        $total = round($total, 2);
+
+        $monto_pagado = array_key_exists('monto_pagado', $data)
+            ? round((float) $data['monto_pagado'], 2)
+            : $total;
+        if ($monto_pagado < 0) {
+            throw new Exception('El monto pagado no puede ser negativo.');
+        }
+        if ($monto_pagado > $total + 0.009) {
+            throw new Exception('El monto pagado no puede superar el total de la venta.');
+        }
+        $pagoCompleto = $monto_pagado >= $total - 0.009;
+        $pagoParcial = !$pagoCompleto;
 
         $tasa_cambiaria_id = null;
         $rt = $conn->query("SELECT id FROM tasas_cambiarias ORDER BY fecha_hora DESC LIMIT 1");
@@ -1192,7 +1207,11 @@ try {
 
             $estado_venta = $ventaConOrdenesSinStock
                 ? 'en_proceso'
-                : (($comprobante_ref_input !== '') ? 'aprobado' : 'por_pagar');
+                : (
+                    $pagoParcial
+                        ? 'por_pagar'
+                        : (($comprobante_ref_input !== '' || $pagoCompleto) ? 'aprobado' : 'por_pagar')
+                );
 
             if ($cotizacion_id) {
                 $colTasa = $conn->query("SHOW COLUMNS FROM ventas LIKE 'tasa_cambiaria_id'");
@@ -1346,6 +1365,20 @@ try {
 
             $stmtDetalle->close();
 
+            $cuentaId = null;
+            if ($pagoParcial) {
+                $cuentaId = CuentasPorCobrar::crearCuentaPorCobrarDesdeVentaAdmin(
+                    $conn,
+                    (int) $venta_id,
+                    (int) $cliente_id,
+                    $cotizacion_id,
+                    $total,
+                    $monto_pagado,
+                    $forma_pago_id,
+                    $comprobante_ref_input
+                );
+            }
+
             if ($cotizacion_id && !$ventaConOrdenesSinStock) {
                 $statusAprobada = 2;
                 $stUpCot = $conn->prepare('UPDATE cotizaciones SET status = ? WHERE id_cotizacion = ?');
@@ -1375,11 +1408,21 @@ try {
                 )
                 : 'Venta registrada exitosamente';
 
+            if ($cuentaId) {
+                $saldoCxC = round(max(0, $total - $monto_pagado), 2);
+                $msgOk .= ' Se generó la cuenta por cobrar #' . $cuentaId
+                    . ' con saldo pendiente de $' . number_format($saldoCxC, 2, '.', ',') . '.';
+            }
+
             $respOk = [
                 'success' => true,
                 'message' => $msgOk,
                 'venta_id' => $venta_id,
             ];
+            if ($cuentaId) {
+                $respOk['cuenta_por_cobrar_id'] = $cuentaId;
+                $respOk['saldo_pendiente'] = round(max(0, $total - $monto_pagado), 2);
+            }
             if ($ventaConOrdenesSinStock) {
                 $respOk['code'] = 'VENTA_EN_PROCESO_CON_ORDENES';
                 $respOk['ordenes_produccion_ids'] = $idsOp;

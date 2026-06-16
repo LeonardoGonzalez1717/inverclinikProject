@@ -85,14 +85,15 @@ if ($rfp) {
                         <select id="abono-forma-pago" class="form-control" required>
                             <option value="">Seleccione...</option>
                             <?php foreach ($formasPago as $fp) { ?>
-                                <option value="<?php echo (int) $fp['id']; ?>">
+                                <?php $nombreNorm = strtolower(trim((string) ($fp['nombre'] ?? ''))); ?>
+                                <option value="<?php echo (int) $fp['id']; ?>" data-forma="<?php echo htmlspecialchars($nombreNorm, ENT_QUOTES, 'UTF-8'); ?>">
                                     <?php echo htmlspecialchars($fp['nombre']); ?>
                                 </option>
                             <?php } ?>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Referencia / Nº comprobante</label>
+                    <div class="form-group" id="grupo-abono-referencia" style="display: none;">
+                        <label>Referencia / Nº comprobante <span class="text-danger" id="abono-ref-requerido" style="display: none;">*</span></label>
                         <input type="text" id="abono-referencia" class="form-control" maxlength="120">
                     </div>
                     <div class="form-group">
@@ -139,6 +140,24 @@ if ($rfp) {
 
 <script>
 $(function() {
+    function abonoFormaRequiereReferencia() {
+        var forma = (($('#abono-forma-pago option:selected').attr('data-forma') || '') + '').trim().toLowerCase();
+        if (typeof forma.normalize === 'function') {
+            forma = forma.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        }
+        return forma === 'pago movil' || forma === 'transferencia bancaria';
+    }
+
+    function actualizarVisibilidadReferenciaAbono() {
+        var requiere = abonoFormaRequiereReferencia();
+        $('#grupo-abono-referencia').toggle(requiere);
+        $('#abono-ref-requerido').toggle(requiere);
+        $('#abono-referencia').prop('required', requiere);
+        if (!requiere) {
+            $('#abono-referencia').val('');
+        }
+    }
+
     function cargarCuentas() {
         $.get('cuentas_por_cobrar_data.php', {
             action: 'listar_cuentas',
@@ -150,6 +169,8 @@ $(function() {
 
     $('#filtro-estado').on('change', cargarCuentas);
 
+    $('#abono-forma-pago').on('change', actualizarVisibilidadReferenciaAbono);
+
     $(document).on('click', '.btn-registrar-pago', function() {
         var btn = $(this);
         var saldo = parseFloat(btn.data('saldo')) || 0;
@@ -160,6 +181,7 @@ $(function() {
         $('#abono-forma-pago').val('');
         $('#abono-referencia').val('');
         $('#abono-observaciones').val('');
+        actualizarVisibilidadReferenciaAbono();
         $('#modal-abono').modal('show');
     });
 
@@ -182,6 +204,10 @@ $(function() {
             Swal.fire({ icon: 'warning', text: 'Seleccione la forma de pago.' });
             return;
         }
+        if (abonoFormaRequiereReferencia() && !$('#abono-referencia').val().trim()) {
+            Swal.fire({ icon: 'warning', text: 'Debe indicar la referencia o número de comprobante para esta forma de pago.' });
+            return;
+        }
 
         $.post('cuentas_por_cobrar_data.php', {
             action: 'registrar_pago',
@@ -193,7 +219,11 @@ $(function() {
         }, function(resp) {
             if (resp && resp.success) {
                 $('#modal-abono').modal('hide');
-                Swal.fire({ icon: 'success', text: resp.mensaje });
+                var msg = resp.mensaje || 'Abono registrado correctamente.';
+                if (resp.saldo_pendiente !== undefined && parseFloat(resp.saldo_pendiente) > 0.009) {
+                    msg += ' Saldo restante: $' + parseFloat(resp.saldo_pendiente).toFixed(2) + '.';
+                }
+                Swal.fire({ icon: 'success', text: msg });
                 cargarCuentas();
             } else {
                 Swal.fire({ icon: 'error', text: (resp && resp.mensaje) ? resp.mensaje : 'No se pudo registrar el abono.' });

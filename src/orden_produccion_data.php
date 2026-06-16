@@ -26,6 +26,58 @@ function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 
 asegurar_venta_id_en_ordenes_produccion($conn);
 
+function asegurar_talla_id_en_ordenes_produccion(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS `tallas` (
+            `id` int(11) NOT NULL AUTO_INCREMENT,
+            `rango_tallas_id` int(11) NOT NULL,
+            `nombre` varchar(20) NOT NULL,
+            `orden` int(11) NOT NULL DEFAULT 0,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_rango_talla` (`rango_tallas_id`,`nombre`),
+            KEY `rango_tallas_id` (`rango_tallas_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    );
+
+    $chk = $conn->query("SHOW COLUMNS FROM ordenes_produccion LIKE 'talla_id'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD COLUMN talla_id INT NULL DEFAULT NULL '
+        . "COMMENT 'Talla individual a producir (tabla tallas)' AFTER receta_producto_id"
+    );
+    @$conn->query('ALTER TABLE ordenes_produccion ADD INDEX idx_ordenes_produccion_talla_id (talla_id)');
+    @$conn->query(
+        'ALTER TABLE ordenes_produccion ADD CONSTRAINT fk_ordenes_produccion_talla '
+        . 'FOREIGN KEY (talla_id) REFERENCES tallas(id) ON DELETE SET NULL ON UPDATE CASCADE'
+    );
+}
+
+function validar_talla_para_rango(mysqli $conn, int $talla_id, int $rango_tallas_id): void
+{
+    if ($talla_id <= 0) {
+        throw new Exception('Debe seleccionar la talla a producir');
+    }
+    $stmt = $conn->prepare('SELECT id FROM tallas WHERE id = ? AND rango_tallas_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $talla_id, $rango_tallas_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) {
+        throw new Exception('La talla seleccionada no corresponde al rango del producto');
+    }
+}
+
+asegurar_talla_id_en_ordenes_produccion($conn);
+
 /**
  * Fecha fin en listado: mismo estilo de alerta que inventario (stock mín./máx.)
  * cuando faltan ≤5 días o la fecha ya venció. No aplica a órdenes finalizadas.
@@ -127,6 +179,8 @@ try {
                 op.fecha_fin,
                 op.estado,
                 op.observaciones,
+                op.talla_id,
+                t.nombre AS talla_nombre,
                 r.id AS receta_id,
                 rp.producto_id,
                 rp.rango_tallas_id,
@@ -136,6 +190,7 @@ try {
             INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
             INNER JOIN productos p ON rp.producto_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = op.tasa_cambiaria_id
+            LEFT JOIN tallas t ON t.id = op.talla_id
             LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
                 AND r.rango_tallas_id = rp.rango_tallas_id 
                 AND r.tipo_produccion_id = rp.tipo_produccion_id
@@ -144,7 +199,7 @@ try {
                 AND rp2.tipo_produccion_id = rp.tipo_produccion_id
             LEFT JOIN insumos i ON rp2.insumo_id = i.id
             $fil
-            GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
+            GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, op.talla_id, t.nombre, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -189,6 +244,7 @@ try {
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
+                echo '<td>' . htmlspecialchars($o['talla_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
                 echo '<td style="text-align: right;">' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
                 echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
@@ -210,7 +266,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="10" class="text-center">No hay órdenes de producción que coincidan con los filtros</td></tr>';
+            echo '<tr><td colspan="11" class="text-center">No hay órdenes de producción</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
@@ -375,8 +431,42 @@ try {
             }
             break;
 
+        case 'obtener_tallas':
+            $rango_tallas_id = (int) ($_POST['rango_tallas_id'] ?? 0);
+            if ($rango_tallas_id <= 0) {
+                $receta_id = (int) ($_POST['receta_id'] ?? 0);
+                if ($receta_id > 0) {
+                    $stR = $conn->prepare('SELECT rango_tallas_id FROM recetas WHERE id = ? LIMIT 1');
+                    $stR->bind_param('i', $receta_id);
+                    $stR->execute();
+                    $rr = $stR->get_result()->fetch_assoc();
+                    $stR->close();
+                    $rango_tallas_id = (int) ($rr['rango_tallas_id'] ?? 0);
+                }
+            }
+            if ($rango_tallas_id <= 0) {
+                throw new Exception('Rango de tallas no indicado');
+            }
+            $stmtT = $conn->prepare(
+                'SELECT id, nombre FROM tallas WHERE rango_tallas_id = ? ORDER BY orden ASC, id ASC'
+            );
+            $stmtT->bind_param('i', $rango_tallas_id);
+            $stmtT->execute();
+            $resT = $stmtT->get_result();
+            $tallas = [];
+            while ($rowT = $resT->fetch_assoc()) {
+                $tallas[] = [
+                    'id' => (int) $rowT['id'],
+                    'nombre' => $rowT['nombre'],
+                ];
+            }
+            $stmtT->close();
+            echo json_encode(['success' => true, 'tallas' => $tallas]);
+            break;
+
         case 'crear':
             $receta_id = $_POST['receta_id'] ?? null;
+            $talla_id = (int) ($_POST['talla_id'] ?? 0);
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
@@ -414,8 +504,10 @@ try {
                 $stmtRecetaInfo->close();
 
                 $producto_id = $rowRecetaInfo['producto_id'];
-                $rango_tallas_id = $rowRecetaInfo['rango_tallas_id'];
+                $rango_tallas_id = (int) $rowRecetaInfo['rango_tallas_id'];
                 $tipo_produccion_id = $rowRecetaInfo['tipo_produccion_id'];
+
+                validar_talla_para_rango($conn, $talla_id, $rango_tallas_id);
 
                 // Validar que haya insumos disponibles en el inventario
                 $sqlInsumosReceta = "SELECT rp.insumo_id, rp.cantidad_por_unidad, i.nombre AS insumo_nombre,
@@ -504,10 +596,10 @@ try {
 
                 // Ahora insertar la orden con el ID correcto de recetas_productos
                 $stmt = $conn->prepare("
-                    INSERT INTO ordenes_produccion (receta_producto_id, cantidad_a_producir, fecha_inicio, fecha_fin, observaciones, estado)
-                    VALUES (?, ?, ?, ?, ?, 'pendiente')
+                    INSERT INTO ordenes_produccion (receta_producto_id, talla_id, cantidad_a_producir, fecha_inicio, fecha_fin, observaciones, estado)
+                    VALUES (?, ?, ?, ?, ?, ?, 'pendiente')
                 ");
-                $stmt->bind_param("idsss", $receta_producto_id, $cantidad, $fecha_inicio, $fecha_fin, $observaciones);
+                $stmt->bind_param("iidsss", $receta_producto_id, $talla_id, $cantidad, $fecha_inicio, $fecha_fin, $observaciones);
                 $stmt->execute();
                 $ordenId = $conn->insert_id;
                 $stmt->close();
@@ -743,6 +835,7 @@ try {
             }
 
             $receta_id = $_POST['receta_id'] ?? null;
+            $talla_id = (int) ($_POST['talla_id'] ?? 0);
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
@@ -768,7 +861,8 @@ try {
 
             // Si se está cambiando la receta, obtener el recetas_productos.id correcto
             $receta_producto_id = $ordenActual['receta_producto_id']; // Mantener el actual por defecto
-            
+            $rango_tallas_id_orden = 0;
+
             if ($receta_id) {
                 // Obtener información de la receta
                 $sqlRecetaInfo = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
@@ -776,8 +870,9 @@ try {
                 $stmtRecetaInfo->bind_param("i", $receta_id);
                 $stmtRecetaInfo->execute();
                 $resultRecetaInfo = $stmtRecetaInfo->get_result();
-                
+
                 if ($rowRecetaInfo = $resultRecetaInfo->fetch_assoc()) {
+                    $rango_tallas_id_orden = (int) $rowRecetaInfo['rango_tallas_id'];
                     // Obtener un recetas_productos.id válido
                     $sqlRecetaProducto = "SELECT id FROM recetas_productos 
                                          WHERE producto_id = ? 
@@ -785,9 +880,9 @@ try {
                                            AND tipo_produccion_id = ? 
                                          LIMIT 1";
                     $stmtRecetaProducto = $conn->prepare($sqlRecetaProducto);
-                    $stmtRecetaProducto->bind_param("iii", 
-                        $rowRecetaInfo['producto_id'], 
-                        $rowRecetaInfo['rango_tallas_id'], 
+                    $stmtRecetaProducto->bind_param("iii",
+                        $rowRecetaInfo['producto_id'],
+                        $rowRecetaInfo['rango_tallas_id'],
                         $rowRecetaInfo['tipo_produccion_id']
                     );
                     $stmtRecetaProducto->execute();
@@ -800,11 +895,29 @@ try {
                 $stmtRecetaInfo->close();
             }
 
+            if ($rango_tallas_id_orden <= 0) {
+                $stRg = $conn->prepare(
+                    'SELECT rp.rango_tallas_id FROM ordenes_produccion op
+                     INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                     WHERE op.id = ? LIMIT 1'
+                );
+                $stRg->bind_param('i', $id);
+                $stRg->execute();
+                $rgRow = $stRg->get_result()->fetch_assoc();
+                $stRg->close();
+                $rango_tallas_id_orden = (int) ($rgRow['rango_tallas_id'] ?? 0);
+            }
+
+            if ($rango_tallas_id_orden > 0) {
+                validar_talla_para_rango($conn, $talla_id, $rango_tallas_id_orden);
+            }
+
             $conn->begin_transaction();
             try {
                 $stmt = $conn->prepare("
                     UPDATE ordenes_produccion 
                     SET receta_producto_id = ?, 
+                        talla_id = ?,
                         cantidad_a_producir = ?, 
                         fecha_inicio = ?, 
                         fecha_fin = ?, 
@@ -812,7 +925,7 @@ try {
                         observaciones = ?
                     WHERE id = ?
                 ");
-                $stmt->bind_param("idssssi", $receta_producto_id, $cantidad, $fecha_inicio, $fecha_fin, $estado, $observaciones, $id);
+                $stmt->bind_param("iidssssi", $receta_producto_id, $talla_id, $cantidad, $fecha_inicio, $fecha_fin, $estado, $observaciones, $id);
                 $stmt->execute();
                 $stmt->close();
                 

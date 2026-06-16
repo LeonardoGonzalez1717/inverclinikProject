@@ -204,6 +204,21 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <small class="form-text text-muted" id="venta_nota_comprobante_cot" style="display: none;"></small>
                                 </div>
                             </div>
+                            <div class="row mb-3" id="form-venta-fila-monto-pago">
+                                <div class="col-md-6">
+                                    <label class="form-label" for="venta_monto_pagado">Monto pagado por el cliente ($) <span style="color: red;">*</span></label>
+                                    <input type="number" class="form-control" id="venta_monto_pagado" name="monto_pagado"
+                                           min="0" step="0.01" placeholder="0.00" required>
+                                    <small class="text-muted">Si el monto es menor al total de la venta, se generará una cuenta por cobrar con el saldo pendiente.</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" for="venta_saldo_pendiente">Saldo pendiente</label>
+                                    <input type="text" class="form-control" id="venta_saldo_pendiente" readonly style="background-color: #e9ecef; font-weight: bold;">
+                                    <small class="text-muted" id="venta-aviso-cuenta-cobrar" style="display: none; color: #856404;">
+                                        Se creará una cuenta por cobrar al guardar la venta.
+                                    </small>
+                                </div>
+                            </div>
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Fecha <span style="color: red;">*</span></label>
@@ -406,6 +421,37 @@ function limpiarComprobanteVentaYNotaCot() {
     $('#venta_nota_comprobante_cot').hide().text('');
 }
 
+function obtenerTotalVentaActual() {
+    return productosAgregados.reduce(function(s, p) {
+        return s + (parseFloat(p.subtotal) || 0);
+    }, 0);
+}
+
+function actualizarCamposMontoPago() {
+    var total = obtenerTotalVentaActual();
+    var $monto = $('#venta_monto_pagado');
+    var manual = !!$monto.data('manual');
+    var rawVal = ($monto.val() || '').trim();
+    var prev = rawVal === '' ? NaN : parseFloat(rawVal);
+
+    if (total > 0) {
+        $monto.attr('max', total.toFixed(2));
+    } else {
+        $monto.removeAttr('max');
+    }
+
+    if (!manual) {
+        $monto.val(total > 0 ? total.toFixed(2) : '');
+    } else if (!isNaN(prev) && prev > total + 0.009) {
+        $monto.val(total > 0 ? total.toFixed(2) : '');
+    }
+
+    var monto = parseFloat($monto.val()) || 0;
+    var saldo = Math.max(0, total - monto);
+    $('#venta_saldo_pendiente').val('$' + saldo.toFixed(2));
+    $('#venta-aviso-cuenta-cobrar').toggle(total > 0 && saldo > 0.009);
+}
+
 function formaPagoRequiereComprobante() {
     var forma = (($('#forma_pago_id option:selected').attr('data-forma') || '') + '').trim().toLowerCase();
     if (typeof forma.normalize === 'function') {
@@ -536,6 +582,9 @@ function limpiarFormulario() {
     productosAgregados = [];
     ventaCotizacionComprobanteBloqueo = false;
     limpiarComprobanteVentaYNotaCot();
+    $('#venta_monto_pagado').val('').removeData('manual');
+    $('#venta_saldo_pendiente').val('');
+    $('#venta-aviso-cuenta-cobrar').hide();
     limpiarFormularioProducto();
     rellenarSelectCotizaciones('');
     actualizarVisibilidadComprobantePorFormaPago();
@@ -665,6 +714,7 @@ function actualizarTablaProductos() {
         $('#mensaje-sin-productos').show();
         $('#btn-guardar-venta').prop('disabled', true);
     }
+    actualizarCamposMontoPago();
 }
 
 function limpiarFormularioProducto() {
@@ -896,9 +946,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 actualizarVisibilidadComprobantePorFormaPago();
                 rellenarCamposComprobanteDesdeResp(resp);
+                if (resp.comprobante_monto != null && parseFloat(resp.comprobante_monto) > 0) {
+                    $('#venta_monto_pagado').val(parseFloat(resp.comprobante_monto).toFixed(2)).data('manual', true);
+                } else {
+                    $('#venta_monto_pagado').removeData('manual');
+                }
+                actualizarCamposMontoPago();
                 ventaCotizacionComprobanteBloqueo = !!(resp.tiene_comprobante);
                 aplicarEstadoBloqueoComprobanteCotizacion();
-                filaPagoReadonly(true);
+                filaPagoReadonly(!!resp.tiene_comprobante);
             })
             .fail(function(xhr) {
                 ventaCotizacionComprobanteBloqueo = false;
@@ -988,6 +1044,14 @@ document.addEventListener('DOMContentLoaded', function() {
     
     $('#btn-guardar-venta').prop('disabled', true);
     actualizarVisibilidadComprobantePorFormaPago();
+
+    $('#venta_monto_pagado').on('focus', function() {
+        $(this).data('manual', true);
+    });
+    $('#venta_monto_pagado').on('input change', function() {
+        $(this).data('manual', true);
+        actualizarCamposMontoPago();
+    });
 });
 
 function construirPayloadVenta(crearOrdenesFaltantes) {
@@ -1000,7 +1064,8 @@ function construirPayloadVenta(crearOrdenesFaltantes) {
         productos: productosAgregados,
         cotizacion_id: cotSel ? parseInt(cotSel, 10) : null,
         comprobante_referencia: ($("#venta_comprobante_referencia").val() || "").trim(),
-        forma_pago_id: parseInt($("#forma_pago_id").val(), 10) || 0
+        forma_pago_id: parseInt($("#forma_pago_id").val(), 10) || 0,
+        monto_pagado: parseFloat($("#venta_monto_pagado").val()) || 0
     };
     if (crearOrdenesFaltantes) {
         datos.crear_ordenes_produccion_faltantes = true;
@@ -1031,6 +1096,19 @@ function enviarRegistroVenta(crearOrdenesFaltantes) {
     }
     if (formaPagoRequiereComprobante() && !datos.comprobante_referencia) {
         Swal.fire({ icon: 'warning', text: 'Debe ingresar el comprobante para pago móvil o transferencia bancaria.' });
+        return;
+    }
+    var totalVenta = obtenerTotalVentaActual();
+    if (totalVenta <= 0) {
+        Swal.fire({ icon: 'warning', text: 'El total de la venta debe ser mayor a cero.' });
+        return;
+    }
+    if (isNaN(datos.monto_pagado) || datos.monto_pagado < 0) {
+        Swal.fire({ icon: 'warning', text: 'Indique un monto pagado válido.' });
+        return;
+    }
+    if (datos.monto_pagado > totalVenta + 0.009) {
+        Swal.fire({ icon: 'warning', text: 'El monto pagado no puede superar el total de la venta ($' + totalVenta.toFixed(2) + ').' });
         return;
     }
     $.ajax({
