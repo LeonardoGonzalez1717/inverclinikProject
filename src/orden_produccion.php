@@ -179,6 +179,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <tr>
                                         <th>#</th>
                                         <th>Producto</th>
+                                        <th>Talla</th>
                                         <th>Categoría</th>
                                         <th>Cantidad</th>
                                         <th>Costo por Unidad</th>
@@ -210,12 +211,23 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <option value=""></option>
                                         <?php foreach ($recetas as $r): ?>
                                             <option value="<?php echo htmlspecialchars($r['id']); ?>" 
-                                                    data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>">
+                                                    data-costo="<?php echo htmlspecialchars($r['costo_por_unidad'] ?? 0); ?>"
+                                                    data-rango-tallas-id="<?php echo htmlspecialchars($r['rango_tallas_id']); ?>">
                                                 <?php echo htmlspecialchars($r['producto_nombre'] . ' - ' . $r['rango_tallas_nombre']); ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
+                                <div class="col-sm-6" id="contenedor-talla" style="display: none;">
+                                    <label class="form-label">Talla a producir <span style="color: red;">*</span></label>
+                                    <select name="talla_id" id="talla_id" class="form-control" required>
+                                        <option value="">Seleccione la talla</option>
+                                    </select>
+                                    <small class="text-muted">Las tallas dependen del rango del producto</small>
+                                </div>
+                            </div>
+
+                            <div class="row form-group">
                                 <div class="col-sm-6">
                                     <label class="form-label">Cantidad a Producir</label>
                                     <input type="number" step="1" min="1" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
@@ -336,6 +348,47 @@ function cargarListado(page) {
     limpiarFormulario();
 }
 
+function cargarTallasPorReceta(recetaId, tallaIdSeleccionada) {
+    var $contenedor = $('#contenedor-talla');
+    var $select = $('#talla_id');
+
+    if (!recetaId) {
+        $contenedor.hide();
+        $select.html('<option value="">Seleccione la talla</option>');
+        return;
+    }
+
+    var rangoId = $('#receta_id option:selected').data('rango-tallas-id');
+    if (!rangoId) {
+        $contenedor.hide();
+        $select.html('<option value="">Seleccione la talla</option>');
+        return;
+    }
+
+    $.post('orden_produccion_data.php', {
+        action: 'obtener_tallas',
+        rango_tallas_id: rangoId
+    }, function(resp) {
+        if (!resp || !resp.success || !resp.tallas || resp.tallas.length === 0) {
+            $contenedor.hide();
+            $select.html('<option value="">Sin tallas configuradas</option>');
+            return;
+        }
+
+        var html = '<option value="">Seleccione la talla</option>';
+        resp.tallas.forEach(function(t) {
+            var selected = tallaIdSeleccionada && String(tallaIdSeleccionada) === String(t.id) ? ' selected' : '';
+            html += '<option value="' + t.id + '"' + selected + '>' + t.nombre + '</option>';
+        });
+        $select.html(html);
+        $contenedor.show();
+
+        if (resp.tallas.length === 1 && !tallaIdSeleccionada) {
+            $select.val(String(resp.tallas[0].id));
+        }
+    }, 'json');
+}
+
 function calcularCostoTotal() {
     var recetaId = $('#receta_id').val();
     var cantidad = parseFloat($('#cantidad_a_producir').val()) || 0;
@@ -412,6 +465,7 @@ $(document).ready(function() {
     $('#receta_id').on('change', function() {
         calcularCostoTotal();
         cargarStockInsumos($(this).val());
+        cargarTallasPorReceta($(this).val(), null);
     });
     
     $('#cantidad_a_producir').on('input', function() {
@@ -422,6 +476,8 @@ $(document).ready(function() {
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
     $('#receta_id').val('');
+    $('#talla_id').html('<option value="">Seleccione la talla</option>');
+    $('#contenedor-talla').hide();
     $('#cantidad_a_producir').val('');
     $('#costo_por_unidad').val('');
     $('#costo_total_produccion').val('');
@@ -438,6 +494,7 @@ function formatearFecha(fecha) {
 function editarOrden(data) {
     $('#id').val(data.id);
     $('#receta_id').val(data.receta_id);
+    cargarTallasPorReceta(data.receta_id, data.talla_id || null);
     $('#cantidad_a_producir').val(data.cantidad_a_producir);
     $('#fecha_inicio').val(formatearFecha(data.fecha_inicio));
     $('#fecha_fin').val(formatearFecha(data.fecha_fin));
@@ -447,6 +504,7 @@ function editarOrden(data) {
     tasaParaEquivalenteOrden = (data.tasa_orden != null && parseFloat(data.tasa_orden) > 0) ? parseFloat(data.tasa_orden) : tasaCambiariaActual;
     $('#editar-orden-id').val(data.orden_id);
     calcularCostoTotal();
+    cargarStockInsumos(data.receta_id);
     mostrarVista('crear');
 }
 
@@ -520,10 +578,16 @@ $("#form-crear").on("submit", function(e) {
         return;
     }
 
+    if (!$('#talla_id').val()) {
+        Swal.fire({ icon: 'warning', text: 'Debe seleccionar la talla a producir.' });
+        return;
+    }
+
     var datos = {
         action: idOrden ? "editar" : "crear",
         id: idOrden || null,
         receta_id: $("#receta_id").val(),
+        talla_id: $("#talla_id").val(),
         cantidad_a_producir: $("#cantidad_a_producir").val(),
         fecha_inicio: fInicio || "",
         fecha_fin: fFin || "",

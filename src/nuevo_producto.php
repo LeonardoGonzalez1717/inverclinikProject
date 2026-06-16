@@ -143,20 +143,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         El rango de tallas se define al crear el producto en <a href="gestionar_productos.php">Gestionar Productos</a>.
                                     </small>
                                 </div>
-                            </div>
-
-                            <!-- <div class="col-sm-6">
-                                <label class="form-label">Tipo de Producción</label>
-                                <select name="tipo_produccion_id" id="tipo_produccion_id" class="form-control" required>
-                                    <option value="">-- Seleccione un tipo --</option>
-                                    <?php foreach ($tipos as $t): ?>
-                                        <option value="<?php echo htmlspecialchars($t['id']); ?>">
-                                            <?php echo htmlspecialchars($t['nombre']); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div> -->
-                            <div class="row form-group">
                                 <div class="col-sm-6">
                                     <label class="form-label">Almacén</label>
                                     <select name="almacen_id" id="almacen_id" class="form-control">
@@ -170,6 +156,18 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <small class="form-text text-muted">Almacén al que pertenece esta guia de corte en el inventario</small>
                                 </div>
                             </div>
+
+                            <!-- <div class="col-sm-6">
+                                <label class="form-label">Tipo de Producción</label>
+                                <select name="tipo_produccion_id" id="tipo_produccion_id" class="form-control" required>
+                                    <option value="">-- Seleccione un tipo --</option>
+                                    <?php foreach ($tipos as $t): ?>
+                                        <option value="<?php echo htmlspecialchars($t['id']); ?>">
+                                            <?php echo htmlspecialchars($t['nombre']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div> -->
 
                             <div class="row form-group">
                                 <div class="col-sm-6">
