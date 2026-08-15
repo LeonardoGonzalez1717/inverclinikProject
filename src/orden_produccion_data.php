@@ -26,6 +26,61 @@ function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 
 asegurar_venta_id_en_ordenes_produccion($conn);
 
+function asegurar_costo_en_talleres(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    @$conn->query("CREATE TABLE IF NOT EXISTS talleres (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(150) NOT NULL,
+        costo DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descripcion TEXT NULL,
+        activo TINYINT(1) DEFAULT 1,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $chk = $conn->query("SHOW COLUMNS FROM talleres LIKE 'costo'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    @$conn->query("ALTER TABLE talleres ADD COLUMN costo DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER nombre");
+}
+
+asegurar_costo_en_talleres($conn);
+
+function asegurar_tabla_ordenes_talleres(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    @$conn->query("CREATE TABLE IF NOT EXISTS ordenes_talleres (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        orden_produccion_id INT NOT NULL,
+        taller_id INT NOT NULL,
+        fecha_asignacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_entrega DATETIME NULL, 
+        recibido TINYINT(1) NOT NULL DEFAULT 0, 
+        observaciones TEXT NULL,
+        CONSTRAINT fk_talleres_orden FOREIGN KEY (orden_produccion_id) 
+            REFERENCES ordenes_produccion(id) 
+            ON DELETE CASCADE 
+            ON UPDATE CASCADE,
+        CONSTRAINT fk_talleres_proveedor FOREIGN KEY (taller_id) 
+            REFERENCES talleres(id)
+            ON DELETE RESTRICT 
+            ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+}
+
+asegurar_tabla_ordenes_talleres($conn);
+
 function asegurar_talla_id_en_ordenes_produccion(mysqli $conn): void
 {
     static $hecho = false;
@@ -61,10 +116,10 @@ function asegurar_talla_id_en_ordenes_produccion(mysqli $conn): void
     );
 }
 
-function validar_talla_para_rango(mysqli $conn, int $talla_id, int $rango_tallas_id): void
+function validar_talla_para_rango(mysqli $conn, ?int $talla_id, int $rango_tallas_id): void
 {
-    if ($talla_id <= 0) {
-        throw new Exception('Debe seleccionar la talla a producir');
+    if (!$talla_id || $talla_id <= 0) {
+        return; // La selección de talla es opcional
     }
     $stmt = $conn->prepare('SELECT id FROM tallas WHERE id = ? AND rango_tallas_id = ? LIMIT 1');
     $stmt->bind_param('ii', $talla_id, $rango_tallas_id);
@@ -185,7 +240,10 @@ try {
                 rp.producto_id,
                 rp.rango_tallas_id,
                 rp.tipo_produccion_id,
-                COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad
+                COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad,
+                COALESCE((SELECT SUM(tal.costo) FROM ordenes_talleres ot INNER JOIN talleres tal ON ot.taller_id = tal.id WHERE ot.orden_produccion_id = op.id), 0) AS costo_talleres,
+                COALESCE((SELECT GROUP_CONCAT(tal.nombre SEPARATOR ', ') FROM ordenes_talleres ot INNER JOIN talleres tal ON ot.taller_id = tal.id WHERE ot.orden_produccion_id = op.id), '') AS nombres_talleres,
+                COALESCE((SELECT GROUP_CONCAT(ot.taller_id) FROM ordenes_talleres ot WHERE ot.orden_produccion_id = op.id), '') AS talleres_ids_csv
             FROM ordenes_produccion op
             INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
             INNER JOIN productos p ON rp.producto_id = p.id
@@ -238,9 +296,14 @@ try {
                 
                 $costoPorUnidad = floatval($o['costo_por_unidad'] ?? 0);
                 $cantidad       = floatval($o['cantidad_a_producir'] ?? 0);
-                $costoTotal     = $costoPorUnidad * $cantidad;
+                $costoTalleres  = floatval($o['costo_talleres'] ?? 0);
+                $costoTotal     = ($costoPorUnidad * $cantidad) + $costoTalleres;
+                $nombresTalleres = !empty($o['nombres_talleres']) ? htmlspecialchars($o['nombres_talleres']) : '<em class="text-muted">—</em>';
 
-                
+                $o['costo_talleres'] = $costoTalleres;
+                $o['costo_total'] = $costoTotal;
+                $o['talleres_ids'] = !empty($o['talleres_ids_csv']) ? array_map('intval', explode(',', $o['talleres_ids_csv'])) : [];
+
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
@@ -248,6 +311,7 @@ try {
                 echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
                 echo '<td style="text-align: right;">' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
                 echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
+                echo '<td>' . $nombresTalleres . '</td>';
                 echo '<td style="font-weight: bold;text-align:right;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
                 echo '<td style="font-weight: bold">' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
@@ -266,7 +330,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="11" class="text-center">No hay órdenes de producción</td></tr>';
+            echo '<tr><td colspan="12" class="text-center">No hay órdenes de producción</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);
@@ -466,7 +530,8 @@ try {
 
         case 'crear':
             $receta_id = $_POST['receta_id'] ?? null;
-            $talla_id = (int) ($_POST['talla_id'] ?? 0);
+            $talla_id_raw = (int) ($_POST['talla_id'] ?? 0);
+            $talla_id = $talla_id_raw > 0 ? $talla_id_raw : null;
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
@@ -603,6 +668,20 @@ try {
                 $stmt->execute();
                 $ordenId = $conn->insert_id;
                 $stmt->close();
+
+                // Guardar los talleres asignados
+                $talleres = isset($_POST['talleres']) ? (is_array($_POST['talleres']) ? $_POST['talleres'] : json_decode($_POST['talleres'], true)) : [];
+                if (!empty($talleres) && is_array($talleres)) {
+                    $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, recibido) VALUES (?, ?, 0)");
+                    foreach ($talleres as $tallerId) {
+                        $tid = (int)$tallerId;
+                        if ($tid > 0) {
+                            $stmtOT->bind_param("ii", $ordenId, $tid);
+                            $stmtOT->execute();
+                        }
+                    }
+                    $stmtOT->close();
+                }
 
                 $conn->commit();
                 echo json_encode(['success' => true, 'message' => 'Orden creada en estado pendiente', 'id' => $ordenId]);
@@ -835,7 +914,8 @@ try {
             }
 
             $receta_id = $_POST['receta_id'] ?? null;
-            $talla_id = (int) ($_POST['talla_id'] ?? 0);
+            $talla_id_raw = (int) ($_POST['talla_id'] ?? 0);
+            $talla_id = $talla_id_raw > 0 ? $talla_id_raw : null;
             $cantidad = $_POST['cantidad_a_producir'] ?? 0;
             $fecha_inicio = !empty($_POST['fecha_inicio']) ? $_POST['fecha_inicio'] : null;
             $fecha_fin = !empty($_POST['fecha_fin']) ? $_POST['fecha_fin'] : null;
@@ -928,6 +1008,29 @@ try {
                 $stmt->bind_param("iidssssi", $receta_producto_id, $talla_id, $cantidad, $fecha_inicio, $fecha_fin, $estado, $observaciones, $id);
                 $stmt->execute();
                 $stmt->close();
+
+                // Sincronizar talleres si se enviaron
+                if (isset($_POST['talleres'])) {
+                    $talleres = is_array($_POST['talleres']) ? $_POST['talleres'] : json_decode($_POST['talleres'], true);
+                    $talleres = is_array($talleres) ? $talleres : [];
+                    
+                    $stmtDelOT = $conn->prepare("DELETE FROM ordenes_talleres WHERE orden_produccion_id = ?");
+                    $stmtDelOT->bind_param("i", $id);
+                    $stmtDelOT->execute();
+                    $stmtDelOT->close();
+
+                    if (!empty($talleres)) {
+                        $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, recibido) VALUES (?, ?, 0)");
+                        foreach ($talleres as $tallerId) {
+                            $tid = (int)$tallerId;
+                            if ($tid > 0) {
+                                $stmtOT->bind_param("ii", $id, $tid);
+                                $stmtOT->execute();
+                            }
+                        }
+                        $stmtOT->close();
+                    }
+                }
                 
                 // Si se cambia el estado a 'en_proceso' o 'finalizado' desde 'pendiente', descontar insumos
                 if (($estado === 'en_proceso' || $estado === 'finalizado') && 

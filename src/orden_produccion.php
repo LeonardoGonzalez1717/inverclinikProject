@@ -39,9 +39,9 @@ if ($resultRecetas) {
     }
 }
 
-// NUEVO: Obtener los talleres activos para cargarlos en el select dinámico
+// NUEVO: Obtener los talleres activos con su costo para los checkboxes y el select dinámico
 $talleres_disponibles = [];
-$resTalleres = $conn->query("SELECT id, nombre FROM talleres ORDER BY nombre ASC");
+$resTalleres = $conn->query("SELECT id, nombre, costo FROM talleres WHERE activo = 1 ORDER BY nombre ASC");
 if ($resTalleres) {
     while($t = $resTalleres->fetch_assoc()) { $talleres_disponibles[] = $t; }
 }
@@ -215,6 +215,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Categoría</th>
                                         <th>Cantidad</th>
                                         <th>Costo por Unidad</th>
+                                        <th>Talleres</th>
                                         <th>Costo Total</th>
                                         <th>Inicio</th>
                                         <th>Fin</th>
@@ -234,11 +235,11 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <i class="fas fa-arrow-left"></i> Volver al Listado
                         </button>
 
-                        <form id="form-crear">
+                        <form id="form-crear" novalidate>
                             <div class="row form-group">
                                 <div class="col-sm-6">
-                                    <label class="form-label">Guia de corte</label>
-                                    <select name="receta_id" id="receta_id" class="form-control" required>
+                                    <label class="form-label">Guia de corte <span style="color: red;">*</span></label>
+                                    <select name="receta_id" id="receta_id" class="form-control">
                                         <option value=""></option>
                                         <?php foreach ($recetas as $r): ?>
                                             <option value="<?php echo htmlspecialchars($r['id']); ?>" 
@@ -251,7 +252,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
                                 <div class="col-sm-6" id="contenedor-talla" style="display: none;">
                                     <label class="form-label">Talla a producir <span style="color: red;">*</span></label>
-                                    <select name="talla_id" id="talla_id" class="form-control" required>
+                                    <select name="talla_id" id="talla_id" class="form-control">
                                         <option value="">Seleccione la talla</option>
                                     </select>
                                     <small class="text-muted">Las tallas dependen del rango del producto</small>
@@ -265,6 +266,42 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
                             </div>
 
+                            <!-- SECCIÓN NUEVA: TALLERES CON COSTO -->
+                            <div class="form-group" style="background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin-bottom: 18px;">
+                                <label class="form-label" style="font-weight: 700; color: #0056b3; margin-bottom: 6px; display: block;">
+                                    <i class="fas fa-warehouse"></i> Talleres Involucrados en la Producción
+                                </label>
+                                <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
+                                    Marque los talleres por los que pasará esta orden. Su costo se sumará automáticamente al costo total de la producción.
+                                </p>
+                                <div class="row">
+                                    <?php if (!empty($talleres_disponibles)): ?>
+                                        <?php foreach ($talleres_disponibles as $t): ?>
+                                            <div class="col-sm-6 col-md-4" style="margin-bottom: 10px;">
+                                                <div class="custom-control custom-checkbox" style="background: #fff; padding: 10px 12px 10px 32px; border-radius: 6px; border: 1px solid #ced4da; transition: all 0.2s ease;">
+                                                    <input type="checkbox" class="custom-control-input check-taller" 
+                                                           id="taller_check_<?php echo $t['id']; ?>" 
+                                                           name="talleres[]" 
+                                                           value="<?php echo $t['id']; ?>" 
+                                                           data-costo="<?php echo htmlspecialchars($t['costo'] ?? 0); ?>" 
+                                                           data-nombre="<?php echo htmlspecialchars($t['nombre']); ?>">
+                                                    <label class="custom-control-label" for="taller_check_<?php echo $t['id']; ?>" style="cursor: pointer; font-weight: 600; font-size: 14px; user-select: none;">
+                                                        <?php echo htmlspecialchars($t['nombre']); ?>
+                                                        <span class="badge badge-info" style="margin-left: 6px; font-size: 11px; font-weight: bold; background-color: #0056b3;">
+                                                            +$<?php echo number_format((float)($t['costo'] ?? 0), 2, '.', ','); ?>
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <div class="col-sm-12">
+                                            <em class="text-muted">No hay talleres activos registrados.</em>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+
                             <div class="row form-group">
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo por Unidad ($)</label>
@@ -274,7 +311,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo Total de Production ($)</label>
                                     <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
-                                    <small class="text-muted">Costo total = Costo por Unidad × Cantidad a Producir</small>
+                                    <small class="text-muted">Costo total = (Costo Unit. × Cantidad) + Costo de Talleres</small>
                                 </div>
                             </div>
                             
@@ -655,25 +692,39 @@ function calcularCostoTotal() {
     var recetaId = $('#receta_id').val();
     var cantidad = parseFloat($('#cantidad_a_producir').val()) || 0;
     
+    // Sumar el costo de todos los talleres seleccionados
+    var totalCostosTalleres = 0;
+    $('.check-taller:checked').each(function() {
+        var c = parseFloat($(this).data('costo')) || 0;
+        totalCostosTalleres += c;
+    });
+
     if (recetaId && cantidad > 0) {
         var costoUnitario = parseFloat($('#receta_id option:selected').data('costo')) || 0;
         
         if (costoUnitario > 0) {
             $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
-            var costoTotal = costoUnitario * cantidad;
+            var costoBase = costoUnitario * cantidad;
+            var costoTotal = costoBase + totalCostosTalleres;
             $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
             actualizarEquivalenteBs();
         } else {
-            obtenerCostoReceta(recetaId, cantidad);
+            obtenerCostoReceta(recetaId, cantidad, totalCostosTalleres);
         }
     } else {
         $('#costo_por_unidad').val('');
-        $('#costo_total_produccion').val('');
-        $('#contenedor-equivalente-bs').hide();
+        if (totalCostosTalleres > 0) {
+            $('#costo_total_produccion').val('$' + totalCostosTalleres.toFixed(2));
+            actualizarEquivalenteBs();
+        } else {
+            $('#costo_total_produccion').val('');
+            $('#contenedor-equivalente-bs').hide();
+        }
     }
 }
 
-function obtenerCostoReceta(recetaId, cantidad) {
+function obtenerCostoReceta(recetaId, cantidad, totalCostosTalleres) {
+    totalCostosTalleres = totalCostosTalleres || 0;
     $.post('orden_produccion_data.php', {
         action: 'obtener_costo_receta',
         receta_id: recetaId
@@ -682,7 +733,8 @@ function obtenerCostoReceta(recetaId, cantidad) {
             var costoUnitario = parseFloat(resp.costo_por_unidad) || 0;
             if (costoUnitario > 0) {
                 $('#costo_por_unidad').val('$' + costoUnitario.toFixed(2));
-                var costoTotal = costoUnitario * cantidad;
+                var costoBase = costoUnitario * cantidad;
+                var costoTotal = costoBase + totalCostosTalleres;
                 $('#costo_total_produccion').val('$' + costoTotal.toFixed(2));
                 actualizarEquivalenteBs();
             }
@@ -733,10 +785,15 @@ $(document).ready(function() {
     $('#cantidad_a_producir').on('input', function() {
         calcularCostoTotal();
     });
+
+    $(document).on('change', '.check-taller', function() {
+        calcularCostoTotal();
+    });
 });
 
 function limpiarFormulario() {
     $('#form-crear')[0].reset();
+    $('.check-taller').prop('checked', false);
     $('#receta_id').val('');
     $('#talla_id').html('<option value="">Seleccione la talla</option>');
     $('#contenedor-talla').hide();
@@ -755,6 +812,21 @@ function formatearFecha(fecha) {
 }
 
 function editarOrden(data) {
+    $('.check-taller').prop('checked', false);
+    if (data.talleres_ids && Array.isArray(data.talleres_ids)) {
+        data.talleres_ids.forEach(function(tid) {
+            $('#taller_check_' + tid).prop('checked', true);
+        });
+    } else if (data.talleres_ids_csv) {
+        var ids = String(data.talleres_ids_csv).split(',');
+        ids.forEach(function(tid) {
+            var cleanId = tid.trim();
+            if (cleanId) {
+                $('#taller_check_' + cleanId).prop('checked', true);
+            }
+        });
+    }
+
     $('#receta_id').val(data.receta_id);
     cargarTallasPorReceta(data.receta_id, data.talla_id || null);
     $('#cantidad_a_producir').val(data.cantidad_a_producir);
@@ -821,6 +893,12 @@ $("#form-crear").on("submit", function(e) {
     var fInicio = $("#fecha_inicio").val();
     var fFin = $("#fecha_fin").val();
 
+    var recetaId = $("#receta_id").val();
+    if (!recetaId) {
+        Swal.fire({ icon: 'warning', text: "Debe seleccionar una guía de corte." });
+        return;
+    }
+
     if (fInicio && fFin) {
         if (new Date(fFin) < new Date(fInicio)) {
             Swal.fire({ icon: 'warning', text: "La fecha de fin no puede ser anterior a la fecha de inicio." });
@@ -838,10 +916,10 @@ $("#form-crear").on("submit", function(e) {
         return;
     }
 
-    if (!$('#talla_id').val()) {
-        Swal.fire({ icon: 'warning', text: 'Debe seleccionar la talla a producir.' });
-        return;
-    }
+    var talleresSeleccionados = [];
+    $('.check-taller:checked').each(function() {
+        talleresSeleccionados.push($(this).val());
+    });
 
     var datos = {
         action: idOrden ? "editar" : "crear",
@@ -852,7 +930,8 @@ $("#form-crear").on("submit", function(e) {
         fecha_inicio: fInicio || "",
         fecha_fin: fFin || "",
         observaciones: $("#obser").val() || "",
-        orden_id: $('#editar-orden-id').val() || ""
+        orden_id: $('#editar-orden-id').val() || "",
+        talleres: talleresSeleccionados
     };
 
     $.ajax({

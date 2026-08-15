@@ -15,7 +15,7 @@ require_once "../connection/connection.php";
 <div class="main-content">
     <div class="container-wrapper">
         <div class="container-inner">
-            <h2 class="main-title">Almacenes</h2>
+            <h2 class="main-title">Talleres</h2>
             <div id="contenedor-vistas">
                 <div id="vista-listado">
                     <div class="row form-group">
@@ -59,6 +59,7 @@ require_once "../connection/connection.php";
                                 <tr class="bg-navy">
                                     <th style="width: 70px;">#</th>
                                     <th>Nombre del Taller</th>
+                                    <th style="width: 140px; text-align: right;">Costo ($)</th>
                                     <th>Descripción</th>
                                     <th style="width: 120px;">Estado</th>
                                     <th style="width: 180px;">Acciones</th>
@@ -83,12 +84,18 @@ require_once "../connection/connection.php";
                         <input type="hidden" id="editar-taller-id" name="id" value="">
 
                         <div class="row">
-                            <div class="col-sm-8 form-group">
+                            <div class="col-sm-6 form-group">
                                 <label for="nombre">Nombre del Taller <span class="text-danger">*</span></label>
-                                <input type="text" id="nombre" name="nombre" class="form-control" placeholder="Ej: Taller de Costura El Centro" required maxlength="150">
+                                <input type="text" id="nombre" name="nombre" class="form-control" placeholder="Ej: Costura, Impresión..." required maxlength="150">
                             </div>
 
-                            <div class="col-sm-4 form-group">
+                            <div class="col-sm-3 form-group">
+                                <label for="costo">Costo ($) <span class="text-danger">*</span></label>
+                                <input type="number" step="0.01" min="0" id="costo" name="costo" class="form-control" placeholder="0.00" value="0.00" required>
+                                <small class="text-muted">Costo del taller por orden</small>
+                            </div>
+
+                            <div class="col-sm-3 form-group">
                                 <label for="activo">Estado del Taller</label>
                                 <select id="activo" name="activo" class="form-control">
                                     <option value="1">Activo</option>
@@ -128,6 +135,7 @@ function mostrarVista(vista) {
 function limpiarFormulario() {
     $('#form-taller')[0].reset();
     $('#editar-taller-id').val('');
+    $('#costo').val('0.00');
     $('#activo').val('1');
     $('#subtitle-form-taller').text('Registrar Nuevo Taller');
 }
@@ -151,6 +159,7 @@ function cargarListado(page) {
 function editarTaller(data) {
     $('#editar-taller-id').val(data.id);
     $('#nombre').val(data.nombre || '');
+    $('#costo').val(parseFloat(data.costo || 0).toFixed(2));
     $('#descripcion').val(data.descripcion || '');
     $('#activo').val(data.activo == 1 || data.activo === '1' ? '1' : '0');
     
@@ -246,11 +255,18 @@ $(function() {
             return;
         }
 
+        var costo = parseFloat($('#costo').val());
+        if (isNaN(costo) || costo < 0) {
+            Swal.fire({ icon: 'warning', text: 'Indique un costo válido (mayor o igual a cero).' });
+            return;
+        }
+
         var idTaller = $('#editar-taller-id').val();
         var datos = {
             action: idTaller ? 'editar' : 'crear',
             id: idTaller || null,
             nombre: nombre,
+            costo: costo,
             descripcion: $('#descripcion').val().trim(),
             activo: parseInt($('#activo').val(), 10) === 1 ? 1 : 0
         };
