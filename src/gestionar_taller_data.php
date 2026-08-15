@@ -3,6 +3,32 @@ require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
 require_once __DIR__ . '/../lib/Pagination.php';
 
+function asegurar_costo_en_talleres(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    @$conn->query("CREATE TABLE IF NOT EXISTS talleres (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nombre VARCHAR(150) NOT NULL,
+        costo DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+        descripcion TEXT NULL,
+        activo TINYINT(1) DEFAULT 1,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $chk = $conn->query("SHOW COLUMNS FROM talleres LIKE 'costo'");
+    if ($chk && $chk->num_rows > 0) {
+        return;
+    }
+    @$conn->query("ALTER TABLE talleres ADD COLUMN costo DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER nombre");
+}
+
+asegurar_costo_en_talleres($conn);
+
 error_reporting(E_ERROR | E_PARSE);
 
 $action = $_POST['action'] ?? '';
@@ -39,7 +65,7 @@ try {
         $pg = Pagination::fromInput($total, $_POST);
 
         // Consulta de registros
-        $sql = "SELECT id, nombre, descripcion, activo FROM talleres " . $whereSql . " ORDER BY nombre ASC " . $pg->limitClause();
+        $sql = "SELECT id, nombre, costo, descripcion, activo FROM talleres " . $whereSql . " ORDER BY nombre ASC " . $pg->limitClause();
         $result = $conn->query($sql);
 
         ob_start();
@@ -48,6 +74,7 @@ try {
             while ($row = $result->fetch_assoc()) {
                 $i++;
                 
+                $costoVal = floatval($row['costo'] ?? 0);
                 $desc = (!empty($row['descripcion'])) ? htmlspecialchars($row['descripcion']) : '<em class="text-muted">Sin descripción</em>';
                 
                 $estadoBadge = !empty($row['activo']) 
@@ -57,6 +84,7 @@ try {
                 echo '<tr>';
                 echo '<td>' . $i . '</td>';
                 echo '<td><strong>' . htmlspecialchars($row['nombre']) . '</strong></td>';
+                echo '<td style="text-align: right; font-weight: 600;">$' . number_format($costoVal, 2, '.', ',') . '</td>';
                 echo '<td>' . $desc . '</td>';
                 echo '<td>' . $estadoBadge . '</td>';
                 echo '<td style="white-space: nowrap;">';
@@ -67,7 +95,7 @@ try {
             }
         } else {
             echo '<tr>';
-            echo '  <td colspan="5" class="text-center text-muted" style="padding: 25px;">';
+            echo '  <td colspan="6" class="text-center text-muted" style="padding: 25px;">';
             echo '      No se encontraron talleres registrados.';
             echo '  </td>';
             echo '</tr>';
@@ -84,6 +112,7 @@ try {
     // ------------------------------------------------------------------
     if ($action === 'crear') {
         $nombre      = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+        $costo       = isset($_POST['costo']) ? floatval($_POST['costo']) : 0.00;
         $descripcion = isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '';
         $activo      = isset($_POST['activo']) ? (int)$_POST['activo'] : 1;
 
@@ -92,8 +121,13 @@ try {
             exit;
         }
 
-        $stmt = $conn->prepare("INSERT INTO talleres (nombre, descripcion, activo) VALUES (?, ?, ?)");
-        $stmt->bind_param("ssi", $nombre, $descripcion, $activo);
+        if ($costo < 0) {
+            echo json_encode(['success' => false, 'message' => 'El costo del taller no puede ser negativo.']);
+            exit;
+        }
+
+        $stmt = $conn->prepare("INSERT INTO talleres (nombre, costo, descripcion, activo) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sdsi", $nombre, $costo, $descripcion, $activo);
 
         if ($stmt->execute()) {
             echo json_encode(['success' => true, 'message' => 'Taller registrado exitosamente.']);
@@ -111,6 +145,7 @@ try {
     if ($action === 'editar') {
         $id          = isset($_POST['id']) ? (int)$_POST['id'] : 0;
         $nombre      = isset($_POST['nombre']) ? trim($_POST['nombre']) : '';
+        $costo       = isset($_POST['costo']) ? floatval($_POST['costo']) : 0.00;
         $descripcion = isset($_POST['descripcion']) ? trim($_POST['descripcion']) : '';
         $activo      = isset($_POST['activo']) ? (int)$_POST['activo'] : 1;
 
@@ -119,8 +154,13 @@ try {
             exit;
         }
 
-        $stmt = $conn->prepare("UPDATE talleres SET nombre = ?, descripcion = ?, activo = ? WHERE id = ?");
-        $stmt->bind_param("ssii", $nombre, $descripcion, $activo, $id);
+        if ($costo < 0) {
+            echo json_encode(['success' => false, 'message' => 'El costo del taller no puede ser negativo.']);
+            exit;
+        }
+
+        $stmt = $conn->prepare("UPDATE talleres SET nombre = ?, costo = ?, descripcion = ?, activo = ? WHERE id = ?");
+        $stmt->bind_param("sdsii", $nombre, $costo, $descripcion, $activo, $id);
 
         if ($stmt->execute()) {
             echo json_encode(['success' => true, 'message' => 'Taller actualizado exitosamente.']);
