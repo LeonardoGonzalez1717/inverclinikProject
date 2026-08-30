@@ -3,6 +3,7 @@ require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/InventarioLotes.php';
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
@@ -494,49 +495,17 @@ try {
                 $stmtDetalle->bind_param("iidd", $compra_id, $insumo_id, $cantidad, $costo_unitario);
                 $stmtDetalle->execute();
 
-                if ($tieneInventarioNuevo) {
-                    $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
-                } else {
-                    $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
-                }
-                $stmtStock = $conn->prepare($sqlStock);
-                $stmtStock->bind_param("i", $insumo_id);
-                $stmtStock->execute();
-                $resultStock = $stmtStock->get_result();
-                $stockActual = 0;
-                if ($rowStock = $resultStock->fetch_assoc()) {
-                    $stockActual = floatval($rowStock['stock_actual']);
-                }
-                $stmtStock->close();
-                $nuevoStock = $stockActual + $cantidad;
-
-                if ($tieneInventarioNuevo) {
-                    $stmtInventario = $conn->prepare("
-                        INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
-                        VALUES ('insumo', ?, ?, 'compra', NOW())
-                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), tipo_movimiento = VALUES(tipo_movimiento), ultima_actualizacion = NOW()
-                    ");
-                    $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
-                } else {
-                    $stmtInventario = $conn->prepare("
-                        INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                        VALUES (?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
-                    ");
-                    $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
-                }
-                $stmtInventario->execute();
-                $stmtInventario->close();
-
-                // Registrar movimiento en inventario_detalle (entrada por compra)
-                $obsMovimiento = "Entrada por compra #{$compra_id}";
-                $stmtDetalleInv = $conn->prepare("
-                    INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones)
-                    VALUES ('insumo', ?, 'entrada', ?, ?)
-                ");
-                $stmtDetalleInv->bind_param("ids", $insumo_id, $cantidad, $obsMovimiento);
-                $stmtDetalleInv->execute();
-                $stmtDetalleInv->close();
+                InventarioLotes::registrarEntrada($conn, [
+                    'tipo_item' => 'insumo',
+                    'tipo_item_id' => $insumo_id,
+                    'cantidad' => $cantidad,
+                    'fecha_entrada' => $fecha,
+                    'origen' => 'compra',
+                    'origen_id' => $compra_id,
+                    'observaciones' => "Entrada por compra #{$compra_id}",
+                    'tipo_movimiento' => 'compra',
+                    'costo_unitario' => $costo_unitario,
+                ]);
             }
 
             $stmtDetalle->close();

@@ -1,6 +1,7 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/orden_numero.php';
 
 $action = $_POST['action'] ?? '';
 
@@ -12,7 +13,7 @@ if ($action !== 'listar_html') {
 
 // Captura de variables desde la petición AJAX
 $taller_id        = isset($_POST['taller_id']) ? (int)$_POST['taller_id'] : 0;
-$orden_id         = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
+$orden_id         = parse_id_orden_produccion($_POST['orden_id'] ?? '');
 $estatus_transito = isset($_POST['estatus_transito']) ? trim($_POST['estatus_transito']) : '';
 $fecha_desde      = isset($_POST['fecha_desde']) ? trim($_POST['fecha_desde']) : '';
 $fecha_hasta      = isset($_POST['fecha_hasta']) ? trim($_POST['fecha_hasta']) : '';
@@ -60,9 +61,12 @@ $sqlBody = "
         ot.fecha_asignacion,
         ot.fecha_entrega,
         ot.recibido,
-        t.nombre AS taller_nombre
+        t.nombre AS taller_nombre,
+        op.creado_en,
+        op.fecha_inicio
     FROM ordenes_talleres ot
     INNER JOIN talleres t ON ot.taller_id = t.id
+    INNER JOIN ordenes_produccion op ON op.id = ot.orden_produccion_id
 " . $fil;
 
 // Inicialización de la paginación nativa de tu sistema
@@ -107,7 +111,7 @@ if (!empty($filas)) {
 
         echo '<tr>';
         echo '<td>' . $i . '</td>';
-        echo '<td><strong class="text-primary">#' . $r['orden_produccion_id'] . '</strong></td>';
+        echo '<td><strong class="text-primary">' . htmlspecialchars(numero_orden_produccion((int)$r['orden_produccion_id'], $r['creado_en'] ?? $r['fecha_inicio'] ?? null)) . '</strong></td>';
         echo '<td>' . htmlspecialchars($r['taller_nombre']) . '</td>';
         echo '<td>' . $fDespacho . '</td>';
         echo '<td>' . $fRetorno . '</td>';

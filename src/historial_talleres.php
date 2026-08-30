@@ -51,7 +51,7 @@ if ($resTalleres) {
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="filtro-orden">N° Orden de Producción</label>
-                                    <input type="number" id="filtro-orden" class="form-control clase-filtro">
+                                    <input type="text" id="filtro-orden" class="form-control clase-filtro" placeholder="Ej. 5-AGOST-26">
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="filtro-estatus">Estatus en Tránsito</label>

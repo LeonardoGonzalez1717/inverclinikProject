@@ -1,6 +1,7 @@
 <?php
 $sin_sidebar = true;
 require_once('../template/header.php');
+require_once __DIR__ . '/../lib/orden_numero.php';
 
 $where = [];
 
@@ -31,6 +32,7 @@ $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";
 $sql = "
 SELECT 
     op.id AS orden_id,
+    op.creado_en,
     p.nombre AS producto,
     op.cantidad_a_producir,
     op.fecha_inicio,
@@ -71,7 +73,7 @@ $result = $conn->query($sql);
 
 <thead>
 <tr>
-<th>#</th>
+<th>N° Orden</th>
 <th>Producto</th>
 <th>Cantidad</th>
 <th>Fecha Inicio</th>
@@ -84,12 +86,10 @@ $result = $conn->query($sql);
 
 <tbody>
 
-<?php $i = 1 ?>
-
 <?php while ($row = $result->fetch_assoc()): ?>
 
 <tr>
-<td style="text-align:right"><?= $i++ ?></td>
+<td><?= htmlspecialchars(numero_orden_produccion((int)$row['orden_id'], $row['creado_en'] ?? $row['fecha_inicio'] ?? null)) ?></td>
 <td><?= htmlspecialchars($row['producto']) ?></td>
 <td style="text-align:right"><?= htmlspecialchars($row['cantidad_a_producir']) ?></td>
 <td><?= htmlspecialchars($row['fecha_inicio']) ?></td>

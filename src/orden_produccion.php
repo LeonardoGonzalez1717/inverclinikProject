@@ -39,7 +39,11 @@ if ($resultRecetas) {
     }
 }
 
-// NUEVO: Obtener los talleres activos con su costo para los checkboxes y el select dinámico
+$chkCostoTaller = $conn->query("SHOW COLUMNS FROM talleres LIKE 'costo'");
+if (!$chkCostoTaller || $chkCostoTaller->num_rows === 0) {
+    $conn->query("ALTER TABLE talleres ADD COLUMN costo DECIMAL(12,2) NOT NULL DEFAULT 0.00 AFTER nombre");
+}
+
 $talleres_disponibles = [];
 $resTalleres = $conn->query("SELECT id, nombre, costo FROM talleres WHERE activo = 1 ORDER BY nombre ASC");
 if ($resTalleres) {
@@ -166,8 +170,8 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);padding: 15px; border-radius: 5px; border: 1px solid #ddd;">
                             <div class="row" style="margin-bottom: 10px;">
                                 <div class="col-sm-4">
-                                    <label for="filtro-producto">Producto</label>
-                                    <input type="text" id="filtro-producto" class="form-control clase-filtro" placeholder="Buscar nombre de producto...">
+                                    <label for="filtro-producto">Producto o N° orden</label>
+                                    <input type="text" id="filtro-producto" class="form-control clase-filtro" placeholder="Nombre o N° (ej. 5-AGOST-26)">
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="filtro-categoria">Categoría</label>
@@ -209,7 +213,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             <table class="orders-table">
                                 <thead>
                                     <tr>
-                                        <th>#</th>
+                                        <th>N° Orden</th>
                                         <th>Producto</th>
                                         <th>Talla</th>
                                         <th>Categoría</th>
@@ -236,6 +240,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </button>
 
                         <form id="form-crear" novalidate>
+                            <div class="row form-group" id="contenedor-numero-orden" style="display: none;">
+                                <div class="col-sm-6">
+                                    <label class="form-label">N° de orden</label>
+                                    <input type="text" id="numero_orden" class="form-control" readonly>
+                                </div>
+                            </div>
                             <div class="row form-group">
                                 <div class="col-sm-6">
                                     <label class="form-label">Guia de corte <span style="color: red;">*</span></label>
@@ -250,19 +260,19 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-sm-6" id="contenedor-talla" style="display: none;">
+                                <div class="col-sm-6">
+                                    <label class="form-label">Cantidad a Producir</label>
+                                    <input type="number" step="1" min="1" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
+                                </div>
+                            </div>
+
+                            <div class="row form-group" id="contenedor-talla" style="display: none;">
+                                <div class="col-sm-6">
                                     <label class="form-label">Talla a producir <span style="color: red;">*</span></label>
                                     <select name="talla_id" id="talla_id" class="form-control">
                                         <option value="">Seleccione la talla</option>
                                     </select>
                                     <small class="text-muted">Las tallas dependen del rango del producto</small>
-                                </div>
-                            </div>
-
-                            <div class="row form-group">
-                                <div class="col-sm-6">
-                                    <label class="form-label">Cantidad a Producir</label>
-                                    <input type="number" step="1" min="1" name="cantidad_a_producir" id="cantidad_a_producir" class="form-control" required>
                                 </div>
                             </div>
 
@@ -272,7 +282,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <i class="fas fa-warehouse"></i> Talleres Involucrados en la Producción
                                 </label>
                                 <p class="text-muted" style="font-size: 13px; margin-bottom: 12px;">
-                                    Marque los talleres por los que pasará esta orden. Su costo se sumará automáticamente al costo total de la producción.
+                                    Marque los talleres por los que pasará esta orden. El costo de cada taller es por unidad y se multiplica por la cantidad a producir.
                                 </p>
                                 <div class="row">
                                     <?php if (!empty($talleres_disponibles)): ?>
@@ -288,7 +298,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                                     <label class="custom-control-label" for="taller_check_<?php echo $t['id']; ?>" style="cursor: pointer; font-weight: 600; font-size: 14px; user-select: none;">
                                                         <?php echo htmlspecialchars($t['nombre']); ?>
                                                         <span class="badge badge-info" style="margin-left: 6px; font-size: 11px; font-weight: bold; background-color: #0056b3;">
-                                                            +$<?php echo number_format((float)($t['costo'] ?? 0), 2, '.', ','); ?>
+                                                            +$<?php echo number_format((float)($t['costo'] ?? 0), 2, '.', ','); ?> / ud
                                                         </span>
                                                     </label>
                                                 </div>
@@ -311,7 +321,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 <div class="col-sm-6">
                                     <label class="form-label">Costo Total de Production ($)</label>
                                     <input type="text" id="costo_total_produccion" class="form-control" readonly style="background-color: #e9ecef; font-weight: bold; font-size: 16px; color: #0056b3;">
-                                    <small class="text-muted">Costo total = (Costo Unit. × Cantidad) + Costo de Talleres</small>
+                                    <small class="text-muted">Costo total = (Costo guía + Costo talleres/ud) × Cantidad</small>
                                 </div>
                             </div>
                             
@@ -515,12 +525,14 @@ function abrirModalTalleres(orden) {
     if(!orden) return;
     
     var ordenId = (typeof orden === 'object') ? orden.orden_id : orden;
+    var numeroOrden = (typeof orden === 'object' && orden.numero_orden) ? orden.numero_orden : '';
     ordenActualId = ordenId;
     
     $('#btn-anexar-otro-taller').hide();
     $('#btn-marcar-orden-lista').hide();
     $('#seccion-nuevo-taller').hide();
     $('#cronologia-talleres').html('<p class="text-center"><i class="fas fa-spinner fa-spin"></i>&nbsp; Cargando historial de la orden...</p>');
+    $('#modalTalleresTitle').text(numeroOrden ? 'Asignación de Talleres — ' + numeroOrden : 'Asignación de Talleres');
 
     $('#modalTalleres').modal('show');
 
@@ -529,6 +541,9 @@ function abrirModalTalleres(orden) {
         orden_id: ordenId
     }, function(resp) {
         if(resp && resp.success) {
+            if (resp.numero_orden) {
+                $('#modalTalleresTitle').text('Asignación de Talleres — ' + resp.numero_orden);
+            }
             var historial = resp.historial || [];
             var ordenEstado = resp.orden_status;
             var html = '';
@@ -691,13 +706,13 @@ function cargarTallasPorReceta(recetaId, tallaIdSeleccionada) {
 function calcularCostoTotal() {
     var recetaId = $('#receta_id').val();
     var cantidad = parseFloat($('#cantidad_a_producir').val()) || 0;
-    
-    // Sumar el costo de todos los talleres seleccionados
-    var totalCostosTalleres = 0;
+
+    var costoTallerPorUnidad = 0;
     $('.check-taller:checked').each(function() {
         var c = parseFloat($(this).data('costo')) || 0;
-        totalCostosTalleres += c;
+        costoTallerPorUnidad += c;
     });
+    var totalCostosTalleres = costoTallerPorUnidad * cantidad;
 
     if (recetaId && cantidad > 0) {
         var costoUnitario = parseFloat($('#receta_id option:selected').data('costo')) || 0;
@@ -803,6 +818,8 @@ function limpiarFormulario() {
     $('#contenedor-equivalente-bs').hide();
     $('#obser').val('');          
     $('#editar-orden-id').val('');
+    $('#numero_orden').val('');
+    $('#contenedor-numero-orden').hide();
     tasaParaEquivalenteOrden = tasaCambiariaActual;
 }
 
@@ -836,6 +853,12 @@ function editarOrden(data) {
 
     tasaParaEquivalenteOrden = (data.tasa_orden != null && parseFloat(data.tasa_orden) > 0) ? parseFloat(data.tasa_orden) : tasaCambiariaActual;
     $('#editar-orden-id').val(data.orden_id);
+    $('#numero_orden').val(data.numero_orden || '');
+    if (data.numero_orden) {
+        $('#contenedor-numero-orden').show();
+    } else {
+        $('#contenedor-numero-orden').hide();
+    }
     calcularCostoTotal();
     cargarStockInsumos(data.receta_id);
     mostrarVista('crear');

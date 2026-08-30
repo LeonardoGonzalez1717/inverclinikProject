@@ -89,7 +89,7 @@ require_once "../connection/connection.php";
                                         </select>
                                         <input type="text" name="nro_doc" maxlength="9" id="nro_doc" placeholder="Documento" class="form-control"/>
                                     </div>
-                                    <small class="text-muted">Cédula: 8 dígitos. RIF: 9.</small>
+                                    <small class="text-muted">Cédula (V/E): 6 a 9 dígitos. RIF (J): 8 o 9.</small>
                                 </div>
 
                                 <div class="col-md-8 mb-3">
@@ -279,15 +279,13 @@ $("#form-crear").on("submit", function(e) {
     }
 
     if (tipoDoc === 'J') {
-        // Exactamente 9
-        if (nroDoc.length !== 9) {
-            Swal.fire({ icon: 'warning', text: 'Para RIF (J), el número debe tener exactamente 9 dígitos.' });
+        if (nroDoc.length < 8 || nroDoc.length > 9) {
+            Swal.fire({ icon: 'warning', text: 'Para RIF (J), el número debe tener 8 o 9 dígitos.' });
             return;
         }
     } else {
-        // 7 u 8
-        if (nroDoc.length < 7 || nroDoc.length > 8) {
-            Swal.fire({ icon: 'warning', text: 'La cédula debe tener entre 7 y 8 dígitos.' });
+        if (nroDoc.length < 6 || nroDoc.length > 9) {
+            Swal.fire({ icon: 'warning', text: 'La cédula debe tener entre 6 y 9 dígitos.' });
             return;
         }
     }

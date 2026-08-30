@@ -16,29 +16,30 @@
   transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s ease;
 }
 
-/* === BOTÓN FLECHA TOGGLE LATERAL (DERECHA DEL NAVBAR) === */
+/* === PESTAÑA TOGGLE (CENTRO VERTICAL DEL NAVBAR) === */
 .sidebar-toggle-btn {
   position: absolute;
-  top: 22px;
-  right: -13px;
-  width: 26px;
-  height: 26px;
+  top: 50%;
+  left: 100%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 78px;
   background: #f3c924;
   color: #003a7e;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
+  border: none;
+  border-radius: 0 12px 12px 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+  box-shadow: 3px 0 10px rgba(0, 0, 0, 0.22);
   z-index: 1002;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
   padding: 0;
+  transition: width 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .sidebar-toggle-btn i {
-  font-size: 11px;
+  font-size: 13px;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   margin-right: 0 !important;
   width: auto !important;
@@ -47,7 +48,12 @@
 .sidebar-toggle-btn:hover {
   background: #ffffff;
   color: #003a7e;
-  transform: scale(1.15);
+  width: 26px;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.28);
+}
+
+.sidebar-toggle-btn:focus {
+  outline: none;
 }
 
 .sidebar.sidebar-expanded .sidebar-toggle-btn i {

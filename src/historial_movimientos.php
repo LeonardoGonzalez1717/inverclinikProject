@@ -33,8 +33,8 @@ require_once "../template/navbar.php";
                         <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
                             <div class="row" style="margin-bottom: 10px;">
                                 <div class="col-sm-4">
-                                    <label for="filtro-item">Producto / Insumo</label>
-                                    <input type="text" id="filtro-item" class="form-control clase-filtro" placeholder="Buscar por nombre...">
+                                    <label for="filtro-item">Producto / Insumo / Lote</label>
+                                    <input type="text" id="filtro-item" class="form-control clase-filtro" placeholder="Nombre o N° lote (ej. L-5-AGOST-26)">
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="filtro-tipo-item">Tipo de Ítem</label>
@@ -81,7 +81,8 @@ require_once "../template/navbar.php";
                                         <th style="width: 12%; text-align: center;" nowrap>Último Mov.</th>
                                         <th style="width: 13%; text-align: center;" nowrap>Origen Mov.</th>
                                         <th style="width: 10%;">Cantidad</th>
-                                        <th style="width: 15%;">Observaciones</th>
+                                        <th style="width: 16%;">Lote</th>
+                                        <th style="width: 14%;">Observaciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbody-historial">

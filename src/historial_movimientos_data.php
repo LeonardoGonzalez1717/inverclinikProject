@@ -1,6 +1,9 @@
 <?php
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/InventarioLotes.php';
+
+InventarioLotes::asegurar($conn);
 
 function html_origen_movimiento_detalle($codigo)
 {
@@ -35,7 +38,12 @@ $where = [];
 
 if ($buscar_item !== '') {
     $search = $conn->real_escape_string($buscar_item);
-    $where[] = "(i.nombre LIKE '%$search%' OR p.nombre LIKE '%$search%')";
+    $where[] = "(i.nombre LIKE '%$search%' OR p.nombre LIKE '%$search%'
+        OR EXISTS (
+            SELECT 1 FROM inventario_detalle_lotes dl
+            INNER JOIN inventario_lotes l ON l.id = dl.lote_id
+            WHERE dl.inventario_detalle_id = inv.id AND l.numero_lote LIKE '%$search%'
+        ))";
 }
 
 if ($tipo_item !== '') {
@@ -81,7 +89,11 @@ if ($tieneRecetaId) {
             i.nombre AS insumo_nombre,
             p.nombre AS producto_nombre,
             rt.nombre_rango AS rango_tallas_nombre,
-            tp.nombre AS tipo_produccion_nombre
+            tp.nombre AS tipo_produccion_nombre,
+            (SELECT GROUP_CONCAT(l.numero_lote ORDER BY l.fecha_entrada DESC, l.id DESC SEPARATOR ', ')
+             FROM inventario_detalle_lotes dl
+             INNER JOIN inventario_lotes l ON l.id = dl.lote_id
+             WHERE dl.inventario_detalle_id = inv.id) AS lotes_txt
         FROM inventario_detalle inv
         LEFT JOIN insumos i ON inv.tipo_item = 'insumo' AND inv.insumo_id = i.id
         LEFT JOIN recetas rec ON inv.tipo_item = 'producto' AND inv.receta_id = rec.id
@@ -107,7 +119,11 @@ if ($tieneRecetaId) {
             i.nombre AS insumo_nombre,
             p.nombre AS producto_nombre,
             rt.nombre_rango AS rango_tallas_nombre,
-            tp.nombre AS tipo_produccion_nombre
+            tp.nombre AS tipo_produccion_nombre,
+            (SELECT GROUP_CONCAT(l.numero_lote ORDER BY l.fecha_entrada DESC, l.id DESC SEPARATOR ', ')
+             FROM inventario_detalle_lotes dl
+             INNER JOIN inventario_lotes l ON l.id = dl.lote_id
+             WHERE dl.inventario_detalle_id = inv.id) AS lotes_txt
         FROM inventario_detalle inv
         LEFT JOIN insumos i ON inv.tipo_item = 'insumo' AND inv.insumo_id = i.id
         LEFT JOIN productos p ON inv.tipo_item = 'producto' AND inv.producto_id = p.id
@@ -170,11 +186,12 @@ if (!empty($filas)) {
         echo '<td style="text-align: center; vertical-align: middle;">' . $movimientoHtml . '</td>';
         echo '<td style="text-align: center; vertical-align: middle;">' . $origenHtml . '</td>';
         echo '<td style="text-align: right;">' . number_format((float) $r['cantidad'], 2, '.', ',') . '</td>';
+        echo '<td style="font-size: 12px; white-space: nowrap;">' . htmlspecialchars($r['lotes_txt'] ?: '—') . '</td>';
         echo '<td class="text-muted" style="font-size: 12px;">' . $observaciones . '</td>';
         echo '</tr>';
     }
 } else {
-    echo '<tr><td colspan="8" class="text-center text-muted" style="padding: 25px;">No se encontraron movimientos con los filtros aplicados.</td></tr>';
+    echo '<tr><td colspan="9" class="text-center text-muted" style="padding: 25px;">No se encontraron movimientos con los filtros aplicados.</td></tr>';
 }
 
 $rowsHtml = ob_get_clean();

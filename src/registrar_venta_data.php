@@ -4,6 +4,8 @@ require_once __DIR__ . '/../lib/Auditoria.php';
 require_once __DIR__ . '/../lib/CuentasPorCobrar.php';
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/orden_numero.php';
+require_once __DIR__ . '/../lib/InventarioLotes.php';
 
 function asegurar_columnas_comprobante_cotizaciones(mysqli $conn): void
 {
@@ -427,25 +429,7 @@ function analizar_stock_venta(mysqli $conn, array $productos, bool $tieneInventa
         }
 
         if (!array_key_exists($claveInv, $saldoRestante)) {
-            $stockBd = 0.0;
-            if ($tieneInventarioNuevo) {
-                $stmtStock = $conn->prepare(
-                    'SELECT stock_actual FROM inventario WHERE tipo_item = \'producto\' AND tipo_item_id = ?'
-                );
-                $stmtStock->bind_param('i', $receta_id);
-            } else {
-                $stmtStock = $conn->prepare(
-                    'SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?'
-                );
-                $stmtStock->bind_param('iii', $producto_id, $rango_tallas_id, $tipo_produccion_id);
-            }
-            $stmtStock->execute();
-            $rs = $stmtStock->get_result();
-            if ($rowStock = $rs->fetch_assoc()) {
-                $stockBd = (float) $rowStock['stock_actual'];
-            }
-            $stmtStock->close();
-            $saldoRestante[$claveInv] = $stockBd;
+            $saldoRestante[$claveInv] = InventarioLotes::stockDisponible($conn, 'producto', $receta_id);
         }
 
         $saldoLinea = $saldoRestante[$claveInv];
@@ -1300,61 +1284,15 @@ try {
                     $stmtDetalle->execute();
 
                     if (!$ventaConOrdenesSinStock) {
-                        if ($tieneInventarioNuevo) {
-                            $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?";
-                            $stmtStock = $conn->prepare($sqlStock);
-                            $stmtStock->bind_param("i", $receta_id);
-                        } else {
-                            $sqlStock = "SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?";
-                            $stmtStock = $conn->prepare($sqlStock);
-                            $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
-                        }
-                        $stmtStock->execute();
-                        $resultStock = $stmtStock->get_result();
-                        $stockActual = 0;
-                        if ($rowStock = $resultStock->fetch_assoc()) {
-                            $stockActual = floatval($rowStock['stock_actual']);
-                        }
-                        $stmtStock->close();
-
-                        if ($cantidad > $stockActual) {
-                            throw new Exception('Inconsistencia de inventario respecto a la validación previa. Reintente la venta.');
-                        }
-
-                        $nuevoStock = $stockActual - $cantidad;
-                        if ($nuevoStock < 0) {
-                            $nuevoStock = 0;
-                        }
-
-                        $observacionesMovimiento = "Salida por venta #{$venta_id}";
-                        $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
-                        if ($tieneRecetaIdDet) {
-                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones) VALUES ('producto', ?, 'salida', ?, ?)");
-                            $stmtMovimiento->bind_param("ids", $receta_id, $cantidad, $observacionesMovimiento);
-                        } else {
-                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'salida', ?, ?)");
-                            $stmtMovimiento->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidad, $observacionesMovimiento);
-                        }
-                        $stmtMovimiento->execute();
-                        $stmtMovimiento->close();
-
-                        if ($tieneInventarioNuevo) {
-                            $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
-                            VALUES ('producto', ?, ?, 'manual', NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
-                        ");
-                            $stmtInventario->bind_param("id", $receta_id, $nuevoStock);
-                        } else {
-                            $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
-                            VALUES (?, ?, ?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
-                        ");
-                            $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
-                        }
-                        $stmtInventario->execute();
-                        $stmtInventario->close();
+                        InventarioLotes::registrarSalida($conn, [
+                            'tipo_item' => 'producto',
+                            'tipo_item_id' => $receta_id,
+                            'cantidad' => $cantidad,
+                            'origen' => 'manual',
+                            'origen_id' => $venta_id,
+                            'observaciones' => "Salida por venta #{$venta_id}",
+                            'tipo_movimiento' => 'manual',
+                        ]);
                     }
                 } else {
                     $stmtReceta->close();
@@ -1407,6 +1345,14 @@ try {
                         : "Venta guardada en estado En proceso. Se crearon {$nOp} órdenes de producción por el inventario faltante; el stock no se descontará hasta completar la producción y registrar el despacho."
                 )
                 : 'Venta registrada exitosamente';
+
+            if ($ventaConOrdenesSinStock && $idsOp !== []) {
+                $numerosOp = [];
+                foreach ($idsOp as $oidRaw) {
+                    $numerosOp[] = numero_orden_produccion((int)$oidRaw, date('Y-m-d H:i:s'));
+                }
+                $msgOk .= ' N°: ' . implode(', ', $numerosOp) . '.';
+            }
 
             if ($cuentaId) {
                 $saldoCxC = round(max(0, $total - $monto_pagado), 2);

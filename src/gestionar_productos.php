@@ -186,20 +186,13 @@ if ($resRangos) {
 
 <script>
 function mostrarVista(vista) {
-    document.querySelectorAll('#contenedor-vistas > div').forEach(el => {
-        el.classList.add('hidden');
-    });
-    const vistaElement = document.getElementById('vista-' + vista);
-    if (vistaElement) {
-        vistaElement.classList.remove('hidden');
-    }
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').show();
 }
 
 $('#btn-ir-crear').on('click', function() {
-    $('#vista-listado').fadeOut(200, function() {
-        $('#vista-crear').removeClass('hidden').fadeIn();
-        limpiarFormulario();
-    });
+    limpiarFormulario();
+    mostrarVista('crear');
 });
 
 $('#btn-volver-listado').on('click', function() {
@@ -211,9 +204,8 @@ $('#btn-volver-listado').on('click', function() {
         cancelButtonText: 'Cancelar'
     }).then(function(r) {
         if (!r.isConfirmed) return;
-        $('#vista-crear').fadeOut(200, function() {
-            $('#vista-listado').fadeIn();
-        });
+        limpiarFormulario();
+        mostrarVista('listado');
     });
 });
 
@@ -363,9 +355,9 @@ $("#form-crear").on("submit", function(e) {
         success: function(resp) {
             if (resp && resp.success) {
                 Swal.fire({ icon: 'success', text: resp.message });
-                mostrarVista("listado");
-                cargarListado();
                 limpiarFormulario();
+                mostrarVista('listado');
+                cargarListado(1);
             } else {
                 Swal.fire({ icon: 'error', text: "Error: " + (resp ? resp.message : "Respuesta inválida") });
             }
