@@ -78,7 +78,10 @@ try {
 
         $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
 
-        $sqlBase = "
+        $total = (int) ($conn->query("SELECT COUNT(*) AS c FROM productos" . $fil)->fetch_assoc()['c'] ?? 0);
+        $pg = Pagination::fromInput($total, $_POST);
+
+        $sql = "
             SELECT 
                 p.id,
                 p.nombre,
@@ -91,6 +94,7 @@ try {
                 p.fecha_creacion
             FROM productos p
             LEFT JOIN rangos_tallas rt ON rt.id = p.rango_tallas_id
+            $fil
             ORDER BY p.fecha_creacion DESC, p.nombre ASC
         " . $pg->limitClause();
 

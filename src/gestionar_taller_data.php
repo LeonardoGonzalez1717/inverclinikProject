@@ -84,7 +84,7 @@ try {
                 echo '<tr>';
                 echo '<td>' . $i . '</td>';
                 echo '<td><strong>' . htmlspecialchars($row['nombre']) . '</strong></td>';
-                echo '<td style="text-align: right; font-weight: 600;">$' . number_format($costoVal, 2, '.', ',') . '</td>';
+                echo '<td style="text-align: right; font-weight: 600;">$' . number_format($costoVal, 2, '.', ',') . ' / ud</td>';
                 echo '<td>' . $desc . '</td>';
                 echo '<td>' . $estadoBadge . '</td>';
                 echo '<td style="white-space: nowrap;">';
@@ -122,7 +122,7 @@ try {
         }
 
         if ($costo < 0) {
-            echo json_encode(['success' => false, 'message' => 'El costo del taller no puede ser negativo.']);
+            echo json_encode(['success' => false, 'message' => 'El costo por unidad del taller no puede ser negativo.']);
             exit;
         }
 
@@ -155,7 +155,7 @@ try {
         }
 
         if ($costo < 0) {
-            echo json_encode(['success' => false, 'message' => 'El costo del taller no puede ser negativo.']);
+            echo json_encode(['success' => false, 'message' => 'El costo por unidad del taller no puede ser negativo.']);
             exit;
         }
 

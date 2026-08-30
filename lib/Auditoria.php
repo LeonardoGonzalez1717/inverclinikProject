@@ -2,7 +2,7 @@
 
 /**
  * Registro centralizado de auditoría: usuario (staff o cliente), módulo, mensaje, fecha e IP.
- * La tabla `auditoria` debe existir en la base (p. ej. db_inverclinik_estructura.sql o sql/migracion_auditoria.sql).
+ * La tabla `auditoria` debe existir en la base (ver db_inverclinik_estructura.sql).
  */
 class Auditoria
 {

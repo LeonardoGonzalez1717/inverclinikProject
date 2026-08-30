@@ -3,8 +3,9 @@ require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/Auditoria.php';
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/InventarioLotes.php';
 
-// Inventario usa tipo_item + tipo_item_id (id de insumo o de receta). Ver sql/migracion_inventario_radical.sql
+// Inventario usa tipo_item + tipo_item_id (id de insumo o de receta).
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
 $checkColumn = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'orden_produccion_id'");
@@ -548,50 +549,19 @@ try {
                         throw new Exception($e->getMessage());
                     }
 
-                    if ($tieneInventarioNuevo) {
-                        $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?");
-                        $stmtStock->bind_param("i", $insumo_id);
-                    } else {
-                        $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE insumo_id = ?");
-                        $stmtStock->bind_param("i", $insumo_id);
-                    }
-                    $stmtStock->execute();
-                    $resultStock = $stmtStock->get_result();
-                    $stockActual = 0;
-                    if ($rowStock = $resultStock->fetch_assoc()) {
-                        $stockActual = floatval($rowStock['stock_actual']);
-                    }
-                    $stmtStock->close();
-
+                    $optsMov = [
+                        'tipo_item' => 'insumo',
+                        'tipo_item_id' => (int) $insumo_id,
+                        'cantidad' => $cantidad,
+                        'origen' => $tipo_movimiento,
+                        'observaciones' => $observaciones,
+                        'tipo_movimiento' => $tipo_movimiento,
+                    ];
                     if ($tipo === 'entrada') {
-                        $nuevoStock = $stockActual + floatval($cantidad);
+                        InventarioLotes::registrarEntrada($conn, $optsMov);
                     } else {
-                        $nuevoStock = $stockActual - floatval($cantidad);
-                        if ($nuevoStock < 0) $nuevoStock = 0;
+                        InventarioLotes::registrarSalida($conn, $optsMov);
                     }
-
-                    $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, origen, observaciones) VALUES ('insumo', ?, ?, ?, ?, ?)");
-                    $stmtMovimiento->bind_param("isdss", $insumo_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
-                    $stmtMovimiento->execute();
-                    $stmtMovimiento->close();
-
-                    if ($tieneInventarioNuevo) {
-                        $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
-                            VALUES ('insumo', ?, ?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), tipo_movimiento = VALUES(tipo_movimiento), ultima_actualizacion = NOW()
-                        ");
-                        $stmtInventario->bind_param("ids", $insumo_id, $nuevoStock, $tipo_movimiento);
-                    } else {
-                        $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion)
-                            VALUES (?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
-                        ");
-                        $stmtInventario->bind_param("id", $insumo_id, $nuevoStock);
-                    }
-                    $stmtInventario->execute();
-                    $stmtInventario->close();
 
                 } else {
                     $sqlReceta = "SELECT producto_id, rango_tallas_id, tipo_produccion_id FROM recetas WHERE id = ?";
@@ -613,56 +583,19 @@ try {
                         throw new Exception($e->getMessage());
                     }
 
-                    if ($tieneInventarioNuevo) {
-                        $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?");
-                        $stmtStock->bind_param("i", $receta_id);
-                    } else {
-                        $stmtStock = $conn->prepare("SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?");
-                        $stmtStock->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
-                    }
-                    $stmtStock->execute();
-                    $resultStock = $stmtStock->get_result();
-                    $stockActual = 0;
-                    if ($rowStock = $resultStock->fetch_assoc()) {
-                        $stockActual = floatval($rowStock['stock_actual']);
-                    }
-                    $stmtStock->close();
-
+                    $optsMov = [
+                        'tipo_item' => 'producto',
+                        'tipo_item_id' => (int) $receta_id,
+                        'cantidad' => $cantidad,
+                        'origen' => $tipo_movimiento,
+                        'observaciones' => $observaciones,
+                        'tipo_movimiento' => $tipo_movimiento,
+                    ];
                     if ($tipo === 'entrada') {
-                        $nuevoStock = $stockActual + floatval($cantidad);
+                        InventarioLotes::registrarEntrada($conn, $optsMov);
                     } else {
-                        $nuevoStock = $stockActual - floatval($cantidad);
-                        if ($nuevoStock < 0) $nuevoStock = 0;
+                        InventarioLotes::registrarSalida($conn, $optsMov);
                     }
-
-                    $checkRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'");
-                    if ($checkRecetaIdDet->num_rows > 0) {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, origen, observaciones) VALUES ('producto', ?, ?, ?, ?, ?)");
-                        $stmtMovimiento->bind_param("isdss", $receta_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
-                    } else {
-                        $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, origen, observaciones) VALUES ('producto', ?, ?, ?, ?, ?, ?, ?)");
-                        $stmtMovimiento->bind_param("iiisdss", $producto_id, $rango_tallas_id, $tipo_produccion_id, $tipo, $cantidad, $tipo_movimiento, $observaciones);
-                    }
-                    $stmtMovimiento->execute();
-                    $stmtMovimiento->close();
-
-                    if ($tieneInventarioNuevo) {
-                        $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion)
-                            VALUES ('producto', ?, ?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), tipo_movimiento = VALUES(tipo_movimiento), ultima_actualizacion = NOW()
-                        ");
-                        $stmtInventario->bind_param("ids", $receta_id, $nuevoStock, $tipo_movimiento);
-                    } else {
-                        $stmtInventario = $conn->prepare("
-                            INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion)
-                            VALUES (?, ?, ?, ?, NOW())
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()
-                        ");
-                        $stmtInventario->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStock);
-                    }
-                    $stmtInventario->execute();
-                    $stmtInventario->close();
                 }
 
                 $conn->commit();

@@ -59,7 +59,7 @@ require_once "../connection/connection.php";
                                 <tr class="bg-navy">
                                     <th style="width: 70px;">#</th>
                                     <th>Nombre del Taller</th>
-                                    <th style="width: 140px; text-align: right;">Costo ($)</th>
+                                    <th style="width: 160px; text-align: right;">Costo por unidad ($)</th>
                                     <th>Descripción</th>
                                     <th style="width: 120px;">Estado</th>
                                     <th style="width: 180px;">Acciones</th>
@@ -90,9 +90,9 @@ require_once "../connection/connection.php";
                             </div>
 
                             <div class="col-sm-3 form-group">
-                                <label for="costo">Costo ($) <span class="text-danger">*</span></label>
+                                <label for="costo">Costo por unidad ($) <span class="text-danger">*</span></label>
                                 <input type="number" step="0.01" min="0" id="costo" name="costo" class="form-control" placeholder="0.00" value="0.00" required>
-                                <small class="text-muted">Costo del taller por orden</small>
+                                <small class="text-muted">Se cobra por cada unidad de la orden de producción</small>
                             </div>
 
                             <div class="col-sm-3 form-group">
@@ -257,7 +257,7 @@ $(function() {
 
         var costo = parseFloat($('#costo').val());
         if (isNaN(costo) || costo < 0) {
-            Swal.fire({ icon: 'warning', text: 'Indique un costo válido (mayor o igual a cero).' });
+            Swal.fire({ icon: 'warning', text: 'Indique un costo por unidad válido (mayor o igual a cero).' });
             return;
         }
 

@@ -50,6 +50,33 @@ if ($checkRangoProducto->num_rows == 0) {
     );
 }
 
+function asegurarTiposProduccion(mysqli $conn): void
+{
+    static $hecho = false;
+    if ($hecho) {
+        return;
+    }
+    $hecho = true;
+
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS tipos_produccion (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nombre VARCHAR(50) NOT NULL,
+            descripcion TEXT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    );
+    $conn->query("INSERT IGNORE INTO tipos_produccion (nombre, descripcion) VALUES ('Detal', 'Producción minorista')");
+    $conn->query("INSERT IGNORE INTO tipos_produccion (nombre, descripcion) VALUES ('Mayor', 'Producción mayorista')");
+}
+
+function tipoProduccionPorDefecto(mysqli $conn): int
+{
+    asegurarTiposProduccion($conn);
+    $res = $conn->query('SELECT id FROM tipos_produccion ORDER BY id ASC LIMIT 1');
+    $row = $res ? $res->fetch_assoc() : null;
+    return (int) ($row['id'] ?? 1);
+}
+
 function obtenerRangoTallasDeProducto(mysqli $conn, int $productoId): array
 {
     $stmt = $conn->prepare('SELECT rango_tallas_id, nombre FROM productos WHERE id = ? LIMIT 1');
@@ -123,6 +150,8 @@ try {
 
         $fil = !empty($where) ? " WHERE " . implode(" AND ", $where) : "";
 
+        asegurarTiposProduccion($conn);
+
         // Migrar datos si la tabla está vacía
         $checkRecetas = $conn->query("SELECT COUNT(*) as count FROM recetas");
         $row = $checkRecetas->fetch_assoc();
@@ -160,15 +189,16 @@ try {
                 COUNT(DISTINCT rp.insumo_id) AS cantidad_insumos
             FROM recetas r
             INNER JOIN productos p ON r.producto_id = p.id
-            INNER JOIN rangos_tallas rt ON rt.id = COALESCE(p.rango_tallas_id, r.rango_tallas_id)
-            INNER JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
+            LEFT JOIN rangos_tallas rt ON rt.id = COALESCE(p.rango_tallas_id, r.rango_tallas_id)
+            LEFT JOIN tipos_produccion tp ON r.tipo_produccion_id = tp.id
             LEFT JOIN almacenes a ON r.almacen_id = a.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = r.tasa_cambiaria_id
             LEFT JOIN recetas_productos rp ON rp.producto_id = r.producto_id 
                 AND rp.rango_tallas_id = r.rango_tallas_id 
                 AND rp.tipo_produccion_id = r.tipo_produccion_id
             LEFT JOIN insumos i ON rp.insumo_id = i.id
-            GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, p.rango_tallas_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.porcentaje_ganancia
+            $fil
+            GROUP BY r.id, r.tasa_cambiaria_id, r.almacen_id, r.stock_minimo, r.stock_maximo, a.nombre, tc.tasa, r.producto_id, p.rango_tallas_id, r.rango_tallas_id, r.tipo_produccion_id, p.nombre, rt.nombre_rango, tp.nombre, r.observaciones, r.creado_en, r.precio_total, r.precio_detal, r.precio_mayor, r.porcentaje_ganancia
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -224,7 +254,10 @@ try {
     switch ($action) {
         case 'crear_receta_completa':
             $producto_id = (int) ($_POST['producto_id'] ?? 0);
-            $tipo_produccion_id = $_POST['tipo_produccion_id'] ?? 1;
+            $tipo_produccion_id = (int) ($_POST['tipo_produccion_id'] ?? 0);
+            if ($tipo_produccion_id <= 0) {
+                $tipo_produccion_id = tipoProduccionPorDefecto($conn);
+            }
             $almacen_id = !empty($_POST['almacen_id']) ? (int)$_POST['almacen_id'] : null;
             $precio_total = floatval($_POST['precio_total'] ?? 0);
             $porcentaje_ganancia = isset($_POST['porcentaje_ganancia']) && $_POST['porcentaje_ganancia'] !== '' ? (float)$_POST['porcentaje_ganancia'] : null;

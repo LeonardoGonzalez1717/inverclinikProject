@@ -1,6 +1,8 @@
 <?php
 $sin_sidebar = true;
 require_once('../template/header.php');
+require_once __DIR__ . '/../lib/InventarioLotes.php';
+InventarioLotes::asegurar($conn);
 
 $where = [];
 
@@ -31,17 +33,30 @@ if ($stock_max !== '') {
     $where[] = "inv.stock_actual <= $stock_max";
 }
 
+$tieneTipoItem = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
+if ($tieneTipoItem) {
+    $where[] = "inv.tipo_item = 'insumo'";
+    $idCol = 'inv.tipo_item_id AS id';
+    $joinInsumo = 'JOIN insumos i ON i.id = inv.tipo_item_id';
+} else {
+    $idCol = 'inv.insumo_id AS id';
+    $joinInsumo = 'JOIN insumos i ON i.id = inv.insumo_id';
+}
+
 $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";
 
 $sql = "
 SELECT
-    inv.insumo_id AS id,
+    $idCol,
     inv.ultima_actualizacion,
     i.nombre AS insumo,
     COALESCE(um.nombre, um.codigo, '') AS unidad_medida,
-    inv.stock_actual
+    inv.stock_actual,
+    (SELECT GROUP_CONCAT(l.numero_lote ORDER BY l.fecha_entrada DESC, l.id DESC SEPARATOR ', ')
+     FROM inventario_lotes l
+     WHERE l.tipo_item = 'insumo' AND l.tipo_item_id = i.id AND l.cantidad_restante > 0) AS lotes
 FROM inventario inv
-JOIN insumos i ON i.id = CASE WHEN inv.tipo_item = 'insumo' THEN inv.tipo_item_id ELSE inv.insumo_id END
+$joinInsumo
 LEFT JOIN unidad_medida um ON um.id = i.unidad_medida_id
 $condiciones
 ORDER BY i.nombre ASC
@@ -76,6 +91,7 @@ $i = 1;
                     <th>Insumo</th>
                     <th>Unidad</th>
                     <th>Stock Actual</th>
+                    <th>Lote</th>
                 </tr>
             </thead>
             <tbody>
@@ -86,6 +102,7 @@ $i = 1;
                         <td><?= htmlspecialchars($row['insumo']) ?></td>
                         <td><?= htmlspecialchars($row['unidad_medida']) ?></td>
                         <td><?= htmlspecialchars($row['stock_actual'] ?? '0') ?></td>
+                        <td style="text-align:left; font-size:12px;"><?= htmlspecialchars($row['lotes'] ?? '—') ?></td>
                     </tr>
                 <?php endwhile; ?>
             </tbody>

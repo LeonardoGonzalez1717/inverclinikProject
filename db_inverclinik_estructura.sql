@@ -1,6 +1,5 @@
--- phpMyAdmin SQL Dump
--- Estructura de base de datos: `db_inverclinik`
--- Solo creación de tablas, PRIMARY KEY y FOREIGN KEY
+-- Esquema unificado de `db_inverclinik`
+-- Instalación: importar este archivo (crea tablas, índices, FKs y datos iniciales).
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -76,7 +75,7 @@ CREATE TABLE IF NOT EXISTS `detalle_compra` (
 CREATE TABLE IF NOT EXISTS `detalle_venta` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `venta_id` int(11) NOT NULL,
-  `producto_id` int(11) NOT NULL,
+  `producto_id` int(11) NOT NULL COMMENT 'ID de la receta (recetas.id)',
   `cantidad` decimal(10,2) NOT NULL,
   `precio_unitario` decimal(10,2) NOT NULL,
   `subtotal` decimal(12,2) GENERATED ALWAYS AS (`cantidad` * `precio_unitario`) STORED,
@@ -179,12 +178,48 @@ CREATE TABLE IF NOT EXISTS `inventario_detalle` (
 -- --------------------------------------------------------
 
 --
+-- Lotes de inventario (LIFO por fecha de entrada)
+--
+CREATE TABLE IF NOT EXISTS `inventario_lotes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `numero_lote` varchar(40) NOT NULL,
+  `tipo_item` enum('insumo','producto') NOT NULL,
+  `tipo_item_id` int(11) NOT NULL,
+  `fecha_entrada` datetime NOT NULL,
+  `cantidad_inicial` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `cantidad_restante` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `costo_unitario` decimal(12,2) DEFAULT NULL,
+  `origen` varchar(50) DEFAULT 'manual',
+  `origen_id` int(11) DEFAULT NULL,
+  `inventario_detalle_id` int(11) DEFAULT NULL,
+  `almacen_id` int(11) DEFAULT NULL,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_numero_lote` (`numero_lote`),
+  KEY `idx_item_fecha` (`tipo_item`,`tipo_item_id`,`fecha_entrada`,`id`),
+  KEY `idx_item_restante` (`tipo_item`,`tipo_item_id`,`cantidad_restante`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `inventario_detalle_lotes` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `inventario_detalle_id` int(11) NOT NULL,
+  `lote_id` int(11) NOT NULL,
+  `cantidad` decimal(12,2) NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_detalle` (`inventario_detalle_id`),
+  KEY `idx_lote` (`lote_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `ordenes_produccion`
 --
 
 CREATE TABLE IF NOT EXISTS `ordenes_produccion` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `receta_producto_id` int(11) NOT NULL,
+  `talla_id` int(11) DEFAULT NULL COMMENT 'Talla individual a producir (tabla tallas)',
   `cantidad_a_producir` decimal(10,2) NOT NULL,
   `fecha_inicio` date DEFAULT NULL,
   `fecha_fin` date DEFAULT NULL,
@@ -193,8 +228,38 @@ CREATE TABLE IF NOT EXISTS `ordenes_produccion` (
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `usuario_id` int(11) DEFAULT NULL,
   `tasa_cambiaria_id` int(11) DEFAULT NULL COMMENT 'Tasa usada al crear la orden',
+  `venta_id` int(11) DEFAULT NULL COMMENT 'Venta enlazada (p. ej. órdenes por falta de stock)',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `talleres`
+--
+
+CREATE TABLE IF NOT EXISTS `talleres` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(150) NOT NULL,
+  `costo` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `descripcion` text DEFAULT NULL,
+  `activo` tinyint(1) DEFAULT 1,
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `ordenes_talleres` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `orden_produccion_id` int(11) NOT NULL,
+  `taller_id` int(11) NOT NULL,
+  `fecha_asignacion` datetime NOT NULL DEFAULT current_timestamp(),
+  `fecha_entrega` datetime DEFAULT NULL,
+  `recibido` tinyint(1) NOT NULL DEFAULT 0,
+  `observaciones` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `orden_produccion_id` (`orden_produccion_id`),
+  KEY `taller_id` (`taller_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -224,6 +289,7 @@ CREATE TABLE IF NOT EXISTS `productos` (
 
 CREATE TABLE IF NOT EXISTS `proveedores` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
+  `cedrif` varchar(15) NOT NULL,
   `nombre` varchar(100) NOT NULL,
   `telefono` varchar(20) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
@@ -406,6 +472,19 @@ WHERE NOT EXISTS (
   SELECT 1 FROM `users` WHERE `correo` = 'admin@admin.com'
 );
 
+CREATE TABLE IF NOT EXISTS `respaldos_bd` (
+  `id` int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `nombre_archivo` varchar(255) NOT NULL,
+  `tamano_bytes` bigint(20) UNSIGNED NOT NULL DEFAULT 0,
+  `creado_en` datetime NOT NULL,
+  `origen` enum('automatico','manual') NOT NULL DEFAULT 'automatico',
+  `usuario_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nombre_archivo` (`nombre_archivo`),
+  KEY `idx_creado_en` (`creado_en`),
+  KEY `fk_respaldos_bd_usuario` (`usuario_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- --------------------------------------------------------
 
 --
@@ -424,10 +503,12 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
   `tasa_cambiaria_id` int(11) DEFAULT NULL,
   `comprobante_referencia` varchar(120) DEFAULT NULL COMMENT 'Referencia o número de comprobante de pago asociado a la venta',
+  `forma_pago_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
   KEY `cotizacion_id` (`cotizacion_id`),
-  KEY `idx_orden_produccion` (`orden_produccion_id`)
+  KEY `idx_orden_produccion` (`orden_produccion_id`),
+  KEY `forma_pago_id` (`forma_pago_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -500,6 +581,7 @@ CREATE TABLE IF NOT EXISTS `cotizaciones` (
   `forma_pago_id` int(11) DEFAULT NULL COMMENT 'Forma de pago declarada al cargar comprobante',
   PRIMARY KEY (`id_cotizacion`),
   KEY `id_cliente` (`id_cliente`),
+  KEY `forma_pago_id` (`forma_pago_id`),
   CONSTRAINT `fk_cotizaciones_cliente` FOREIGN KEY (`id_cliente`) REFERENCES `clientes` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -545,6 +627,28 @@ CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar` (
   CONSTRAINT `fk_cxc_cotizacion` FOREIGN KEY (`cotizacion_id`) REFERENCES `cotizaciones` (`id_cotizacion`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE IF NOT EXISTS `formas_pago` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(60) NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+INSERT INTO `formas_pago` (`nombre`, `activo`)
+SELECT 'pago movil', 1
+WHERE NOT EXISTS (SELECT 1 FROM `formas_pago` WHERE LOWER(TRIM(`nombre`)) = 'pago movil');
+INSERT INTO `formas_pago` (`nombre`, `activo`)
+SELECT 'transferencia bancaria', 1
+WHERE NOT EXISTS (SELECT 1 FROM `formas_pago` WHERE LOWER(TRIM(`nombre`)) = 'transferencia bancaria');
+INSERT INTO `formas_pago` (`nombre`, `activo`)
+SELECT 'efectivo', 1
+WHERE NOT EXISTS (SELECT 1 FROM `formas_pago` WHERE LOWER(TRIM(`nombre`)) = 'efectivo');
+INSERT INTO `formas_pago` (`nombre`, `activo`)
+SELECT 'divisa', 1
+WHERE NOT EXISTS (SELECT 1 FROM `formas_pago` WHERE LOWER(TRIM(`nombre`)) = 'divisa');
+
 CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar_pagos` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `cuenta_id` int(11) NOT NULL,
@@ -565,11 +669,6 @@ CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar_pagos` (
 
 -- cotizacion_id y activo ya están en CREATE TABLE ventas y productos
 
-ALTER TABLE `detalle_venta`
-  MODIFY COLUMN `producto_id` int(11) NOT NULL COMMENT 'ID de la Receta (recetas.id)',
-  MODIFY COLUMN `cantidad` decimal(10,2) NOT NULL;
-
-
 --
 -- Índices para tablas volcadas
 --
@@ -578,8 +677,6 @@ ALTER TABLE `detalle_venta`
 -- Indices de la tabla `compras`
 -- (idx_orden_produccion definido en CREATE TABLE `compras`)
 
-ALTER TABLE proveedores 
-ADD COLUMN cedrif VARCHAR(15) NOT NULL AFTER id;
 --
 -- Indices de la tabla `detalle_compra`
 --
@@ -600,7 +697,8 @@ ALTER TABLE `detalle_venta`
 ALTER TABLE `insumos`
   ADD KEY `proveedor` (`proveedor_id`),
   ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
-  ADD KEY `unidad_medida_id` (`unidad_medida_id`);
+  ADD KEY `unidad_medida_id` (`unidad_medida_id`),
+  ADD KEY `almacen_id` (`almacen_id`);
 
 --
 -- Indices de la tabla `inventario` (definidos en CREATE TABLE)
@@ -624,7 +722,15 @@ ALTER TABLE `inventario_detalle`
 ALTER TABLE `ordenes_produccion`
   ADD KEY `receta_producto_id` (`receta_producto_id`),
   ADD KEY `fk_ordenes_produccion_usuario` (`usuario_id`),
-  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`);
+  ADD KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
+  ADD KEY `idx_ordenes_produccion_talla_id` (`talla_id`),
+  ADD KEY `idx_ordenes_produccion_venta_id` (`venta_id`);
+
+--
+-- Indices de la tabla `productos`
+--
+ALTER TABLE `productos`
+  ADD KEY `rango_tallas_id` (`rango_tallas_id`);
 
 --
 -- Indices de la tabla `proveedores`
@@ -704,7 +810,8 @@ ALTER TABLE `detalle_venta`
 ALTER TABLE `insumos`
   ADD CONSTRAINT `fk_insumos_unidad_medida` FOREIGN KEY (`unidad_medida_id`) REFERENCES `unidad_medida` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_insumos_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_insumos_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_insumos_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_insumos_almacen` FOREIGN KEY (`almacen_id`) REFERENCES `almacenes` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `inventario`
@@ -727,7 +834,16 @@ ALTER TABLE `inventario_detalle`
 ALTER TABLE `ordenes_produccion`
   ADD CONSTRAINT `fk_ordenes_produccion_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `ordenes_produccion_ibfk_1` FOREIGN KEY (`receta_producto_id`) REFERENCES `recetas_productos` (`id`),
-  ADD CONSTRAINT `fk_ordenes_produccion_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_ordenes_produccion_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_ordenes_produccion_talla` FOREIGN KEY (`talla_id`) REFERENCES `tallas` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_ordenes_produccion_venta` FOREIGN KEY (`venta_id`) REFERENCES `ventas` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
+-- Filtros para la tabla `ordenes_talleres`
+--
+ALTER TABLE `ordenes_talleres`
+  ADD CONSTRAINT `fk_talleres_orden` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_talleres_proveedor` FOREIGN KEY (`taller_id`) REFERENCES `talleres` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 --
 -- Filtros para la tabla `tallas`
@@ -761,6 +877,18 @@ ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_rol` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 --
+-- Filtros para la tabla `respaldos_bd`
+--
+ALTER TABLE `respaldos_bd`
+  ADD CONSTRAINT `fk_respaldos_bd_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+--
+-- Filtros para la tabla `productos`
+--
+ALTER TABLE `productos`
+  ADD CONSTRAINT `fk_productos_rango_tallas` FOREIGN KEY (`rango_tallas_id`) REFERENCES `rangos_tallas` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+--
 -- Filtros para la tabla `clientes`
 --
 ALTER TABLE `clientes`
@@ -773,7 +901,14 @@ ALTER TABLE `ventas`
   ADD CONSTRAINT `fk_venta_cotizacion` FOREIGN KEY (`cotizacion_id`) REFERENCES `cotizaciones` (`id_cotizacion`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_ventas_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `clientes` (`id`) ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_ventas_orden_produccion` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_ventas_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+  ADD CONSTRAINT `fk_ventas_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_ventas_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `formas_pago` (`id`) ON UPDATE CASCADE ON DELETE SET NULL;
+
+--
+-- Filtros para la tabla `cotizaciones`
+--
+ALTER TABLE `cotizaciones`
+  ADD CONSTRAINT `fk_cotizaciones_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `formas_pago` (`id`) ON UPDATE CASCADE ON DELETE SET NULL;
 
 -- --------------------------------------------------------
 

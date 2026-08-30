@@ -327,11 +327,14 @@ var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_a
 var tasaParaEquivalenteReceta = tasaCambiariaActual;
 var PORCENTAJE_GANANCIA_DEFECTO = 30;
 
+function mostrarVista(vista) {
+    $('#vista-listado, #vista-crear').addClass('hidden').hide();
+    $('#vista-' + vista).removeClass('hidden').show();
+}
+
 $('#btn-ir-crear').on('click', function() {
-    $('#vista-listado').fadeOut(200, function() {
-        $('#vista-crear').removeClass('hidden').fadeIn();
-        limpiarFormulario();
-    });
+    limpiarFormulario();
+    mostrarVista('crear');
 });
 
 $('#btn-volver-listado').on('click', function() {
@@ -343,9 +346,8 @@ $('#btn-volver-listado').on('click', function() {
         cancelButtonText: 'Cancelar'
     }).then(function(r) {
         if (!r.isConfirmed) return;
-        $('#vista-crear').fadeOut(200, function() {
-            $('#vista-listado').fadeIn();
-        });
+        limpiarFormulario();
+        mostrarVista('listado');
     });
 });
 
@@ -495,11 +497,6 @@ function limpiarFormularioInsumo() {
     $('#nuevo-insumo-id').val('');
     $('#nuevo-cantidad').val('');
     $('#nuevo-costo-calculado').val('');
-}
-
-function mostrarVista(vista) {
-    $('#vista-listado, #vista-crear').addClass('hidden').hide();
-    $('#vista-' + vista).removeClass('hidden').fadeIn(250);
 }
 
 function cargarListado(page) {

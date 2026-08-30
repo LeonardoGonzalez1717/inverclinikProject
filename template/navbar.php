@@ -51,10 +51,6 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <ul class="collapsible-content">
                         <li><a href="../src/movimientos_inventario.php"><i class="fas fa-exchange-alt"></i> <span>Movimientos Inv.</span></a></li>
                         <li><a href="../src/historial_movimientos.php"><i class="fas fa-history"></i> <span>Historial Mov.</span></a></li>
-                        <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Rep. Materia Prima</span></a></li>
-                        <li><a href="../reportes/inventario_productos_form_v2.php"><i class="fas fa-file-alt"></i> <span>Rep. Stock Productos</span></a></li>
-                        <li><a href="../reportes/insumos_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Insumos</span></a></li>
-                        <li><a href="../reportes/productos_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Productos</span></a></li>
                     </ul>
                 </li>
             </ul>
@@ -69,8 +65,6 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../src/nuevo_producto.php"><i class="fas fa-cut"></i> <span>Guía de Corte</span></a></li>
                         <li><a href="../src/orden_produccion.php"><i class="fas fa-clipboard-list"></i> <span>Órdenes de Prod.</span></a></li>
                         <li><a href="../src/historial_talleres.php"><i class="fas fa-warehouse"></i> <span>Historial Talleres</span></a></li>
-                        <li><a href="../reportes/ordenes_produccion_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Órdenes Prod.</span></a></li>
-                        <li><a href="../reportes/ordenes_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Órdenes</span></a></li>
                     </ul>
                 </li>
             </ul>
@@ -84,7 +78,6 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     <ul class="collapsible-content">
                         <li><a href="../src/registrar_compra.php"><i class="fas fa-cart-plus"></i> <span>Registrar Compra</span></a></li>
                         <li><a href="../src/gestionar_proveedores.php"><i class="fas fa-truck"></i> <span>Proveedores</span></a></li>
-                        <li><a href="../reportes/compras_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Compras</span></a></li>
                     </ul>
                 </li>
             </ul>
@@ -100,7 +93,25 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../src/registrar_venta.php"><i class="fas fa-receipt"></i> <span>Registrar Venta</span></a></li>
                         <li><a href="../src/cuentas_por_cobrar.php"><i class="fas fa-hand-holding-usd"></i> <span>Cuentas por Cobrar</span></a></li>
                         <li><a href="../src/gestionar_clientes.php"><i class="fas fa-users"></i> <span>Clientes</span></a></li>
-                        <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Ventas</span></a></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <!-- 6. REPORTES -->
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle" type="button">
+                        <i class="fas fa-chart-bar"></i> <span>Reportes</span>
+                    </button>
+                    <ul class="collapsible-content">
+                        <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Materia Prima</span></a></li>
+                        <li><a href="../reportes/inventario_productos_form_v2.php"><i class="fas fa-file-alt"></i> <span>Stock Productos</span></a></li>
+                        <li><a href="../reportes/insumos_form.php"><i class="fas fa-file-alt"></i> <span>Insumos</span></a></li>
+                        <li><a href="../reportes/productos_form.php"><i class="fas fa-file-alt"></i> <span>Productos</span></a></li>
+                        <li><a href="../reportes/ordenes_produccion_form.php"><i class="fas fa-file-alt"></i> <span>Órdenes de Prod.</span></a></li>
+                        <li><a href="../reportes/ordenes_form.php"><i class="fas fa-file-alt"></i> <span>Órdenes</span></a></li>
+                        <li><a href="../reportes/compras_form.php"><i class="fas fa-file-alt"></i> <span>Compras</span></a></li>
+                        <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Ventas</span></a></li>
                     </ul>
                 </li>
             </ul>
@@ -135,23 +146,15 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                 </ul>
             <?php } ?>
 
-            <?php if ($gerProd || $gerAdm) { ?>
+            <?php if ($gerProd) { ?>
                 <ul>
                     <li class="collapsible">
                         <button class="collapsible-toggle" type="button">
                             <i class="fas fa-boxes"></i> <span>Inventario</span>
                         </button>
                         <ul class="collapsible-content">
-                            <?php if ($gerProd) { ?>
-                                <li><a href="../src/movimientos_inventario.php"><i class="fas fa-exchange-alt"></i> <span>Movimientos Inv.</span></a></li>
-                                <li><a href="../src/historial_movimientos.php"><i class="fas fa-history"></i> <span>Historial Mov.</span></a></li>
-                                <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Rep. Materia Prima</span></a></li>
-                                <li><a href="../reportes/inventario_productos_form_v2.php"><i class="fas fa-file-alt"></i> <span>Rep. Stock</span></a></li>
-                            <?php } ?>
-                            <?php if ($gerAdm) { ?>
-                                <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Rep. Materia Prima</span></a></li>
-                                <li><a href="../reportes/insumos_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Insumos</span></a></li>
-                            <?php } ?>
+                            <li><a href="../src/movimientos_inventario.php"><i class="fas fa-exchange-alt"></i> <span>Movimientos Inv.</span></a></li>
+                            <li><a href="../src/historial_movimientos.php"><i class="fas fa-history"></i> <span>Historial Mov.</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -167,8 +170,6 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <li><a href="../src/nuevo_producto.php"><i class="fas fa-cut"></i> <span>Guía de Corte</span></a></li>
                             <li><a href="../src/orden_produccion.php"><i class="fas fa-clipboard-list"></i> <span>Orden de Producción</span></a></li>
                             <li><a href="../src/historial_talleres.php"><i class="fas fa-warehouse"></i> <span>Historial Talleres</span></a></li>
-                            <li><a href="../reportes/ordenes_produccion_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Órdenes Prod.</span></a></li>
-                            <li><a href="../reportes/ordenes_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Órdenes</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -182,7 +183,6 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         </button>
                         <ul class="collapsible-content">
                             <li><a href="../src/registrar_compra.php"><i class="fas fa-cart-plus"></i> <span>Registrar Compra</span></a></li>
-                            <li><a href="../reportes/compras_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Compras</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -198,11 +198,34 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <li><a href="../cliente/cotizacion.php"><i class="fas fa-file-invoice-dollar"></i> <span>Cotización</span></a></li>
                             <li><a href="../src/registrar_venta.php"><i class="fas fa-receipt"></i> <span>Registrar Venta</span></a></li>
                             <li><a href="../src/cuentas_por_cobrar.php"><i class="fas fa-hand-holding-usd"></i> <span>Cuentas por cobrar</span></a></li>
-                            <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Rep. Ventas</span></a></li>
                         </ul>
                     </li>
                 </ul>
             <?php } ?>
+
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle" type="button">
+                        <i class="fas fa-chart-bar"></i> <span>Reportes</span>
+                    </button>
+                    <ul class="collapsible-content">
+                        <?php if ($gerProd) { ?>
+                            <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Materia Prima</span></a></li>
+                            <li><a href="../reportes/inventario_productos_form_v2.php"><i class="fas fa-file-alt"></i> <span>Stock Productos</span></a></li>
+                            <li><a href="../reportes/ordenes_produccion_form.php"><i class="fas fa-file-alt"></i> <span>Órdenes de Prod.</span></a></li>
+                            <li><a href="../reportes/ordenes_form.php"><i class="fas fa-file-alt"></i> <span>Órdenes</span></a></li>
+                        <?php } ?>
+                        <?php if ($gerAdm) { ?>
+                            <li><a href="../reportes/inventario_materia_prima_form_v2.php"><i class="fas fa-file-alt"></i> <span>Materia Prima</span></a></li>
+                            <li><a href="../reportes/insumos_form.php"><i class="fas fa-file-alt"></i> <span>Insumos</span></a></li>
+                            <li><a href="../reportes/compras_form.php"><i class="fas fa-file-alt"></i> <span>Compras</span></a></li>
+                        <?php } ?>
+                        <?php if ($gerCom) { ?>
+                            <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Ventas</span></a></li>
+                        <?php } ?>
+                    </ul>
+                </li>
+            </ul>
 
         <?php } ?>
 

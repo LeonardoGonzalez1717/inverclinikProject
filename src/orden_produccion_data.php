@@ -2,6 +2,8 @@
 require_once "../connection/connection.php";
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
+require_once __DIR__ . '/../lib/orden_numero.php';
+require_once __DIR__ . '/../lib/InventarioLotes.php';
 
 function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 {
@@ -205,7 +207,12 @@ try {
         $where = [];
 
         if ($buscar_producto !== '') {
-            $where[] = "p.nombre LIKE '%$buscar_producto%'";
+            $orProducto = ["p.nombre LIKE '%$buscar_producto%'"];
+            $idBuscado = parse_id_orden_produccion($buscar_producto);
+            if ($idBuscado > 0) {
+                $orProducto[] = "op.id = $idBuscado";
+            }
+            $where[] = '(' . implode(' OR ', $orProducto) . ')';
         }
         if ($buscar_categoria !== '') {
             $where[] = "p.categoria = '$buscar_categoria'";
@@ -232,6 +239,7 @@ try {
                 op.cantidad_a_producir,
                 op.fecha_inicio,
                 op.fecha_fin,
+                op.creado_en,
                 op.estado,
                 op.observaciones,
                 op.talla_id,
@@ -243,7 +251,9 @@ try {
                 COALESCE(SUM(rp2.cantidad_por_unidad * i.costo_unitario), 0) AS costo_por_unidad,
                 COALESCE((SELECT SUM(tal.costo) FROM ordenes_talleres ot INNER JOIN talleres tal ON ot.taller_id = tal.id WHERE ot.orden_produccion_id = op.id), 0) AS costo_talleres,
                 COALESCE((SELECT GROUP_CONCAT(tal.nombre SEPARATOR ', ') FROM ordenes_talleres ot INNER JOIN talleres tal ON ot.taller_id = tal.id WHERE ot.orden_produccion_id = op.id), '') AS nombres_talleres,
-                COALESCE((SELECT GROUP_CONCAT(ot.taller_id) FROM ordenes_talleres ot WHERE ot.orden_produccion_id = op.id), '') AS talleres_ids_csv
+                COALESCE((SELECT GROUP_CONCAT(ot.taller_id) FROM ordenes_talleres ot WHERE ot.orden_produccion_id = op.id), '') AS talleres_ids_csv,
+                COALESCE((SELECT COUNT(*) FROM ordenes_talleres ot WHERE ot.orden_produccion_id = op.id), 0) AS talleres_total,
+                COALESCE((SELECT COUNT(*) FROM ordenes_talleres ot WHERE ot.orden_produccion_id = op.id AND ot.recibido = 0), 0) AS talleres_pendientes
             FROM ordenes_produccion op
             INNER JOIN recetas_productos rp ON op.receta_producto_id = rp.id
             INNER JOIN productos p ON rp.producto_id = p.id
@@ -257,7 +267,7 @@ try {
                 AND rp2.tipo_produccion_id = rp.tipo_produccion_id
             LEFT JOIN insumos i ON rp2.insumo_id = i.id
             $fil
-            GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, op.talla_id, t.nombre, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.estado, op.observaciones
+            GROUP BY op.id, op.tasa_cambiaria_id, tc.tasa, op.talla_id, t.nombre, r.id, rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id, p.nombre, p.categoria, op.cantidad_a_producir, op.fecha_inicio, op.fecha_fin, op.creado_en, op.estado, op.observaciones
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -275,10 +285,8 @@ try {
             }
         }
         ob_start();
-        $i = $pg->rowNumberStart() - 1;
         if (!empty($ordenes)) {
             foreach ($ordenes as $o) {
-                $i++;
                 $estadoStyle = match($o['estado']) {
                     'finalizado' => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
                     'pendiente'  => 'background-color: #fd7e14; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
@@ -296,16 +304,18 @@ try {
                 
                 $costoPorUnidad = floatval($o['costo_por_unidad'] ?? 0);
                 $cantidad       = floatval($o['cantidad_a_producir'] ?? 0);
-                $costoTalleres  = floatval($o['costo_talleres'] ?? 0);
+                $costoTalleresUd = floatval($o['costo_talleres'] ?? 0);
+                $costoTalleres  = $costoTalleresUd * $cantidad;
                 $costoTotal     = ($costoPorUnidad * $cantidad) + $costoTalleres;
                 $nombresTalleres = !empty($o['nombres_talleres']) ? htmlspecialchars($o['nombres_talleres']) : '<em class="text-muted">—</em>';
 
                 $o['costo_talleres'] = $costoTalleres;
                 $o['costo_total'] = $costoTotal;
                 $o['talleres_ids'] = !empty($o['talleres_ids_csv']) ? array_map('intval', explode(',', $o['talleres_ids_csv'])) : [];
+                $o['numero_orden'] = numero_orden_produccion((int)$o['orden_id'], $o['creado_en'] ?? $o['fecha_inicio'] ?? null);
 
                 echo '<tr>';
-                echo '<td>' . htmlspecialchars($i) . '</td>';
+                echo '<td><strong>' . htmlspecialchars($o['numero_orden']) . '</strong></td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
                 echo '<td>' . htmlspecialchars($o['talla_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
@@ -320,8 +330,13 @@ try {
                 $btnFinalizar = '';
                 $btneditar = '';
                 $btnTalleres = '';
+                $talleresTotal = (int) ($o['talleres_total'] ?? 0);
+                $talleresPendientes = (int) ($o['talleres_pendientes'] ?? 0);
+                $mercanciaRecibida = ($talleresTotal > 0 && $talleresPendientes === 0);
                 if ($o['estado'] !== 'finalizado') {
-                    $btnFinalizar = '<button class="btn btn-sm btn-success" title="Finalizar Orden de Producción" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')"><i class="fas fa-check-double"></i></button>';
+                    if ($mercanciaRecibida) {
+                        $btnFinalizar = '<button class="btn btn-sm btn-success" title="Finalizar Orden de Producción" onclick="aceptarFinalizacionOrden(' . (int)$o['orden_id'] . ')"><i class="fas fa-check-double"></i></button>';
+                    }
                     $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
                     $btnTalleres = '<button class="btn btn-sm btn-info" title="Asignar / Ver Talleres" onclick="abrirModalTalleres(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-warehouse"></i></button>';
                 }
@@ -346,8 +361,10 @@ try {
             exit;
         }
 
-        $statusQuery = $conn->query("SELECT estado FROM ordenes_produccion WHERE id = $orden_id");
-        $orden_status = ($statusQuery && $row = $statusQuery->fetch_assoc()) ? $row['estado'] : '';
+        $statusQuery = $conn->query("SELECT estado, creado_en, fecha_inicio FROM ordenes_produccion WHERE id = $orden_id");
+        $ordenRow = ($statusQuery) ? $statusQuery->fetch_assoc() : null;
+        $orden_status = $ordenRow['estado'] ?? '';
+        $numero_orden = numero_orden_produccion($orden_id, $ordenRow['creado_en'] ?? $ordenRow['fecha_inicio'] ?? null);
 
         $sql = "SELECT 
                     ot.id,
@@ -373,6 +390,7 @@ try {
         echo json_encode([
             'success' => true,
             'orden_status' => $orden_status,
+            'numero_orden' => $numero_orden,
             'historial' => $historial
         ]);
         exit;
@@ -601,22 +619,7 @@ try {
                         $permiteDec
                     );
                     
-                    // Obtener stock actual del insumo
-                    if ($tieneInventarioNuevo) {
-                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
-                    } else {
-                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
-                    }
-                    $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
-                    $stmtStockInsumo->bind_param("i", $insumoId);
-                    $stmtStockInsumo->execute();
-                    $resultStockInsumo = $stmtStockInsumo->get_result();
-                    
-                    $stockActual = 0;
-                    if ($rowStockInsumo = $resultStockInsumo->fetch_assoc()) {
-                        $stockActual = floatval($rowStockInsumo['stock_actual']);
-                    }
-                    $stmtStockInsumo->close();
+                    $stockActual = InventarioLotes::stockDisponible($conn, 'insumo', (int) $insumoId);
                     
                     // Validar si hay stock suficiente
                     if ($stockActual < $cantidadNecesaria) {
@@ -684,7 +687,13 @@ try {
                 }
 
                 $conn->commit();
-                echo json_encode(['success' => true, 'message' => 'Orden creada en estado pendiente', 'id' => $ordenId]);
+                $numeroOrden = numero_orden_produccion($ordenId, date('Y-m-d H:i:s'));
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Orden ' . $numeroOrden . ' creada en estado pendiente',
+                    'id' => $ordenId,
+                    'numero_orden' => $numeroOrden
+                ]);
             } catch (Exception $e) {
                 $conn->rollback();
                 throw $e;
@@ -701,6 +710,7 @@ try {
             try {
                 $sqlOrden = "
                     SELECT op.id, op.estado, op.cantidad_a_producir, op.receta_producto_id, op.venta_id,
+                           op.creado_en, op.fecha_inicio,
                            rp.producto_id, rp.rango_tallas_id, rp.tipo_produccion_id,
                            r.id AS receta_id
                     FROM ordenes_produccion op
@@ -724,6 +734,20 @@ try {
                     throw new Exception("La orden ya se encuentra finalizada");
                 }
 
+                $stmtPend = $conn->prepare(
+                    "SELECT COUNT(*) AS total, SUM(CASE WHEN recibido = 0 THEN 1 ELSE 0 END) AS pendientes
+                     FROM ordenes_talleres WHERE orden_produccion_id = ?"
+                );
+                $stmtPend->bind_param("i", $ordenId);
+                $stmtPend->execute();
+                $rowPend = $stmtPend->get_result()->fetch_assoc();
+                $stmtPend->close();
+                $talleresTotal = (int) ($rowPend['total'] ?? 0);
+                $talleresPendientes = (int) ($rowPend['pendientes'] ?? 0);
+                if ($talleresTotal === 0 || $talleresPendientes > 0) {
+                    throw new Exception("Debe registrar la recepción de mercancía de todos los talleres antes de finalizar la orden.");
+                }
+
                 try {
                     $cantidadProducir = inv_normalizar_cantidad_producto_terminado(floatval($orden['cantidad_a_producir']));
                 } catch (InvalidArgumentException $e) {
@@ -735,6 +759,7 @@ try {
                 $rango_tallas_id = (int)$orden['rango_tallas_id'];
                 $tipo_produccion_id = (int)$orden['tipo_produccion_id'];
                 $recetaId = !empty($orden['receta_id']) ? (int)$orden['receta_id'] : null;
+                $numeroOrden = numero_orden_produccion($ordenId, $orden['creado_en'] ?? $orden['fecha_inicio'] ?? null);
 
                 $sqlInsumos = "SELECT rp.insumo_id, rp.cantidad_por_unidad,
                                       COALESCE(um.permite_movimiento_decimal, 1) AS permite_movimiento_decimal
@@ -757,18 +782,7 @@ try {
                         $permiteDec
                     );
 
-                    if ($tieneInventarioNuevo) {
-                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
-                    } else {
-                        $sqlStockInsumo = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
-                    }
-                    $stmtStockInsumo = $conn->prepare($sqlStockInsumo);
-                    $stmtStockInsumo->bind_param("i", $insumoId);
-                    $stmtStockInsumo->execute();
-                    $rowStock = $stmtStockInsumo->get_result()->fetch_assoc();
-                    $stmtStockInsumo->close();
-
-                    $stockActual = $rowStock ? floatval($rowStock['stock_actual']) : 0;
+                    $stockActual = InventarioLotes::stockDisponible($conn, 'insumo', $insumoId);
                     if ($stockActual < $cantidadTotal) {
                         $insumosFaltantes[] = $insumoId;
                     }
@@ -776,81 +790,63 @@ try {
                     $insumos[] = [
                         'insumo_id' => $insumoId,
                         'cantidad_total' => $cantidadTotal,
-                        'stock_actual' => $stockActual
                     ];
                 }
                 $stmtInsumos->close();
 
-                if (!empty($insumosFaltantes)) {
+                $stYa = $conn->prepare(
+                    "SELECT 1 FROM inventario_detalle
+                     WHERE orden_produccion_id = ? AND tipo_item = 'insumo' AND tipo = 'salida'
+                     LIMIT 1"
+                );
+                $stYa->bind_param('i', $ordenId);
+                $stYa->execute();
+                $yaConsumioInsumos = $stYa->get_result()->num_rows > 0;
+                $stYa->close();
+
+                if (!$yaConsumioInsumos && !empty($insumosFaltantes)) {
                     throw new Exception("No hay stock suficiente para finalizar la orden.");
                 }
 
-                foreach ($insumos as $item) {
-                    $insumoId = (int)$item['insumo_id'];
-                    $cantidadTotal = floatval($item['cantidad_total']);
-                    $nuevoStock = max(0, floatval($item['stock_actual']) - $cantidadTotal);
-
-                    $obsMovimientoInsumo = "Salida de insumos por finalización de orden #{$ordenId}";
-                    $stmtMovimientoInsumo = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('insumo', ?, 'salida', ?, ?, ?)");
-                    $stmtMovimientoInsumo->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimientoInsumo, $ordenId);
-                    $stmtMovimientoInsumo->execute();
-                    $stmtMovimientoInsumo->close();
-
-                    if ($tieneInventarioNuevo) {
-                        $stmtInventarioInsumo = $conn->prepare("
-                            INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
-                            VALUES ('insumo', ?, ?, 'orden_produccion', NOW(), ?)
-                            ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
-                        ");
-                        $stmtInventarioInsumo->bind_param("idi", $insumoId, $nuevoStock, $ordenId);
-                    } else {
-                        $stmtInventarioInsumo = $conn->prepare("INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
-                        $stmtInventarioInsumo->bind_param("id", $insumoId, $nuevoStock);
+                if (!$yaConsumioInsumos) {
+                    foreach ($insumos as $item) {
+                        InventarioLotes::registrarSalida($conn, [
+                            'tipo_item' => 'insumo',
+                            'tipo_item_id' => (int) $item['insumo_id'],
+                            'cantidad' => (float) $item['cantidad_total'],
+                            'origen' => 'orden_produccion',
+                            'origen_id' => $ordenId,
+                            'observaciones' => "Salida de insumos por finalización de orden {$numeroOrden}",
+                            'orden_produccion_id' => $ordenId,
+                            'tipo_movimiento' => 'orden_produccion',
+                        ]);
                     }
-                    $stmtInventarioInsumo->execute();
-                    $stmtInventarioInsumo->close();
                 }
 
-                if ($tieneInventarioNuevo) {
-                    $tipoItemIdProducto = $recetaId ?: (int)$orden['receta_producto_id'];
-                    $stmtStockProducto = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'producto' AND tipo_item_id = ?");
-                    $stmtStockProducto->bind_param("i", $tipoItemIdProducto);
-                } else {
-                    $stmtStockProducto = $conn->prepare("SELECT stock_actual FROM inventario_productos WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ?");
-                    $stmtStockProducto->bind_param("iii", $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                if (!$recetaId) {
+                    $stRec = $conn->prepare(
+                        'SELECT id FROM recetas WHERE producto_id = ? AND rango_tallas_id = ? AND tipo_produccion_id = ? LIMIT 1'
+                    );
+                    $stRec->bind_param('iii', $producto_id, $rango_tallas_id, $tipo_produccion_id);
+                    $stRec->execute();
+                    $rowRec = $stRec->get_result()->fetch_assoc();
+                    $stRec->close();
+                    $recetaId = $rowRec ? (int) $rowRec['id'] : 0;
                 }
-                $stmtStockProducto->execute();
-                $rowStockProducto = $stmtStockProducto->get_result()->fetch_assoc();
-                $stmtStockProducto->close();
-                $stockProductoActual = $rowStockProducto ? floatval($rowStockProducto['stock_actual']) : 0;
-                $nuevoStockProducto = $stockProductoActual + $cantidadProducir;
+                if ($recetaId <= 0) {
+                    throw new Exception('No se encontró la guía de corte para registrar el producto terminado.');
+                }
 
-                $obsMovimientoProducto = "Entrada de producto por finalización de orden #{$ordenId}";
-                $tieneRecetaIdDet = $conn->query("SHOW COLUMNS FROM inventario_detalle LIKE 'receta_id'")->num_rows > 0;
-                if ($tieneRecetaIdDet && $recetaId) {
-                    $stmtMovimientoProducto = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, receta_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('producto', ?, 'entrada', ?, ?, ?)");
-                    $stmtMovimientoProducto->bind_param("idsi", $recetaId, $cantidadProducir, $obsMovimientoProducto, $ordenId);
-                } else {
-                    $stmtMovimientoProducto = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, producto_id, rango_tallas_id, tipo_produccion_id, tipo, cantidad, observaciones) VALUES ('producto', ?, ?, ?, 'entrada', ?, ?)");
-                    $stmtMovimientoProducto->bind_param("iiids", $producto_id, $rango_tallas_id, $tipo_produccion_id, $cantidadProducir, $obsMovimientoProducto);
-                }
-                $stmtMovimientoProducto->execute();
-                $stmtMovimientoProducto->close();
-
-                if ($tieneInventarioNuevo) {
-                    $tipoItemIdProducto = $recetaId ?: (int)$orden['receta_producto_id'];
-                    $stmtInventarioProducto = $conn->prepare("
-                        INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
-                        VALUES ('producto', ?, ?, 'orden_produccion', NOW(), ?)
-                        ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
-                    ");
-                    $stmtInventarioProducto->bind_param("idi", $tipoItemIdProducto, $nuevoStockProducto, $ordenId);
-                } else {
-                    $stmtInventarioProducto = $conn->prepare("INSERT INTO inventario_productos (producto_id, rango_tallas_id, tipo_produccion_id, stock_actual, ultima_actualizacion) VALUES (?, ?, ?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
-                    $stmtInventarioProducto->bind_param("iiid", $producto_id, $rango_tallas_id, $tipo_produccion_id, $nuevoStockProducto);
-                }
-                $stmtInventarioProducto->execute();
-                $stmtInventarioProducto->close();
+                InventarioLotes::registrarEntrada($conn, [
+                    'tipo_item' => 'producto',
+                    'tipo_item_id' => $recetaId,
+                    'cantidad' => $cantidadProducir,
+                    'origen' => 'orden_produccion',
+                    'origen_id' => $ordenId,
+                    'observaciones' => "Entrada de producto por finalización de orden {$numeroOrden}",
+                    'orden_produccion_id' => $ordenId,
+                    'tipo_movimiento' => 'orden_produccion',
+                ]);
 
                 $stmtUpdate = $conn->prepare("UPDATE ordenes_produccion SET estado = 'finalizado' WHERE id = ?");
                 $stmtUpdate->bind_param("i", $ordenId);
@@ -891,7 +887,7 @@ try {
                 }
 
                 $conn->commit();
-                echo json_encode(['success' => true, 'message' => 'Orden finalizada y movimiento de inventario generado.']);
+                echo json_encode(['success' => true, 'message' => 'Orden ' . $numeroOrden . ' finalizada y movimiento de inventario generado.', 'numero_orden' => $numeroOrden]);
             } catch (Exception $e) {
                 $conn->rollback();
                 throw $e;
@@ -902,7 +898,7 @@ try {
             $id = $_POST['id'] ?? null;
             if (!$id) throw new Exception("ID de orden requerido");
 
-            $stmtEstado = $conn->prepare("SELECT estado, receta_producto_id, cantidad_a_producir FROM ordenes_produccion WHERE id = ?");
+            $stmtEstado = $conn->prepare("SELECT estado, receta_producto_id, cantidad_a_producir, creado_en, fecha_inicio FROM ordenes_produccion WHERE id = ?");
             $stmtEstado->bind_param("i", $id);
             $stmtEstado->execute();
             $resultEstado = $stmtEstado->get_result();
@@ -1073,41 +1069,17 @@ try {
                                 $cantidadPorUnidad * floatval($cantidadProducir),
                                 $permiteDec
                             );
-                            
-                            if ($tieneInventarioNuevo) {
-                                $sqlStock = "SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ?";
-                            } else {
-                                $sqlStock = "SELECT stock_actual FROM inventario WHERE insumo_id = ?";
-                            }
-                            $stmtStock = $conn->prepare($sqlStock);
-                            $stmtStock->bind_param("i", $insumoId);
-                            $stmtStock->execute();
-                            $resultStock = $stmtStock->get_result();
-                            $stockActual = 0;
-                            if ($rowStock = $resultStock->fetch_assoc()) {
-                                $stockActual = floatval($rowStock['stock_actual']);
-                            }
-                            $stmtStock->close();
-                            $nuevoStock = $stockActual - $cantidadTotal;
-                            if ($nuevoStock < 0) $nuevoStock = 0;
-                            $obsMovimiento = "Descuento por orden de producción #{$id}";
-                            $stmtMovimiento = $conn->prepare("INSERT INTO inventario_detalle (tipo_item, insumo_id, tipo, cantidad, observaciones, orden_produccion_id) VALUES ('insumo', ?, 'salida', ?, ?, ?)");
-                            $stmtMovimiento->bind_param("idsi", $insumoId, $cantidadTotal, $obsMovimiento, $id);
-                            $stmtMovimiento->execute();
-                            $stmtMovimiento->close();
-                            if ($tieneInventarioNuevo) {
-                                $stmtInventario = $conn->prepare("
-                                    INSERT INTO inventario (tipo_item, tipo_item_id, stock_actual, tipo_movimiento, ultima_actualizacion, orden_produccion_id)
-                                    VALUES ('insumo', ?, ?, 'orden_produccion', NOW(), ?)
-                                    ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW(), orden_produccion_id = VALUES(orden_produccion_id)
-                                ");
-                                $stmtInventario->bind_param("idi", $insumoId, $nuevoStock, $id);
-                            } else {
-                                $stmtInventario = $conn->prepare("INSERT INTO inventario (insumo_id, stock_actual, ultima_actualizacion) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE stock_actual = VALUES(stock_actual), ultima_actualizacion = NOW()");
-                                $stmtInventario->bind_param("id", $insumoId, $nuevoStock);
-                            }
-                            $stmtInventario->execute();
-                            $stmtInventario->close();
+                            $numeroOrden = numero_orden_produccion((int)$id, $ordenActual['creado_en'] ?? $ordenActual['fecha_inicio'] ?? null);
+                            InventarioLotes::registrarSalida($conn, [
+                                'tipo_item' => 'insumo',
+                                'tipo_item_id' => (int) $insumoId,
+                                'cantidad' => $cantidadTotal,
+                                'origen' => 'orden_produccion',
+                                'origen_id' => (int) $id,
+                                'observaciones' => "Descuento por orden de producción {$numeroOrden}",
+                                'orden_produccion_id' => (int) $id,
+                                'tipo_movimiento' => 'orden_produccion',
+                            ]);
                         }
                         $stmtInsumos->close();
                     }
@@ -1115,7 +1087,8 @@ try {
                 }
                 
                 $conn->commit();
-                echo json_encode(['success' => true, 'message' => 'Orden actualizada']);
+                $numeroOrden = numero_orden_produccion((int)$id, $ordenActual['creado_en'] ?? $ordenActual['fecha_inicio'] ?? null);
+                echo json_encode(['success' => true, 'message' => 'Orden ' . $numeroOrden . ' actualizada', 'numero_orden' => $numeroOrden]);
             } catch (Exception $e) {
                 $conn->rollback();
                 throw $e;
@@ -1155,31 +1128,11 @@ try {
             $insumos = [];
             while ($row = $resList->fetch_assoc()) {
                 $insumoId = (int) $row['insumo_id'];
-                $stock_actual = 0.0;
-                if ($tieneInventarioNuevo) {
-                    $qs = $conn->prepare("SELECT stock_actual FROM inventario WHERE tipo_item = 'insumo' AND tipo_item_id = ? LIMIT 1");
-                    $qs->bind_param('i', $insumoId);
-                    $qs->execute();
-                    $rs = $qs->get_result()->fetch_assoc();
-                    $qs->close();
-                    if ($rs) {
-                        $stock_actual = (float) $rs['stock_actual'];
-                    }
-                } else {
-                    $qs = $conn->prepare('SELECT stock_actual FROM inventario WHERE insumo_id = ? LIMIT 1');
-                    $qs->bind_param('i', $insumoId);
-                    $qs->execute();
-                    $rs = $qs->get_result()->fetch_assoc();
-                    $qs->close();
-                    if ($rs) {
-                        $stock_actual = (float) $rs['stock_actual'];
-                    }
-                }
                 $insumos[] = [
                     'insumo_nombre' => $row['insumo_nombre'],
                     'unidad_medida' => $row['unidad_medida'],
                     'cantidad_por_unidad' => $row['cantidad_por_unidad'],
-                    'stock_actual' => $stock_actual,
+                    'stock_actual' => InventarioLotes::stockDisponible($conn, 'insumo', $insumoId),
                 ];
             }
             $st->close();
