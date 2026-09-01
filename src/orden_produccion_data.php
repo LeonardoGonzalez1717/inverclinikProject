@@ -4,6 +4,9 @@ require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
 require_once __DIR__ . '/../lib/orden_numero.php';
 require_once __DIR__ . '/../lib/InventarioLotes.php';
+require_once __DIR__ . '/../lib/OrdenProduccionUnidades.php';
+
+OrdenProduccionUnidades::asegurarTablas($conn);
 
 function asegurar_venta_id_en_ordenes_produccion(mysqli $conn): void
 {
@@ -340,8 +343,9 @@ try {
                     $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
                     $btnTalleres = '<button class="btn btn-sm btn-info" title="Asignar / Ver Talleres" onclick="abrirModalTalleres(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-warehouse"></i></button>';
                 }
+                $btnUnidades = '<button class="btn btn-sm btn-secondary" style="background-color: #495057; border-color: #495057; color: white;" title="Ver Identificadores / Unidades Producidas" onclick="verUnidadesOrden(' . (int)$o['orden_id'] . ', \'' . htmlspecialchars($o['numero_orden'], ENT_QUOTES, 'UTF-8') . '\')"><i class="fas fa-barcode"></i></button>';
                 echo '<td nowrap>' . $estadoHtml . '</td>';
-                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
+                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btnUnidades . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
                 echo '</tr>';
             }
         } else {
@@ -686,6 +690,9 @@ try {
                     $stmtOT->close();
                 }
 
+                // Generar números identificadores por cada unidad producida
+                OrdenProduccionUnidades::sincronizarUnidadesOrden($conn, $ordenId, (int) $receta_id, !empty($talla_id) ? (int) $talla_id : null, (float) $cantidad);
+
                 $conn->commit();
                 $numeroOrden = numero_orden_produccion($ordenId, date('Y-m-d H:i:s'));
                 echo json_encode([
@@ -836,6 +843,10 @@ try {
                 if ($recetaId <= 0) {
                     throw new Exception('No se encontró la guía de corte para registrar el producto terminado.');
                 }
+
+                // Asegurar que las unidades individuales estén registradas
+                $tallaIdFinal = !empty($orden['talla_id']) ? (int) $orden['talla_id'] : null;
+                OrdenProduccionUnidades::sincronizarUnidadesOrden($conn, $ordenId, (int) $recetaId, $tallaIdFinal, (float) $cantidadProducir);
 
                 InventarioLotes::registrarEntrada($conn, [
                     'tipo_item' => 'producto',
@@ -1086,6 +1097,10 @@ try {
                     $stmtRecetaInfo->close();
                 }
                 
+                // Sincronizar unidades si aumentó la cantidad o no existen
+                $recetaIdSync = (int) ($receta_id ?? $ordenActual['receta_producto_id']);
+                OrdenProduccionUnidades::sincronizarUnidadesOrden($conn, (int)$id, $recetaIdSync, !empty($talla_id) ? (int)$talla_id : null, (float)$cantidad);
+
                 $conn->commit();
                 $numeroOrden = numero_orden_produccion((int)$id, $ordenActual['creado_en'] ?? $ordenActual['fecha_inicio'] ?? null);
                 echo json_encode(['success' => true, 'message' => 'Orden ' . $numeroOrden . ' actualizada', 'numero_orden' => $numeroOrden]);
@@ -1093,6 +1108,38 @@ try {
                 $conn->rollback();
                 throw $e;
             }
+            break;
+
+        case 'listar_unidades_orden':
+            $ordenId = (int) ($_GET['orden_id'] ?? $_POST['orden_id'] ?? 0);
+            if ($ordenId <= 0) {
+                throw new Exception('ID de orden inválido');
+            }
+            // Asegurar que las unidades de esta orden existan
+            $stOrd = $conn->prepare("
+                SELECT op.id, op.cantidad_a_producir, op.talla_id, COALESCE(r.id, 0) AS receta_id
+                FROM ordenes_produccion op
+                INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+                    AND r.rango_tallas_id = rp.rango_tallas_id 
+                    AND r.tipo_produccion_id = rp.tipo_produccion_id
+                WHERE op.id = ? LIMIT 1
+            ");
+            $stOrd->bind_param('i', $ordenId);
+            $stOrd->execute();
+            $ordData = $stOrd->get_result()->fetch_assoc();
+            $stOrd->close();
+            if ($ordData && (int)$ordData['receta_id'] > 0) {
+                OrdenProduccionUnidades::sincronizarUnidadesOrden(
+                    $conn,
+                    $ordenId,
+                    (int)$ordData['receta_id'],
+                    !empty($ordData['talla_id']) ? (int)$ordData['talla_id'] : null,
+                    (float)$ordData['cantidad_a_producir']
+                );
+            }
+            $unidades = OrdenProduccionUnidades::obtenerUnidadesPorOrden($conn, $ordenId);
+            echo json_encode(['success' => true, 'unidades' => $unidades]);
             break;
 
         case 'obtener_stock_insumos':

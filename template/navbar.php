@@ -97,7 +97,19 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                 </li>
             </ul>
 
-            <!-- 6. REPORTES -->
+            <!-- 6. DEVOLUCIONES -->
+            <ul>
+                <li class="collapsible">
+                    <button class="collapsible-toggle" type="button">
+                        <i class="fas fa-undo-alt"></i> <span>Devoluciones</span>
+                    </button>
+                    <ul class="collapsible-content">
+                        <li><a href="../src/devoluciones.php"><i class="fas fa-clipboard-check"></i> <span>Gestión de Devoluciones</span></a></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <!-- 7. REPORTES -->
             <ul>
                 <li class="collapsible">
                     <button class="collapsible-toggle" type="button">
@@ -198,6 +210,19 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <li><a href="../cliente/cotizacion.php"><i class="fas fa-file-invoice-dollar"></i> <span>Cotización</span></a></li>
                             <li><a href="../src/registrar_venta.php"><i class="fas fa-receipt"></i> <span>Registrar Venta</span></a></li>
                             <li><a href="../src/cuentas_por_cobrar.php"><i class="fas fa-hand-holding-usd"></i> <span>Cuentas por cobrar</span></a></li>
+                        </ul>
+                    </li>
+                </ul>
+            <?php } ?>
+
+            <?php if ($gerProd || $gerCom || $gerAdm) { ?>
+                <ul>
+                    <li class="collapsible">
+                        <button class="collapsible-toggle" type="button">
+                            <i class="fas fa-undo-alt"></i> <span>Devoluciones</span>
+                        </button>
+                        <ul class="collapsible-content">
+                            <li><a href="../src/devoluciones.php"><i class="fas fa-clipboard-check"></i> <span>Gestión de Devoluciones</span></a></li>
                         </ul>
                     </li>
                 </ul>

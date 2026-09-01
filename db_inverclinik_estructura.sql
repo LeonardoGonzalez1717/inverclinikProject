@@ -235,6 +235,71 @@ CREATE TABLE IF NOT EXISTS `ordenes_produccion` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `ordenes_produccion_unidades`
+--
+CREATE TABLE IF NOT EXISTS `ordenes_produccion_unidades` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `orden_produccion_id` int(11) NOT NULL,
+  `receta_id` int(11) NOT NULL,
+  `talla_id` int(11) DEFAULT NULL,
+  `numero_identificador` varchar(60) NOT NULL,
+  `numero_secuencia` int(11) NOT NULL,
+  `estado` enum('disponible','vendido','devuelto','en_revision','baja') NOT NULL DEFAULT 'disponible',
+  `fecha_creacion` timestamp NOT NULL DEFAULT current_timestamp(),
+  `observaciones` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_numero_identificador` (`numero_identificador`),
+  KEY `idx_orden_id` (`orden_produccion_id`),
+  KEY `idx_receta_id` (`receta_id`),
+  KEY `idx_estado` (`estado`),
+  CONSTRAINT `fk_op_unidades_orden` FOREIGN KEY (`orden_produccion_id`) REFERENCES `ordenes_produccion` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `devoluciones`
+--
+CREATE TABLE IF NOT EXISTS `devoluciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_devolucion` varchar(50) NOT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  `cliente_id` int(11) DEFAULT NULL,
+  `motivo` text NOT NULL,
+  `descripcion_motivo` text DEFAULT NULL,
+  `accion_inventario` varchar(50) NOT NULL DEFAULT 'reingresar_stock',
+  `usuario_id` int(11) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_codigo_devolucion` (`codigo_devolucion`),
+  KEY `idx_cliente_id` (`cliente_id`),
+  KEY `idx_fecha` (`fecha`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `devoluciones_detalle`
+--
+CREATE TABLE IF NOT EXISTS `devoluciones_detalle` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `devolucion_id` int(11) NOT NULL,
+  `unidad_id` int(11) NOT NULL,
+  `orden_produccion_id` int(11) NOT NULL,
+  `estado_unidad_posterior` enum('devuelto_stock','en_reparacion','descartado') NOT NULL DEFAULT 'devuelto_stock',
+  `observaciones` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_devolucion_id` (`devolucion_id`),
+  KEY `idx_unidad_id` (`unidad_id`),
+  KEY `idx_op_id` (`orden_produccion_id`),
+  CONSTRAINT `fk_dev_detalle_devolucion` FOREIGN KEY (`devolucion_id`) REFERENCES `devoluciones` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_dev_detalle_unidad` FOREIGN KEY (`unidad_id`) REFERENCES `ordenes_produccion_unidades` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `talleres`
 --
 

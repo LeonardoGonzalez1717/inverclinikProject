@@ -1,0 +1,33 @@
+# Entornos y dependencias
+/dist/
+/node_modules/
+/composer.phar
+
+# Backups y bases de datos locales
+*.sql
+/storage/respaldos_bd/*.sql
+!/storage/respaldos_bd/.htaccess
+
+# Archivos comprimidos de despliegue
+*.zip
+*.rar
+*.7z
+*.tar.gz
+
+# Archivos subidos por usuarios en local
+/uploads/comprobantes_cotizaciones/*
+!/uploads/comprobantes_cotizaciones/.htaccess
+!/uploads/comprobantes_cotizaciones/.gitkeep
+
+# Logs y temporales
+*.log
+/logs/*
+!/logs/.gitkeep
+.DS_Store
+Thumbs.db
+
+# Configuraciones de IDEs
+.vscode/
+.idea/
+.gemini/
+.agents/
