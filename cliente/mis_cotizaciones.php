@@ -9,7 +9,6 @@ if (empty($_SESSION['id_cliente'])) {
 require_once '../template/header.php';
 ?>
 <body>
-    <script src="../assets/js/libs/tesseract/tesseract.min.js"></script>
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
