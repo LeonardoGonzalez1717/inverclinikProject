@@ -15,7 +15,7 @@ require_once __DIR__ . '/../template/header.php';
                 <h2 class="main-title">Tasas cambiarias</h2>
                 <div class="row mb-3">
                     <div class="col-md-12">
-                        <button type="button" class="btn btn-primary" id="btn-registrar-manual">Registrar tasa manual</button>
+                        <button type="button" class="btn btn-primary" id="btn-registrar-manual"><i class="fas fa-plus-circle"></i> Registrar Tasa Manual</button>
                     </div>
                 </div>
 
@@ -56,8 +56,8 @@ require_once __DIR__ . '/../template/header.php';
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn btn-primary" style="margin-bottom: 20px;" id="btn-guardar-manual">Guardar</button>
+                    <button type="button" class="btn btn-outline-secondary" data-dismiss="modal"><i class="fas fa-times"></i> Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btn-guardar-manual"><i class="fas fa-save"></i> Guardar</button>
                 </div>
             </div>
         </div>

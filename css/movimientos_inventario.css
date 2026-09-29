@@ -1,8 +1,12 @@
-/* Estilos para la página Movimientos de Inventario */
+/* ==========================================================================
+   INVERCLINIK - Estilos para Movimientos de Inventario
+   ========================================================================== */
 
 .nav-tabs {
-    border-bottom: 2px solid #dee2e6;
-    margin-bottom: 20px;
+    border-bottom: 2px solid #edf2f7;
+    margin-bottom: 24px;
+    display: flex;
+    gap: 8px;
 }
 
 .nav-tabs .nav-item {
@@ -10,25 +14,30 @@
 }
 
 .nav-tabs .nav-link {
-    border: 1px solid transparent;
-    border-top-left-radius: 0.25rem;
-    border-top-right-radius: 0.25rem;
-    padding: 0.5rem 1rem;
-    color: #495057;
+    border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 20px;
+    color: #64748b;
     background-color: transparent;
     cursor: pointer;
+    font-weight: 600;
+    font-size: 14.5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
 }
 
 .nav-tabs .nav-link:hover {
-    border-color: #e9ecef #e9ecef #dee2e6;
-    isolation: isolate;
+    color: #0056b3;
+    background-color: #f8fafc;
 }
 
 .nav-tabs .nav-link.active {
-    color: #495057;
-    background-color: #fff;
-    border-color: #dee2e6 #dee2e6 #fff;
-    font-weight: bold;
+    color: #0056b3;
+    background-color: #ffffff;
+    border-bottom-color: #0056b3;
 }
 
 .tab-content {
@@ -44,37 +53,52 @@
 }
 
 .stock-info {
-    background-color: #f8f9fa;
-    padding: 10px;
-    border-radius: 5px;
-    margin-bottom: 15px;
+    background-color: #f8fafc;
+    padding: 14px 18px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .stock-actual {
-    font-size: 18px;
-    font-weight: bold;
+    font-size: 19px;
+    font-weight: 700;
     color: #0056b3;
 }
 
 .stock-alert-min {
     color: #dc3545;
-    font-size: 1.1em;
+    font-weight: 600;
 }
 
 .stock-alert-max {
     color: #fd7e14;
-    font-size: 1.1em;
+    font-weight: 600;
 }
 
 .badge-entrada {
-    color: #28a745;
-    padding: 5px 10px;
-    border-radius: 3px;
+    background-color: #e8f7ec;
+    color: #1b6d2e;
+    border: 1px solid rgba(40, 167, 69, 0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .badge-salida {
-    background-color: #dc3545;
-    color: white;
-    padding: 5px 10px;
-    border-radius: 3px;
+    background-color: #fde8e9;
+    color: #b02a37;
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
 }

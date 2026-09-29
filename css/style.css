@@ -1,220 +1,574 @@
+/* ==========================================================================
+   INVERCLINIK - Modern Design System (CSS Style Core)
+   Preserving brand identity, colors, and enhancing buttons, icons & components
+   ========================================================================== */
+
+:root {
+    --primary: #0056b3;
+    --primary-hover: #004494;
+    --primary-light: #e7f1ff;
+    --primary-border: #0056b3;
+    
+    --secondary: #6c757d;
+    --secondary-hover: #565e64;
+    --secondary-light: #f1f3f5;
+    
+    --success: #28a745;
+    --success-hover: #218838;
+    --success-light: #e8f7ec;
+    
+    --danger: #dc3545;
+    --danger-hover: #c82333;
+    --danger-light: #fde8e9;
+    
+    --warning: #ffc107;
+    --warning-hover: #e0a800;
+    --warning-light: #fff9e6;
+    --warning-text: #856404;
+    
+    --info: #17a2b8;
+    --info-hover: #138496;
+    --info-light: #e2f7fa;
+    
+    --dark: #343a40;
+    --light: #f8f9fa;
+    --border-color: #dee2e6;
+    --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
+    --btn-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+    --btn-shadow-hover: 0 5px 12px rgba(0, 0, 0, 0.15);
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-pill: 50px;
+}
+
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #f8f9fa;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f4f6f9;
+    color: #333333;
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* Contenedor principal */
 .container-wrapper {
     min-height: 100vh;
-    padding: 20px;
+    padding: 24px;
+    box-sizing: border-box;
 }
 
 .container-inner {
-    background-color: white;
-    border-radius: 10px;
-    padding: 25px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    box-shadow: var(--card-shadow);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.contenido-principal {
+    margin-left: 60px;
+    padding: 30px;
+    box-sizing: border-box;
+    background-color: #f4f6f9;
+    min-height: 100vh;
 }
 
 /* Encabezados */
 .main-title {
-    color: #0056b3;
-    font-size: 28px;
-    font-weight: bold;
-    margin-bottom: 10px;
+    color: var(--primary);
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 0;
+    margin-bottom: 20px;
     text-align: center;
-    border-bottom: 3px solid #ffc107;
-    padding-bottom: 15px;
+    position: relative;
+    padding-bottom: 14px;
+    letter-spacing: -0.3px;
+}
+
+.main-title::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3.5px;
+    background-color: var(--warning);
+    border-radius: 2px;
 }
 
 .subtitle {
-    color: #004085;
-    font-size: 18px;
+    color: #495057;
+    font-size: 17px;
     text-align: center;
-    margin-top: 0;
+    margin-top: -10px;
+    margin-bottom: 25px;
+    font-weight: 500;
 }
 
-/* Tabla */
-.recipe-table {
-    width: 100%;
-    border-collapse: collapse;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+/* ==========================================================================
+   BOTONES MODERNOS (Modern UI Buttons)
+   ========================================================================== */
 
-.recipe-table th {
-    background-color: #0056b3;
-    color: white;
-    font-weight: bold;
-    padding: 14px;
-    text-align: left;
-}
-
-.recipe-table td {
-    padding: 12px;
-    border-bottom: 1px solid #dee2e6;
-}
-
-.recipe-table tr:nth-child(even) {
-    background-color: #f2f7ff;
-}
-
-.recipe-table tr:hover {
-    background-color: #e7f3ff;
-}
-
-/* Mensaje cuando no hay datos */
-.no-data {
-    text-align: center;
-    padding: 40px;
-    color: #6c757d;
-    font-style: italic;
-}
-
-/* Estilo para el contenedor de la tabla */
-.table-container {
-    overflow-x: auto;
-}
-
-/* Botones */
 .btn {
-    border: none;
-    padding: 10px 15px;
-    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-family: inherit;
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.4;
+    padding: 9px 18px;
+    border-radius: var(--radius-md);
+    border: 1px solid transparent;
     cursor: pointer;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
+    text-decoration: none !important;
+    vertical-align: middle;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--btn-shadow);
+    position: relative;
+    overflow: hidden;
 }
 
-.btn-success {
-    background-color: #28a745;
-    color: white;
+.btn:hover {
+    transform: translateY(-1.5px);
+    box-shadow: var(--btn-shadow-hover);
+    text-decoration: none;
 }
 
-.btn-success:hover {
-    background-color: #218838;
+.btn:active {
+    transform: translateY(0.5px);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+.btn:focus, .btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3.5px rgba(0, 86, 179, 0.25);
+}
+
+.btn i, .btn svg {
+    font-size: 0.95em;
+    transition: transform 0.2s ease;
+}
+
+.btn:hover i, .btn:hover svg {
+    transform: scale(1.12);
+}
+
+/* Variantes de Botones */
 .btn-primary {
-    background-color: #007bff;
-    color: white;
-    margin-right: 10px;
+    background: linear-gradient(180deg, #0069d9 0%, #0056b3 100%);
+    background-color: var(--primary);
+    color: #ffffff !important;
+    border-color: #004da3;
 }
 
 .btn-primary:hover {
-    background-color: #0056b3;
+    background: linear-gradient(180deg, #0056b3 0%, #004494 100%);
+    background-color: var(--primary-hover);
+    color: #ffffff !important;
+}
+
+.btn-success {
+    background: linear-gradient(180deg, #2eb851 0%, #28a745 100%);
+    background-color: var(--success);
+    color: #ffffff !important;
+    border-color: #218838;
+}
+
+.btn-success:hover {
+    background: linear-gradient(180deg, #28a745 0%, #1e7e34 100%);
+    background-color: var(--success-hover);
+    color: #ffffff !important;
+}
+
+.btn-danger {
+    background: linear-gradient(180deg, #e44655 0%, #dc3545 100%);
+    background-color: var(--danger);
+    color: #ffffff !important;
+    border-color: #bd2130;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(180deg, #dc3545 0%, #b21f2d 100%);
+    background-color: var(--danger-hover);
+    color: #ffffff !important;
+}
+
+.btn-warning {
+    background: linear-gradient(180deg, #ffca2c 0%, #ffc107 100%);
+    background-color: var(--warning);
+    color: #212529 !important;
+    border-color: #d39e00;
+}
+
+.btn-warning:hover {
+    background: linear-gradient(180deg, #ffc107 0%, #e0a800 100%);
+    background-color: var(--warning-hover);
+    color: #212529 !important;
+}
+
+.btn-info {
+    background: linear-gradient(180deg, #1cb6ce 0%, #17a2b8 100%);
+    background-color: var(--info);
+    color: #ffffff !important;
+    border-color: #117a8b;
+}
+
+.btn-info:hover {
+    background: linear-gradient(180deg, #17a2b8 0%, #117a8b 100%);
+    background-color: var(--info-hover);
+    color: #ffffff !important;
 }
 
 .btn-secondary {
-    background-color: #6c757d;
-    color: white;
+    background: linear-gradient(180deg, #7a8288 0%, #6c757d 100%);
+    background-color: var(--secondary);
+    color: #ffffff !important;
+    border-color: #545b62;
 }
 
 .btn-secondary:hover {
-    background-color: #545b62;
+    background: linear-gradient(180deg, #6c757d 0%, #545b62 100%);
+    background-color: var(--secondary-hover);
+    color: #ffffff !important;
 }
 
+/* Botones Outline Modernos */
+.btn-outline-primary {
+    background-color: transparent;
+    color: var(--primary) !important;
+    border-color: var(--primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--primary);
+    color: #ffffff !important;
+}
+
+.btn-outline-secondary {
+    background-color: transparent;
+    color: var(--secondary) !important;
+    border-color: #ced4da;
+}
+.btn-outline-secondary:hover {
+    background-color: #f1f3f5;
+    color: #333333 !important;
+    border-color: var(--secondary);
+}
+
+.btn-outline-success {
+    background-color: transparent;
+    color: var(--success) !important;
+    border-color: var(--success);
+}
+.btn-outline-success:hover {
+    background-color: var(--success);
+    color: #ffffff !important;
+}
+
+.btn-outline-danger {
+    background-color: transparent;
+    color: var(--danger) !important;
+    border-color: var(--danger);
+}
+.btn-outline-danger:hover {
+    background-color: var(--danger);
+    color: #ffffff !important;
+}
+
+.btn-outline-info {
+    background-color: transparent;
+    color: var(--info) !important;
+    border-color: var(--info);
+}
+.btn-outline-info:hover {
+    background-color: var(--info);
+    color: #ffffff !important;
+}
+
+/* Tamaños de Botones */
 .btn-sm {
-    padding: 5px 10px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    gap: 5px;
+}
+
+.btn-lg {
+    padding: 12px 24px;
+    font-size: 16px;
+    border-radius: 10px;
+    gap: 9px;
+}
+
+.btn-pill {
+    border-radius: var(--radius-pill);
+}
+
+.btn-volver { 
+    background-color: #ffffff;
+    color: var(--secondary) !important;
+    border: 1px solid #ced4da;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    margin-bottom: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+}
+
+.btn-volver:hover {
+    background-color: #f8f9fa;
+    color: var(--primary) !important;
+    border-color: var(--primary);
+    transform: translateX(-2px);
+}
+
+/* Botones de Acción en Tablas (Icon Action Buttons) */
+.btn-action-group {
+    display: inline-flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    white-space: nowrap !important;
+}
+
+.btn-action-group > .btn,
+.btn-action-group > button,
+.btn-action-group > a {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+}
+
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: var(--radius-sm);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.btn-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn-action i {
+    font-size: 13px;
+}
+
+/* ==========================================================================
+   TABLAS MODERNAS
+   ========================================================================== */
+
+.table-container {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+}
+
+.recipe-table, .tabla-moderna {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 14px;
 }
 
-/* Formulario */
+.recipe-table thead th, .tabla-moderna thead th {
+    background-color: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 13px 16px;
+    border-bottom: 2px solid #e2e8f0;
+    text-align: left;
+}
+
+.recipe-table tbody td, .tabla-moderna tbody td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+    color: #334155;
+}
+
+.recipe-table tbody tr, .tabla-moderna tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.recipe-table tbody tr:hover, .tabla-moderna tbody tr:hover {
+    background-color: #f8fafc;
+}
+
+.recipe-table tbody tr:last-child td, .tabla-moderna tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Badges Modernos (Soft Badges) */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 6px;
+    letter-spacing: 0.2px;
+}
+
+.badge-primary {
+    background-color: var(--primary-light);
+    color: var(--primary);
+    border: 1px solid rgba(0, 86, 179, 0.2);
+}
+
+.badge-success {
+    background-color: var(--success-light);
+    color: #1b6d2e;
+    border: 1px solid rgba(40, 167, 69, 0.25);
+}
+
+.badge-danger {
+    background-color: var(--danger-light);
+    color: #b02a37;
+    border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+.badge-warning {
+    background-color: var(--warning-light);
+    color: var(--warning-text);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+}
+
+.badge-info {
+    background-color: var(--info-light);
+    color: #0c5460;
+    border: 1px solid rgba(23, 162, 184, 0.25);
+}
+
+.badge-secondary {
+    background-color: #f1f3f5;
+    color: #495057;
+    border: 1px solid #ced4da;
+}
+
+/* ==========================================================================
+   FORMULARIOS E INPUTS
+   ========================================================================== */
+
 .form-control {
     width: 100%;
-    padding: 10px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 14px;
+    padding: 10px 14px;
+    border: 1.5px solid #ced4da;
+    border-radius: var(--radius-md);
+    font-size: 14.5px;
     box-sizing: border-box;
-    transition: border-color 0.3s ease;
+    transition: all 0.2s ease;
+    background-color: #ffffff;
+    color: #495057;
 }
 
 .form-control:focus {
     outline: none;
-    border-color: #0056b3;
-    box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.25);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 86, 179, 0.18);
+    background-color: #ffffff;
 }
 
 .form-label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-    color: #495057;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #343a40;
 }
 
 .mb-3 {
-    margin-bottom: 15px;
+    margin-bottom: 18px;
 }
 
-/* Vista oculta */
-.hidden {
-    display: none;
+/* Modales Modernos */
+.modal-content {
+    border-radius: var(--radius-lg);
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
 }
 
-/* Utilidades adicionales */
-.text-center {
-    text-align: center;
+.modal-header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #edf2f7;
+    padding: 18px 24px;
+    align-items: center;
 }
 
-.text-danger {
-    color: #dc3545;
+.modal-header .modal-title {
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 18px;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+.modal-footer {
+    background-color: #f8fafc;
+    border-top: 1px solid #edf2f7;
+    padding: 16px 24px;
+    gap: 10px;
 }
 
 /* Responsive */
+@media (max-width: 992px) {
+    .contenido-principal {
+        margin-left: 0;
+        padding: 15px;
+    }
+}
+
 @media (max-width: 768px) {
     .container-wrapper {
-        padding: 10px;
+        padding: 12px;
     }
 
     .container-inner {
-        padding: 15px;
+        padding: 18px;
     }
 
     .main-title {
-        font-size: 24px;
+        font-size: 22px;
     }
 
     .subtitle {
-        font-size: 16px;
-    }
-
-    .recipe-table {
-        font-size: 14px;
-    }
-
-    .recipe-table th,
-    .recipe-table td {
-        padding: 8px;
+        font-size: 15px;
     }
 
     .btn {
         width: 100%;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
     }
-
-    .btn-primary {
-        margin-right: 0;
-    }
-}
-
-.contenido-principal {
-  margin-left: 260px; /* mismo ancho que .sidebar */
-  padding: 30px;
-  box-sizing: border-box;
-  background-color: #f8f9fa;
-  min-height: 100vh;
-}
-
-.btn-volver { 
-    background: #6c757d; 
-    color: white; 
-    border: none; 
-    padding: 8px 15px; 
-    border-radius: 5px; 
-    cursor: pointer; 
-    margin-bottom: 15px; 
 }

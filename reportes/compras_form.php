@@ -63,7 +63,7 @@ if ($resProv) {
             </div>
         </div>
         <div class="text-center">
-          <button type="submit" class="btn btn-primary">Generar Reporte</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-file-pdf"></i> Generar Reporte</button>
         </div>
 
       </form>

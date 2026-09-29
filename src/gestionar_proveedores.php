@@ -20,12 +20,12 @@ require_once "../connection/connection.php";
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div aria-label="Acciones de Proveedores">
-                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Proveedor" data-toggle="tooltip">
-                                        <i class="fas fa-plus"></i>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de Proveedores">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Registrar Proveedor">
+                                        <i class="fas fa-plus-circle"></i> Nuevo Proveedor
                                     </button>
-                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
-                                        <i class="fas fa-filter"></i>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtrar Lista">
+                                        <i class="fas fa-filter"></i> Filtros
                                     </button>
                                 </div>
                             </div>
@@ -132,9 +132,9 @@ require_once "../connection/connection.php";
                                           placeholder="Dirección completa..."></textarea>
                             </div>
 
-                            <div class="mt-4">
-                                <button type="submit" class="btn btn-primary">Guardar Proveedor</button>
-                                <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <div class="mt-4" style="display: flex; gap: 10px;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Proveedor</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
                             </div>
                             
                             <input type="hidden" id="editar-proveedor-id" name="id" value="">

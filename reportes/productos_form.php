@@ -84,7 +84,7 @@ if (empty($categorias)) {
 
             <div class="text-center">
                 <button type="submit" class="btn btn-primary">
-                    Generar Reporte
+                    <i class="fas fa-file-pdf"></i> Generar Reporte
                 </button>
             </div>
 

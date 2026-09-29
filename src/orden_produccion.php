@@ -92,6 +92,26 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         .orders-table td {
             padding: 12px;
             border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+
+        .orders-table th:last-child {
+            text-align: center;
+        }
+
+        .orders-table td:last-child {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .orders-table .btn-action-group {
+            display: inline-flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            flex-wrap: nowrap !important;
+            white-space: nowrap !important;
         }
 
         .orders-table tr:nth-child(even) {
@@ -156,12 +176,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div aria-label="Acciones de cotización">
-                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Orden de Producción" data-toggle="tooltip">
-                                        <i class="fas fa-plus"></i>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nueva Orden de Producción">
+                                        <i class="fas fa-plus-circle"></i> Nueva Orden
                                     </button>
-                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
-                                        <i class="fas fa-filter"></i>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtros">
+                                        <i class="fas fa-filter"></i> Filtros
                                     </button>
                                 </div>
                             </div>
@@ -215,7 +235,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <tr>
                                         <th>N° Orden</th>
                                         <th>Producto</th>
-                                        <th>Talla</th>
                                         <th>Categoría</th>
                                         <th>Cantidad</th>
                                         <th>Costo por Unidad</th>
@@ -355,8 +374,10 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">Crear Orden</button>
-                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary" id="btn-submit-orden"><i class="fas fa-save"></i> Guardar Orden</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
+                            </div>
                             <input type="hidden" id="editar-orden-id" name="id" value="">
                             <input type="hidden" id="action" value="">
                         </form>
@@ -686,7 +707,6 @@ function abrirModalTalleres(orden) {
                         ${badgeStatus}
                         <h6 style="font-weight:bold; color:#333;">Taller ${index + 1}: ${item.taller_nombre}</h6>
                         <p style="margin-bottom:5px; font-size:14px;"><strong>Especificaciones:</strong> ${item.observaciones || '<i>Sin observaciones</i>'}</p>
-                        <small class="text-muted">Despachado: ${item.fecha_despacho} ${item.fecha_retorno ? ' | Retornado: ' + item.fecha_retorno : ''}</small>
                         ${botonAccion}
                     </div>`;
                 });

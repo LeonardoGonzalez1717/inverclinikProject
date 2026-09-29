@@ -105,9 +105,9 @@ require_once __DIR__ . '/../template/navbar.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <button type="submit" class="btn btn-primary">Filtrar</button>
-                        <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-filtros-auditoria">Limpiar</button>
+                    <div class="form-group" style="display: flex; gap: 8px;">
+                        <button type="submit" class="btn btn-primary"><i class="fas fa-filter"></i> Filtrar</button>
+                        <button type="button" class="btn btn-outline-secondary" id="btn-limpiar-filtros-auditoria"><i class="fas fa-eraser"></i> Limpiar</button>
                     </div>
                 </form>
 

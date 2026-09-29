@@ -59,6 +59,115 @@ try {
             ]);
             break;
 
+        case 'buscar_unidades_select2':
+            $q = trim($_GET['q'] ?? $_POST['q'] ?? '');
+            
+            OrdenProduccionUnidades::asegurarTablas($conn);
+            OrdenProduccionUnidades::sincronizarTodasLasOrdenes($conn);
+
+            $sql = "
+                SELECT u.id AS unidad_id, u.numero_identificador, u.numero_secuencia, u.estado,
+                       op.id AS orden_id, op.creado_en AS orden_fecha,
+                       COALESCE(p.nombre, 'Producto') AS producto_nombre,
+                       COALESCE(t.nombre, 'Única') AS talla_nombre
+                FROM ordenes_produccion_unidades u
+                INNER JOIN ordenes_produccion op ON op.id = u.orden_produccion_id
+                LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                LEFT JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN tallas t ON t.id = u.talla_id
+            ";
+
+            $mesesMap = [
+                'ene' => 1, 'enero' => 1,
+                'feb' => 2, 'febrero' => 2,
+                'mar' => 3, 'marzo' => 3,
+                'abr' => 4, 'abril' => 4,
+                'may' => 5, 'mayo' => 5,
+                'jun' => 6, 'junio' => 6,
+                'jul' => 7, 'julio' => 7,
+                'ago' => 8, 'agost' => 8, 'agosto' => 8,
+                'sep' => 9, 'sept' => 9, 'septiembre' => 9,
+                'oct' => 10, 'octubre' => 10,
+                'nov' => 11, 'noviembre' => 11,
+                'dic' => 12, 'diciembre' => 12,
+            ];
+
+            if ($q !== '') {
+                $orConditions = [];
+                $params = [];
+                $types = '';
+
+                // 1. Identificador de pieza, producto, talla
+                $qLike = '%' . $q . '%';
+                $orConditions[] = "u.numero_identificador LIKE ?";
+                $params[] = $qLike;
+                $types .= 's';
+
+                $orConditions[] = "p.nombre LIKE ?";
+                $params[] = $qLike;
+                $types .= 's';
+
+                $orConditions[] = "t.nombre LIKE ?";
+                $params[] = $qLike;
+                $types .= 's';
+
+                // 2. Número de orden extraído (ej. "01-agost", "1-agost-26", "op 5", "5")
+                $parsedId = parse_id_orden_produccion($q);
+                if ($parsedId > 0) {
+                    $orConditions[] = "op.id = ?";
+                    $params[] = $parsedId;
+                    $types .= 'i';
+                }
+
+                if (preg_match('/(?:op\s*[-#]?\s*|orden\s*[-#]?\s*)0*(\d+)/i', $q, $m)) {
+                    $extraOpId = (int)$m[1];
+                    if ($extraOpId > 0 && $extraOpId !== $parsedId) {
+                        $orConditions[] = "op.id = ?";
+                        $params[] = $extraOpId;
+                        $types .= 'i';
+                    }
+                }
+
+                // 3. Mes en la fecha de la orden si busca por mes (ej. "agost", "sept", "enero")
+                $qLower = strtolower($q);
+                foreach ($mesesMap as $nomMes => $numMes) {
+                    if (strpos($qLower, $nomMes) !== false) {
+                        $orConditions[] = "MONTH(op.creado_en) = ?";
+                        $params[] = $numMes;
+                        $types .= 'i';
+                        break;
+                    }
+                }
+
+                $sql .= " WHERE (" . implode(" OR ", $orConditions) . ") ORDER BY op.id DESC, u.numero_secuencia ASC LIMIT 60";
+                $st = $conn->prepare($sql);
+                if (!empty($params)) {
+                    $st->bind_param($types, ...$params);
+                }
+            } else {
+                $st = $conn->prepare($sql . " ORDER BY op.id DESC, u.numero_secuencia ASC LIMIT 40");
+            }
+
+            $st->execute();
+            $res = $st->get_result();
+            $items = [];
+            while ($row = $res->fetch_assoc()) {
+                $numOrden = numero_orden_produccion((int)$row['orden_id'], $row['orden_fecha']);
+                $items[] = [
+                    'id' => $row['numero_identificador'],
+                    'text' => 'Orden ' . $numOrden . ' — ' . $row['numero_identificador'] . ' (' . $row['producto_nombre'] . ')',
+                    'unidad_id' => (int) $row['unidad_id'],
+                    'estado' => $row['estado'],
+                    'orden_numero' => $numOrden
+                ];
+            }
+            $st->close();
+
+            echo json_encode([
+                'results' => $items
+            ]);
+            break;
+
         case 'buscar_unidades_por_orden':
             $ordenId = (int) ($_GET['orden_id'] ?? $_POST['orden_id'] ?? 0);
             if ($ordenId <= 0) {

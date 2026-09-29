@@ -19,7 +19,7 @@ body {
 
 /* Panel principal adaptativo */
 .main-content {
-  margin-left: 65px; /* Por defecto toma el espacio de la barra delgada */
+  margin-left: 60px; /* Por defecto toma el espacio de la barra delgada */
   padding: 30px;
   /* Sincroniza la animación con el mismo tiempo y suavidad que el navbar */
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); 

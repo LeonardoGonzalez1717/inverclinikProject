@@ -226,10 +226,10 @@ switch ($action) {
                     . '<td><strong>$' . number_format((float) $row['total'], 2, '.', ',') . '</strong></td>'
                     . '<td class="small">' . $compHtml . '</td>'
                     . '<td style="white-space:nowrap">'
-                    . '<button type="button" class="btn btn-sm btn-primary" onclick=\'verDetalleCotizacion(' . $idCot . ', ' . $jsonCod . ')\'>Ver</button> '
-                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info">Imprimir</a>'
+                    . '<button type="button" class="btn btn-sm btn-primary" onclick=\'verDetalleCotizacion(' . $idCot . ', ' . $jsonCod . ')\'><i class="fas fa-eye"></i> Ver</button> '
+                    . '<a href="../formatos/ver_cotizacion.php?id=' . $idCot . '" target="_blank" class="btn btn-sm btn-info"><i class="fas fa-print"></i> Imprimir</a>'
                     . (true
-                        ? ' <button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'>Cargar comprobante</button>'
+                        ? ' <button type="button" class="btn btn-sm btn-outline-secondary" onclick=\'abrirModalComprobante(' . $idCot . ', ' . $jsonCod . ')\'><i class="fas fa-file-invoice-dollar"></i> Cargar comprobante</button>'
                         : '')
                     . '</td>'
                     . '</tr>';

@@ -150,6 +150,41 @@ if ($resOrdenes) {
                 width: 100%;
             }
         }
+
+        /* Select2 adaptado para modal */
+        .select2-container--default .select2-selection--single {
+            height: 42px !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            padding: 7px 12px !important;
+            background-color: #fff !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 26px !important;
+            color: #1e293b !important;
+            font-size: 14px !important;
+            padding-left: 0 !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__placeholder {
+            color: #94a3b8 !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 40px !important;
+            right: 10px !important;
+        }
+        .select2-dropdown {
+            border-color: #cbd5e1 !important;
+            border-radius: 6px !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+            z-index: 1060 !important;
+        }
+        .select2-results__option {
+            padding: 9px 12px !important;
+            font-size: 13.5px !important;
+        }
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #0056b3 !important;
+        }
     </style>
 </head>
 <body>
@@ -252,33 +287,17 @@ if ($resOrdenes) {
             </div>
             <form id="formNuevaDevolucion">
                 <div class="modal-body">
-                    <!-- Buscador de Pieza -->
+                    <!-- Buscador y Selector Unificado de Pieza -->
                     <div class="form-group">
-                        <label style="font-weight: bold;">Identificador del Producto a Devolver <span style="color: red;">*</span></label>
-                        <div class="input-group" style="margin-bottom: 8px;">
-                            <input type="text" id="inputBuscarIdentificador" class="form-control" placeholder="Ingrese o escanee el Identificador (ej. OP1-U001)...">
-                            <span class="input-group-btn">
-                                <button type="button" class="btn btn-primary" id="btnBuscarUnidad">
-                                    <i class="fas fa-search"></i> Buscar
-                                </button>
-                            </span>
-                        </div>
-                        <small class="text-muted">O seleccione una Orden de Producción reciente para listar sus piezas:</small>
-                        <select id="selectOrdenAux" class="form-control" style="margin-top: 4px;">
-                            <option value="">-- Seleccionar Orden de Producción reciente --</option>
-                            <?php foreach ($ordenes as $ord): ?>
-                                <option value="<?php echo $ord['id']; ?>">
-                                    <?php echo htmlspecialchars($ord['numero_orden'] . ' - ' . $ord['producto_nombre'] . ' (' . $ord['talla_nombre'] . ') [' . (int)$ord['cantidad_a_producir'] . ' unids]'); ?>
-                                </option>
-                            <?php endforeach; ?>
+                        <label for="selectUnidadDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
+                            <i class="fas fa-barcode text-primary"></i> Identificador / Orden del Producto a Devolver <span style="color: red;">*</span>
+                        </label>
+                        <select id="selectUnidadDevolver" class="form-control" style="width: 100%;">
+                            <option value="">-- Buscar por orden (ej. 01-AGOST), código o producto --</option>
                         </select>
-                    </div>
-
-                    <div class="form-group" id="contenedorSelectorUnidadesOrden" style="display: none;">
-                        <label style="font-weight: bold;">Pieza de la Orden Seleccionada <span style="color: red;">*</span></label>
-                        <select id="selectUnidadesDeOrden" class="form-control">
-                            <option value="">-- Seleccionar pieza producida --</option>
-                        </select>
+                        <small class="text-muted" style="display: block; margin-top: 5px;">
+                            <i class="fas fa-info-circle"></i> Escriba el número de orden (ej: <code>01-AGOST</code>), el código único de la pieza (ej: <code>OP1-U001</code>) o el nombre del producto.
+                        </small>
                     </div>
 
                     <!-- Tarjeta Preview del Producto -->
@@ -447,6 +466,7 @@ if ($resOrdenes) {
     </div>
 </div>
 
+<script src="../assets/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
     let paginaActual = 1;
@@ -482,70 +502,62 @@ $(document).ready(function() {
         cargarDevoluciones();
     });
 
+    // Inicializar Select2 en el buscador unificado
+    $('#selectUnidadDevolver').select2({
+        dropdownParent: $('#modalNuevaDevolucion'),
+        placeholder: '-- Buscar por orden (ej. 01-AGOST), código o producto --',
+        allowClear: true,
+        width: '100%',
+        ajax: {
+            url: 'devoluciones_data.php',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    action: 'buscar_unidades_select2',
+                    q: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results || []
+                };
+            },
+            cache: true
+        },
+        minimumInputLength: 0
+    });
+
+    // Al seleccionar una unidad en Select2
+    $('#selectUnidadDevolver').on('select2:select change', function() {
+        const codigo = $(this).val();
+        if (codigo) {
+            buscarUnidad(codigo);
+        } else {
+            limpiarPreviewUnidad();
+        }
+    });
+
+    $('#selectUnidadDevolver').on('select2:unselect', function() {
+        limpiarPreviewUnidad();
+    });
+
     // Abrir modal nueva devolución
     $('#btn-ir-crear').on('click', function() {
         resetearFormularioDevolucion();
         $('#modalNuevaDevolucion').modal('show');
         setTimeout(function() {
-            $('#inputBuscarIdentificador').focus();
-        }, 400);
+            $('#selectUnidadDevolver').select2('open');
+        }, 350);
     });
 
-    // Buscar unidad por identificador
-    $('#btnBuscarUnidad').on('click', function() {
-        buscarUnidad($('#inputBuscarIdentificador').val());
-    });
-
-    $('#inputBuscarIdentificador').on('keypress', function(e) {
-        if (e.which === 13) {
-            e.preventDefault();
-            buscarUnidad($(this).val());
-        }
-    });
-
-    // Selector auxiliar de orden de producción
-    $('#selectOrdenAux').on('change', function() {
-        const ordenId = $(this).val();
-        if (!ordenId) {
-            $('#contenedorSelectorUnidadesOrden').hide();
-            return;
-        }
-
-        $.ajax({
-            url: 'devoluciones_data.php',
-            type: 'GET',
-            data: { action: 'buscar_unidades_por_orden', orden_id: ordenId },
-            dataType: 'json',
-            success: function(res) {
-                if (res.success && res.unidades) {
-                    let opts = '<option value="">-- Seleccionar pieza producida --</option>';
-                    res.unidades.forEach(function(u) {
-                        opts += `<option value="${u.numero_identificador}">${u.numero_identificador} - Unidad #${u.numero_secuencia} (${u.estado})</option>`;
-                    });
-                    $('#selectUnidadesDeOrden').html(opts);
-                    $('#contenedorSelectorUnidadesOrden').slideDown(200);
-                }
-            }
-        });
-    });
-
-    $('#selectUnidadesDeOrden').on('change', function() {
-        const codigo = $(this).val();
-        if (codigo) {
-            $('#inputBuscarIdentificador').val(codigo);
-            buscarUnidad(codigo);
-        }
-    });
-
-    // Función de búsqueda de unidad
+    // Función de búsqueda y validación de unidad
     function buscarUnidad(codigo) {
         codigo = $.trim(codigo);
         if (!codigo) {
-            Swal.fire('Atención', 'Por favor ingrese o escanee un número identificador.', 'warning');
+            limpiarPreviewUnidad();
             return;
         }
-
-        $('#btnBuscarUnidad').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
 
         $.ajax({
             url: 'devoluciones_data.php',
@@ -553,7 +565,6 @@ $(document).ready(function() {
             data: { action: 'buscar_unidad', codigo: codigo },
             dataType: 'json',
             success: function(res) {
-                $('#btnBuscarUnidad').prop('disabled', false).html('<i class="fas fa-search"></i> Buscar');
                 if (res.success && res.unidad) {
                     mostrarPreviewUnidad(res.unidad);
                 } else {
@@ -562,7 +573,6 @@ $(document).ready(function() {
                 }
             },
             error: function(xhr) {
-                $('#btnBuscarUnidad').prop('disabled', false).html('<i class="fas fa-search"></i> Buscar');
                 limpiarPreviewUnidad();
                 let msg = 'Error de conexión con el servidor.';
                 try {
@@ -624,9 +634,8 @@ $(document).ready(function() {
 
     function resetearFormularioDevolucion() {
         $('#formNuevaDevolucion')[0].reset();
-        $('#inputBuscarIdentificador').val('');
-        $('#selectOrdenAux').val('');
-        $('#contenedorSelectorUnidadesOrden').hide();
+        $('#selectUnidadDevolver').val(null).trigger('change');
+        $('#inputClienteId').val('');
         limpiarPreviewUnidad();
     }
 
