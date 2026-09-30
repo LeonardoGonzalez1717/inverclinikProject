@@ -58,25 +58,25 @@ $row = mysqli_fetch_assoc($result);
                     <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" />
                 </div>
                 <div class="form-group">
-                    <button type="submit" class="btn-aplicar">Aplicar</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter"></i> Aplicar Filtro</button>
                 </div>
             </form>
 
             <section class="alertas">
                 <div class="alert-card produccion" id="card-prod">
-                    <h3> Producción</h3>
-                    <p>Órdenes activas: <span id="ordenesActivas">0</span></p>
-                    <p>Retrasos: <span id="retrasos">0</span></p>
+                    <h3><i class="fas fa-industry text-primary" style="margin-right: 8px;"></i> Producción</h3>
+                    <p>Órdenes activas: <strong id="ordenesActivas" style="color: #0056b3;">0</strong></p>
+                    <p>Retrasos: <strong id="retrasos" style="color: #dc3545;">0</strong></p>
                 </div>
                 <div class="alert-card pagos">
-                    <h3> Finanzas</h3>
-                    <p>Ventas Pendientes: <span id="ventasPendientes">0</span></p>
-                    <p>Cotizaciones Pendientes: <span id="cotiPendientes">0</span></p>
+                    <h3><i class="fas fa-file-invoice-dollar text-success" style="margin-right: 8px;"></i> Finanzas</h3>
+                    <p>Ventas Pendientes: <strong id="ventasPendientes" style="color: #fd7e14;">0</strong></p>
+                    <p>Cotizaciones Pendientes: <strong id="cotiPendientes" style="color: #0056b3;">0</strong></p>
                 </div>
                 <div class="alert-card inventario">
-                    <h3>Inventario</h3>
-                    <p>Insumos bajo stock crítico: <span id="insumosBajos">0</span></p>
-                    <p>Productos bajo stock crítico: <span id="ProductosBajos">0</span></p>
+                    <h3><i class="fas fa-boxes-stacked text-warning" style="margin-right: 8px;"></i> Inventario</h3>
+                    <p>Insumos bajo stock crítico: <strong id="insumosBajos" style="color: #dc3545;">0</strong></p>
+                    <p>Productos bajo stock crítico: <strong id="ProductosBajos" style="color: #dc3545;">0</strong></p>
                 </div>
             </section>
 

@@ -19,14 +19,14 @@ require_once "../connection/connection.php";
                 <div id="vista-listado">
                     <div class="row form-group">
                         <div class="col-sm-12">
-                            <div aria-label="Acciones de Categorías">
-                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Categoría" data-toggle="tooltip">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Categorías" data-toggle="tooltip">
-                                    <i class="fas fa-filter"></i>
-                                </button>
-                            </div>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de Categorías">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nueva Categoría">
+                                        <i class="fas fa-plus-circle"></i> Nueva Categoría
+                                    </button>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtrar Categorías">
+                                        <i class="fas fa-filter"></i> Filtros
+                                    </button>
+                                </div>
                         </div>
                     </div>
 
@@ -85,9 +85,9 @@ require_once "../connection/connection.php";
                         </div>
 
                         <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button type="submit" class="btn btn-primary">Guardar Categoría</button>
-                                <button type="button" class="btn btn-secondary" onclick="limpiarFormulario(); mostrarVista('listado');">Cancelar</button>
+                            <div class="col-md-12" style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Categoría</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormulario(); mostrarVista('listado');"><i class="fas fa-times"></i> Cancelar</button>
                             </div>
                         </div>
                     </form>

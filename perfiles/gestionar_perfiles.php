@@ -26,7 +26,7 @@ require_once('../template/header.php');
                         <div class="row mb-3">
                             <div class="col-md-12">
                                 <button class="btn btn-success" id="btn-ir-crear">
-                                    <i class="fas fa-plus"></i> Crear Perfil
+                                    <i class="fas fa-user-plus"></i> Nuevo Perfil
                                 </button>
                             </div>
                         </div>
@@ -98,8 +98,10 @@ require_once('../template/header.php');
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Guardar Usuario</button>
-                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Usuario</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
+                            </div>
                             <input type="hidden" id="editar-usuario-id" name="id" value="">
                             <input type="hidden" id="action" value="">
                         </form>

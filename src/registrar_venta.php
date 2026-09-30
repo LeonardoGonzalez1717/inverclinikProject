@@ -86,12 +86,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div aria-label="Acciones de cotización">
-                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Orden de Producción" data-toggle="tooltip">
-                                        <i class="fas fa-plus"></i>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de ventas">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Registrar Nueva Venta">
+                                        <i class="fas fa-plus-circle"></i> Nueva Venta
                                     </button>
-                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
-                                        <i class="fas fa-filter"></i>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtros">
+                                        <i class="fas fa-filter"></i> Filtros
                                     </button>
                                 </div>
                             </div>
@@ -131,7 +131,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                 </div>
                                 <div class="col-sm-4" style="margin-top: 25px;">
                                     <button type="button" class="btn btn-secondary btn-block" id="btn-limpiar-filtros-venta">
-                                        <i class="fas fa-eraser"></i>
+                                        <i class="fas fa-eraser"></i> Limpiar Filtros
                                     </button>
                                 </div>
                             </div>
@@ -308,9 +308,9 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                             </div>
 
                             <div class="row mb-3">
-                                <div class="col-md-12">
-                                    <button type="submit" class="btn btn-primary" id="btn-guardar-venta">Guardar Venta</button>
-                                    <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                                <div class="col-md-12" style="display: flex; gap: 10px; margin-top: 15px;">
+                                    <button type="submit" class="btn btn-primary" id="btn-guardar-venta"><i class="fas fa-save"></i> Guardar Venta</button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
                                 </div>
                             </div>
                         </form>

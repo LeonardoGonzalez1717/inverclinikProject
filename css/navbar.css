@@ -3,11 +3,11 @@
   position: fixed;
   top: 0;
   left: 0;
-  width: 65px;
+  width: 60px;
   height: 100vh;
   background: linear-gradient(to bottom, #005bbe, #003a7e);
   color: #fff;
-  padding: 20px 8px;
+  padding: 18px 6px;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
@@ -62,8 +62,8 @@
 
 /* === ESTADO EXPANDIDO POR CLIC === */
 .sidebar.sidebar-expanded {
-  width: 270px;
-  padding: 20px 14px;
+  width: 220px;
+  padding: 18px 10px;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -307,12 +307,12 @@ body.sidebar-open .contenido-principal,
 .sidebar.sidebar-expanded ~ .main-content,
 .sidebar.sidebar-expanded + .main-content,
 .sidebar.sidebar-expanded ~ .contenido-principal {
-  margin-left: 270px !important;
+  margin-left: 220px !important;
 }
 
 .main-content,
 .contenido-principal {
-  margin-left: 65px;
+  margin-left: 60px;
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

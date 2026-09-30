@@ -124,6 +124,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <li><a href="../reportes/ordenes_form.php"><i class="fas fa-file-alt"></i> <span>Órdenes</span></a></li>
                         <li><a href="../reportes/compras_form.php"><i class="fas fa-file-alt"></i> <span>Compras</span></a></li>
                         <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Ventas</span></a></li>
+                        <li><a href="../reportes/devoluciones_form.php"><i class="fas fa-file-alt"></i> <span>Devoluciones</span></a></li>
                     </ul>
                 </li>
             </ul>
@@ -247,6 +248,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <?php } ?>
                         <?php if ($gerCom) { ?>
                             <li><a href="../reportes/ventas_form.php"><i class="fas fa-file-alt"></i> <span>Ventas</span></a></li>
+                            <li><a href="../reportes/devoluciones_form.php"><i class="fas fa-file-alt"></i> <span>Devoluciones</span></a></li>
                         <?php } ?>
                     </ul>
                 </li>

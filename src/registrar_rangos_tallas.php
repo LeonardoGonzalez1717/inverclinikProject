@@ -21,13 +21,11 @@ require_once "../connection/connection.php";
 
             <div id="contenedor-vistas">
                 <div id="vista-listado">
-                    <div class="row form-group">
                         <div class="col-sm-4">
                             <button class="btn btn-success" id="btn-ir-crear">
-                                <i class="fas fa-plus"></i> Crear Rango de Tallas
+                                <i class="fas fa-plus-circle"></i> Nuevo Rango de Tallas
                             </button>
                         </div>
-                    </div>
                     <div class="table-container">
                         <table class="recipe-table">
                             <thead>
@@ -106,9 +104,9 @@ require_once "../connection/connection.php";
                         <hr style="margin: 20px 0; border-color: #dee2e6;">
 
                         <div class="row mb-3">
-                            <div class="col-md-12">
-                                <button type="submit" class="btn btn-primary" id="btn-guardar-rango" disabled>Guardar rango</button>
-                                <button type="button" class="btn btn-secondary" onclick="limpiarFormulario(); mostrarVista('listado');">Cancelar</button>
+                            <div class="col-md-12" style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary" id="btn-guardar-rango" disabled><i class="fas fa-save"></i> Guardar Rango</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormulario(); mostrarVista('listado');"><i class="fas fa-times"></i> Cancelar</button>
                             </div>
                         </div>
                     </form>

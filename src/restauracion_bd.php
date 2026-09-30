@@ -13,6 +13,7 @@ require_once __DIR__ . '/../template/header.php';
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
+                <a href="respaldos_bd.php" class="btn-volver mb-3"><i class="fas fa-arrow-left"></i> Volver a Respaldos</a>
                 <h2 class="main-title">Restauración de la base de datos</h2>
                 <p class="subtitle">Selecciona un respaldo registrado para importarlo nuevamente.</p>
 
@@ -99,7 +100,7 @@ require_once __DIR__ . '/../template/header.php';
                 var nombreRaw = String(f.basename || '');
                 var nombre = $('<div>').text(nombreRaw).html();
                 var nombreAttr = $('<div>').text(nombreRaw).html();
-                var btn = '<button class="btn btn-sm btn-danger btn-restaurar" data-id="' + String(f.id) + '" data-name="' + nombre + '" data-file="' + nombreAttr + '">Restaurar</button>';
+                var btn = '<button class="btn btn-sm btn-danger btn-restaurar" data-id="' + String(f.id) + '" data-name="' + nombre + '" data-file="' + nombreAttr + '"><i class="fas fa-rotate-left"></i> Restaurar</button>';
                 var fila = '<tr>' +
                     '<td>' + fecha + '</td>' +
                     '<td>' + nombre + '</td>' +

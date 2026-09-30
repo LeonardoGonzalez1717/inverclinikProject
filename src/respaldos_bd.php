@@ -15,7 +15,7 @@ require_once __DIR__ . '/../template/header.php';
             <div class="container-inner">
                 <h2 class="main-title">Respaldos y restauración de la base de datos</h2>
                 <div class="mb-3">
-                    <a href="restauracion_bd.php" class="btn btn-outline-danger">Ir a restauración</a>
+                    <a href="restauracion_bd.php" class="btn btn-outline-danger"><i class="fas fa-shield-halved"></i> Ir a restauración</a>
                 </div>
                 <h5 class="subtitle">Respaldos guardados</h5>
                 <div class="table-container">
@@ -66,7 +66,7 @@ require_once __DIR__ . '/../template/header.php';
                     '<td>' + nombre + '</td>' +
                     '<td>' + formatBytes(f.size) + '</td>' +
                     '<td>' + origenCell + '</td>' +
-                    '<td><a class="btn btn-sm btn-outline-primary" href="' + href + '">Descargar</a></td>' +
+                    '<td><a class="btn btn-sm btn-outline-primary" href="' + href + '"><i class="fas fa-download"></i> Descargar</a></td>' +
                     '</tr>';
                 $tb.append(fila);
             });

@@ -196,7 +196,7 @@ function op_html_fecha_fin_celda(?string $fecha_fin, string $estado): string
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
-$action = $_POST['action'] ?? '';
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
 
 try {
     if ($action === 'listar_html') {
@@ -291,12 +291,21 @@ try {
         if (!empty($ordenes)) {
             foreach ($ordenes as $o) {
                 $estadoStyle = match($o['estado']) {
-                    'finalizado' => 'background-color: #198754; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
-                    'pendiente'  => 'background-color: #fd7e14; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
-                    'en_proceso' => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;',
-                    'en_taller'  => 'background-color: #0d6efd; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;', // Morado
-                    'en_empresa' => 'background-color: #0dcaf0; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;', // Azul claro
-                    default      => 'background-color: #dc3545; color: #ffffff; font-weight: 700; padding: 4px 10px; border-radius: 6px; display: inline-block; width: 100%; text-align: center;'
+                    'finalizado' => 'background-color: #e8f7ec; color: #1b6d2e; border: 1px solid rgba(40, 167, 69, 0.3); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;',
+                    'pendiente'  => 'background-color: #fff4e5; color: #b76e00; border: 1px solid rgba(253, 126, 20, 0.35); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;',
+                    'en_proceso' => 'background-color: #e7f1ff; color: #0056b3; border: 1px solid rgba(0, 86, 179, 0.3); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;',
+                    'en_taller'  => 'background-color: #f3e8ff; color: #6f42c1; border: 1px solid rgba(111, 66, 193, 0.35); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;',
+                    'en_empresa' => 'background-color: #e2f7fa; color: #0c5460; border: 1px solid rgba(23, 162, 184, 0.35); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;',
+                    default      => 'background-color: #fde8e9; color: #b02a37; border: 1px solid rgba(220, 53, 69, 0.3); font-weight: 600; padding: 5px 12px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12.5px;'
+                };
+
+                $estadoIcon = match($o['estado']) {
+                    'finalizado' => '<i class="fas fa-check-circle"></i>',
+                    'pendiente'  => '<i class="fas fa-clock"></i>',
+                    'en_proceso' => '<i class="fas fa-cog fa-spin"></i>',
+                    'en_taller'  => '<i class="fas fa-warehouse"></i>',
+                    'en_empresa' => '<i class="fas fa-box-open"></i>',
+                    default      => '<i class="fas fa-circle-info"></i>'
                 };
 
                 $estadoTexto = match($o['estado']) {
@@ -318,18 +327,17 @@ try {
                 $o['numero_orden'] = numero_orden_produccion((int)$o['orden_id'], $o['creado_en'] ?? $o['fecha_inicio'] ?? null);
 
                 echo '<tr>';
-                echo '<td><strong>' . htmlspecialchars($o['numero_orden']) . '</strong></td>';
+                echo '<td><strong style="color: #0056b3;"><i class="fas fa-file-lines" style="margin-right: 4px; opacity: 0.7;"></i>' . htmlspecialchars($o['numero_orden']) . '</strong></td>';
                 echo '<td>' . htmlspecialchars($o['producto_nombre']) . '</td>';
-                echo '<td>' . htmlspecialchars($o['talla_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars($o['producto_categoria'] ?? '-') . '</td>';
-                echo '<td style="text-align: right;">' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
+                echo '<td style="text-align: right; font-weight: 600;">' . htmlspecialchars($o['cantidad_a_producir']) . '</td>';
                 echo '<td style="text-align: right;">$' . number_format($costoPorUnidad, 2, '.', ',') . '</td>';
                 echo '<td>' . $nombresTalleres . '</td>';
-                echo '<td style="font-weight: bold;text-align:right;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
+                echo '<td style="font-weight: bold;text-align:right; color: #198754;">$' . number_format($costoTotal, 2, '.', ',') . '</td>';
                 echo '<td>' . ($o['fecha_inicio'] ? date('d/m/Y', strtotime($o['fecha_inicio'])) : '—') . '</td>';
                 echo '<td style="font-weight: bold">' . op_html_fecha_fin_celda($o['fecha_fin'] ?? null, (string) ($o['estado'] ?? '')) . '</td>';
                 
-                $estadoHtml = '<span style="' . $estadoStyle . '">' . htmlspecialchars($estadoTexto) . '</span>';
+                $estadoHtml = '<span style="' . $estadoStyle . '">' . $estadoIcon . ' ' . htmlspecialchars($estadoTexto) . '</span>';
                 $btnFinalizar = '';
                 $btneditar = '';
                 $btnTalleres = '';
@@ -343,13 +351,12 @@ try {
                     $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
                     $btnTalleres = '<button class="btn btn-sm btn-info" title="Asignar / Ver Talleres" onclick="abrirModalTalleres(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-warehouse"></i></button>';
                 }
-                $btnUnidades = '<button class="btn btn-sm btn-secondary" style="background-color: #495057; border-color: #495057; color: white;" title="Ver Identificadores / Unidades Producidas" onclick="verUnidadesOrden(' . (int)$o['orden_id'] . ', \'' . htmlspecialchars($o['numero_orden'], ENT_QUOTES, 'UTF-8') . '\')"><i class="fas fa-barcode"></i></button>';
                 echo '<td nowrap>' . $estadoHtml . '</td>';
-                echo '<td><div style="display: flex; gap: 6px; align-items: center; white-space: nowrap;">' . $btnUnidades . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
+                echo '<td nowrap style="text-align: center;"><div class="btn-action-group">' . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="12" class="text-center">No hay órdenes de producción</td></tr>';
+            echo '<tr><td colspan="11" class="text-center">No hay órdenes de producción</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);

@@ -17,12 +17,12 @@ require_once "../template/header.php";
                 <div id="vista-listado">
                     <div class="row form-group">
                         <div class="col-sm-12">
-                            <div aria-label="Acciones de Unidades de Medida">
-                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Unidad de Medida" data-toggle="tooltip">
-                                    <i class="fas fa-plus"></i>
+                            <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de Unidades de Medida">
+                                <button class="btn btn-success" id="btn-ir-crear" title="Crear Unidad de Medida">
+                                    <i class="fas fa-plus-circle"></i> Nueva Unidad
                                 </button>
-                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
-                                    <i class="fas fa-filter"></i>
+                                <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtrar Lista">
+                                    <i class="fas fa-filter"></i> Filtros
                                 </button>
                             </div>
                         </div>
@@ -92,8 +92,10 @@ require_once "../template/header.php";
                                 </label>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary">Guardar</button>
-                        <button type="button" class="btn btn-secondary" id="btn-cancelar-form">Cancelar</button>
+                        <div style="display: flex; gap: 10px; margin-top: 15px;">
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Unidad</button>
+                            <button type="button" class="btn btn-outline-secondary" id="btn-cancelar-form"><i class="fas fa-times"></i> Cancelar</button>
+                        </div>
                     </form>
                 </div>
             </div>

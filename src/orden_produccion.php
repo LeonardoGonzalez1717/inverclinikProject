@@ -92,6 +92,26 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         .orders-table td {
             padding: 12px;
             border-bottom: 1px solid #dee2e6;
+            vertical-align: middle;
+        }
+
+        .orders-table th:last-child {
+            text-align: center;
+        }
+
+        .orders-table td:last-child {
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .orders-table .btn-action-group {
+            display: inline-flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 6px !important;
+            flex-wrap: nowrap !important;
+            white-space: nowrap !important;
         }
 
         .orders-table tr:nth-child(even) {
@@ -156,12 +176,12 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div aria-label="Acciones de cotización">
-                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nueva Orden de Producción" data-toggle="tooltip">
-                                        <i class="fas fa-plus"></i>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de cotización">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nueva Orden de Producción">
+                                        <i class="fas fa-plus-circle"></i> Nueva Orden
                                     </button>
-                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
-                                        <i class="fas fa-filter"></i>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtros">
+                                        <i class="fas fa-filter"></i> Filtros
                                     </button>
                                 </div>
                             </div>
@@ -215,7 +235,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <tr>
                                         <th>N° Orden</th>
                                         <th>Producto</th>
-                                        <th>Talla</th>
                                         <th>Categoría</th>
                                         <th>Cantidad</th>
                                         <th>Costo por Unidad</th>
@@ -355,8 +374,10 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <textarea name="observaciones" id="obser" class="form-control" rows="2"></textarea>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary">Crear Orden</button>
-                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary" id="btn-submit-orden"><i class="fas fa-save"></i> Guardar Orden</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
+                            </div>
                             <input type="hidden" id="editar-orden-id" name="id" value="">
                             <input type="hidden" id="action" value="">
                         </form>
@@ -417,112 +438,10 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         </div>
     </div>
 
-    <!-- Modal: Ver Unidades e Identificadores Únicos de la Orden -->
-    <div class="modal fade" id="modalUnidadesOrden" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #dee2e6;">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                    <h5 class="modal-title" id="modalUnidadesOrdenTitle" style="font-weight: bold; color: #1e293b;">
-                        <i class="fas fa-barcode text-primary"></i> Identificadores de Piezas Producidas
-                    </h5>
-                </div>
-                <div class="modal-body" id="modalUnidadesOrdenBody">
-                    <div id="cargando-unidades-orden" class="text-center py-4 text-muted">
-                        <i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Cargando identificadores...
-                    </div>
-                    <div id="tabla-unidades-orden-wrapper" style="display:none;">
-                        <p class="text-muted" style="font-size: 13px; margin-bottom: 15px;">
-                            Cada producto producido en esta orden cuenta con su propio identificador único para trazabilidad y gestión de devoluciones.
-                        </p>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-hover" style="font-size: 14px;">
-                                <thead style="background-color: #0056b3; color: white;">
-                                    <tr>
-                                        <th style="width: 60px; text-align: center;">#</th>
-                                        <th>Número Identificador</th>
-                                        <th>Producto</th>
-                                        <th>Talla</th>
-                                        <th style="text-align: center;">Estado</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbody-unidades-orden">
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer" style="background: #f1f1f1;">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
 <script>
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
 var tasaParaEquivalenteOrden = tasaCambiariaActual;
 var ordenActualId = null;
-
-function verUnidadesOrden(ordenId, numeroOrden) {
-    if (!ordenId) return;
-    $('#modalUnidadesOrdenTitle').html('<i class="fas fa-barcode text-primary"></i> Identificadores de Piezas — Orden ' + (numeroOrden || ('#' + ordenId)));
-    $('#cargando-unidades-orden').show();
-    $('#tabla-unidades-orden-wrapper').hide();
-    $('#tbody-unidades-orden').html('');
-    $('#modalUnidadesOrden').modal('show');
-
-    $.ajax({
-        url: 'orden_produccion_data.php',
-        type: 'GET',
-        data: { action: 'listar_unidades_orden', orden_id: ordenId },
-        dataType: 'json',
-        success: function(resp) {
-            $('#cargando-unidades-orden').hide();
-            if (resp && resp.success && resp.unidades && resp.unidades.length > 0) {
-                let html = '';
-                resp.unidades.forEach(function(u) {
-                    let badgeEstado = '';
-                    if (u.estado === 'disponible') {
-                        badgeEstado = '<span class="badge badge-success" style="background-color: #28a745;">Disponible</span>';
-                    } else if (u.estado === 'devuelto') {
-                        badgeEstado = '<span class="badge badge-warning" style="background-color: #ffc107; color: #212529;">Devuelto</span>';
-                    } else if (u.estado === 'en_revision') {
-                        badgeEstado = '<span class="badge badge-info" style="background-color: #17a2b8;">En Revisión</span>';
-                    } else if (u.estado === 'baja') {
-                        badgeEstado = '<span class="badge badge-danger" style="background-color: #dc3545;">De Baja</span>';
-                    } else {
-                        badgeEstado = `<span class="badge badge-secondary">${u.estado}</span>`;
-                    }
-
-                    html += `<tr>
-                        <td style="text-align: center; font-weight: bold; color: #64748b;">${u.numero_secuencia}</td>
-                        <td>
-                            <span style="font-family: monospace; font-size: 14px; font-weight: bold; background: #e2e8f0; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; color: #0f172a;">
-                                ${u.numero_identificador}
-                            </span>
-                        </td>
-                        <td><strong>${u.producto_nombre}</strong></td>
-                        <td>${u.talla_nombre || 'Única'}</td>
-                        <td style="text-align: center;">${badgeEstado}</td>
-                    </tr>`;
-                });
-                $('#tbody-unidades-orden').html(html);
-                $('#tabla-unidades-orden-wrapper').show();
-            } else {
-                $('#tbody-unidades-orden').html('<tr><td colspan="5" class="text-center text-muted py-4">No se encontraron unidades registradas para esta orden.</td></tr>');
-                $('#tabla-unidades-orden-wrapper').show();
-            }
-        },
-        error: function() {
-            $('#cargando-unidades-orden').hide();
-            $('#tbody-unidades-orden').html('<tr><td colspan="5" class="text-center text-danger py-4">Error al cargar las unidades de la orden.</td></tr>');
-            $('#tabla-unidades-orden-wrapper').show();
-        }
-    });
-}
 
 function cargarListado(page) {
     let filtros = {
@@ -686,7 +605,6 @@ function abrirModalTalleres(orden) {
                         ${badgeStatus}
                         <h6 style="font-weight:bold; color:#333;">Taller ${index + 1}: ${item.taller_nombre}</h6>
                         <p style="margin-bottom:5px; font-size:14px;"><strong>Especificaciones:</strong> ${item.observaciones || '<i>Sin observaciones</i>'}</p>
-                        <small class="text-muted">Despachado: ${item.fecha_despacho} ${item.fecha_retorno ? ' | Retornado: ' + item.fecha_retorno : ''}</small>
                         ${botonAccion}
                     </div>`;
                 });

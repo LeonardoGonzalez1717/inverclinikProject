@@ -20,14 +20,14 @@ require_once "../connection/connection.php";
                 <div id="vista-listado">
                     <div class="row form-group">
                         <div class="col-sm-12">
-                            <div aria-label="Acciones de Talleres">
-                                <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Nuevo Taller" data-toggle="tooltip">
-                                    <i class="fas fa-plus"></i>
-                                </button>
-                                <button class="btn btn-info" id="btn-toggle-filtros" title="Filtrar Lista" data-toggle="tooltip">
-                                    <i class="fas fa-filter"></i>
-                                </button>
-                            </div>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de Talleres">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Registrar Nuevo Taller">
+                                        <i class="fas fa-plus-circle"></i> Nuevo Taller
+                                    </button>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtrar Lista">
+                                        <i class="fas fa-filter"></i> Filtros
+                                    </button>
+                                </div>
                         </div>
                     </div>
 
@@ -112,9 +112,9 @@ require_once "../connection/connection.php";
                         </div>
 
                         <div class="row" style="margin-top: 15px;">
-                            <div class="col-sm-12">
-                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Cambios</button>
-                                <button type="button" class="btn btn-secondary" onclick="limpiarFormulario(); mostrarVista('listado');">Cancelar</button>
+                            <div class="col-sm-12" style="display: flex; gap: 10px;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Taller</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="limpiarFormulario(); mostrarVista('listado');"><i class="fas fa-times"></i> Cancelar</button>
                             </div>
                         </div>
                     </form>

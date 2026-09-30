@@ -192,14 +192,14 @@ class OrdenProduccionUnidades
 
         $sql = "
             SELECT u.id, u.numero_identificador, u.numero_secuencia, u.estado, u.fecha_creacion, u.observaciones,
-                   p.nombre AS producto_nombre,
+                   COALESCE(p.nombre, 'Producto') AS producto_nombre,
                    COALESCE(t.nombre, 'Única') AS talla_nombre,
                    op.id AS orden_id,
                    op.creado_en AS orden_fecha
             FROM ordenes_produccion_unidades u
             INNER JOIN ordenes_produccion op ON op.id = u.orden_produccion_id
-            INNER JOIN recetas r ON r.id = u.receta_id
-            INNER JOIN productos p ON p.id = r.producto_id
+            LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+            LEFT JOIN productos p ON p.id = rp.producto_id
             LEFT JOIN tallas t ON t.id = u.talla_id
             WHERE u.orden_produccion_id = ?
             ORDER BY u.numero_secuencia ASC
@@ -234,7 +234,7 @@ class OrdenProduccionUnidades
         $sql = "
             SELECT u.id AS unidad_id, u.numero_identificador, u.numero_secuencia, u.estado AS estado_unidad,
                    u.orden_produccion_id, u.receta_id, u.talla_id, u.fecha_creacion AS unidad_fecha_creacion,
-                   p.id AS producto_id, p.nombre AS producto_nombre, p.categoria,
+                   p.id AS producto_id, COALESCE(p.nombre, 'Producto') AS producto_nombre, p.categoria,
                    COALESCE(t.nombre, 'Sin talla') AS talla_nombre,
                    op.id AS orden_id, op.estado AS estado_orden, op.creado_en AS orden_creado_en,
                    op.fecha_inicio AS orden_fecha_inicio, op.fecha_fin AS orden_fecha_fin,
@@ -243,8 +243,8 @@ class OrdenProduccionUnidades
                    c.id AS cliente_id, c.nombre AS cliente_nombre, c.numero_documento AS cliente_documento
             FROM ordenes_produccion_unidades u
             INNER JOIN ordenes_produccion op ON op.id = u.orden_produccion_id
-            INNER JOIN recetas r ON r.id = u.receta_id
-            INNER JOIN productos p ON p.id = r.producto_id
+            LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+            LEFT JOIN productos p ON p.id = rp.producto_id
             LEFT JOIN tallas t ON t.id = u.talla_id
             LEFT JOIN ventas v ON v.id = op.venta_id
             LEFT JOIN clientes c ON c.id = v.cliente_id

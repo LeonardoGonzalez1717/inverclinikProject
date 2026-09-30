@@ -36,12 +36,12 @@ if ($resRangos) {
                     <div id="vista-listado">
                         <div class="row form-group">
                             <div class="col-sm-12">
-                                <div aria-label="Acciones de productos">
-                                    <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Crear Nuevo Producto" data-toggle="tooltip">
-                                        <i class="fas fa-plus"></i>
+                                <div class="d-flex align-items-center" style="gap: 10px; margin-bottom: 12px;" aria-label="Acciones de productos">
+                                    <button class="btn btn-success" id="btn-ir-crear" title="Crear Nuevo Producto">
+                                        <i class="fas fa-plus-circle"></i> Nuevo Producto
                                     </button>
-                                    <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
-                                        <i class="fas fa-filter"></i>
+                                    <button class="btn btn-outline-secondary" id="btn-toggle-filtros" title="Filtros">
+                                        <i class="fas fa-filter"></i> Filtros
                                     </button>
                                 </div>
                             </div>
@@ -173,8 +173,10 @@ if ($resRangos) {
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn btn-primary">Guardar Producto</button>
-                            <button type="button" class="btn btn-secondary" onclick="mostrarVista('listado')">Cancelar</button>
+                            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Guardar Producto</button>
+                                <button type="button" class="btn btn-outline-secondary" onclick="mostrarVista('listado')"><i class="fas fa-times"></i> Cancelar</button>
+                            </div>
                             <input type="hidden" id="editar-producto-id" name="id" value="">
                             <input type="hidden" id="action" value="">
                         </form>
