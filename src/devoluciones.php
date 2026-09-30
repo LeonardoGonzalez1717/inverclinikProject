@@ -2,6 +2,9 @@
 require_once "../template/header.php";
 require_once "../connection/connection.php";
 require_once "../lib/orden_numero.php";
+require_once "../lib/DevolucionesSchema.php";
+
+DevolucionesSchema::asegurarTablas($conn);
 
 // Obtener listado de clientes
 $clientes = [];

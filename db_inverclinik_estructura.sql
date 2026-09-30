@@ -732,6 +732,43 @@ CREATE TABLE IF NOT EXISTS `cuentas_por_cobrar_pagos` (
   CONSTRAINT `fk_cxc_pagos_forma` FOREIGN KEY (`forma_pago_id`) REFERENCES `formas_pago` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Estructura de tabla para la tabla `devoluciones`
+--
+CREATE TABLE IF NOT EXISTS `devoluciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_devolucion` varchar(50) NOT NULL,
+  `fecha` datetime NOT NULL DEFAULT current_timestamp(),
+  `cliente_id` int(11) DEFAULT NULL,
+  `motivo` text NOT NULL,
+  `descripcion_motivo` text DEFAULT NULL,
+  `accion_inventario` varchar(50) NOT NULL DEFAULT 'reingresar_stock',
+  `usuario_id` int(11) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_codigo_devolucion` (`codigo_devolucion`),
+  KEY `idx_cliente_id` (`cliente_id`),
+  KEY `idx_fecha` (`fecha`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Estructura de tabla para la tabla `devoluciones_detalle`
+--
+CREATE TABLE IF NOT EXISTS `devoluciones_detalle` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `devolucion_id` int(11) NOT NULL,
+  `orden_produccion_id` int(11) NOT NULL,
+  `unidad_id` int(11) DEFAULT NULL,
+  `cantidad` decimal(10,2) NOT NULL DEFAULT 1.00,
+  `estado_unidad_posterior` varchar(50) NOT NULL DEFAULT 'devuelto_stock',
+  `observaciones` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_devolucion_id` (`devolucion_id`),
+  KEY `idx_op_id` (`orden_produccion_id`),
+  CONSTRAINT `fk_dev_detalle_devolucion` FOREIGN KEY (`devolucion_id`) REFERENCES `devoluciones` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- cotizacion_id y activo ya están en CREATE TABLE ventas y productos
 
 --

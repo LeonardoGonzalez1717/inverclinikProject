@@ -2,6 +2,9 @@
 $sin_sidebar = true;
 require_once('../template/header.php');
 require_once __DIR__ . '/../lib/orden_numero.php';
+require_once __DIR__ . '/../lib/DevolucionesSchema.php';
+
+DevolucionesSchema::asegurarTablas($conn);
 
 $iduser = $_SESSION['iduser'] ?? 0;
 
