@@ -1,5 +1,8 @@
 <?php require_once('../template/header.php'); ?>
 <?php
+require_once __DIR__ . '/../lib/DevolucionesSchema.php';
+DevolucionesSchema::asegurarTablas($conn);
+
 $iduser = $_SESSION['iduser'] ?? 0;
 
 $clientes = [];
