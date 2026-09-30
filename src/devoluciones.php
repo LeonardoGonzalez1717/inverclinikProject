@@ -207,6 +207,9 @@ if ($resOrdenes) {
                                 <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Nueva Devolución" data-toggle="tooltip">
                                     <i class="fas fa-plus"></i> Registrar Devolución
                                 </button>
+                                <a href="../reportes/devoluciones_form.php" class="btn btn-warning" id="btn-reporte-devoluciones" style="margin-bottom: 0px !important; color: #fff;" title="Generar Reporte de Devoluciones" data-toggle="tooltip">
+                                    <i class="fas fa-file-pdf"></i> Reporte
+                                </a>
                                 <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
                                     <i class="fas fa-filter"></i> Filtros
                                 </button>
