@@ -5,76 +5,79 @@ require_once __DIR__ . '/../lib/Pagination.php';
 require_once __DIR__ . '/../lib/orden_numero.php';
 require_once __DIR__ . '/../lib/InventarioLotes.php';
 require_once __DIR__ . '/../lib/Auditoria.php';
-require_once __DIR__ . '/../lib/OrdenProduccionUnidades.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     @session_start();
 }
 
-OrdenProduccionUnidades::asegurarTablas($conn);
-
 header('Content-Type: application/json; charset=utf-8');
+
+// Asegurar tablas de devoluciones
+try {
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS `devoluciones` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
+            `codigo_devolucion` VARCHAR(50) NOT NULL,
+            `fecha` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            `cliente_id` INT(11) DEFAULT NULL,
+            `motivo` TEXT NOT NULL,
+            `descripcion_motivo` TEXT DEFAULT NULL,
+            `accion_inventario` VARCHAR(50) NOT NULL DEFAULT 'reingresar_stock',
+            `usuario_id` INT(11) DEFAULT NULL,
+            `observaciones` TEXT DEFAULT NULL,
+            `creado_en` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `uk_codigo_devolucion` (`codigo_devolucion`),
+            KEY `idx_cliente_id` (`cliente_id`),
+            KEY `idx_fecha` (`fecha`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ");
+
+    $conn->query("
+        CREATE TABLE IF NOT EXISTS `devoluciones_detalle` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
+            `devolucion_id` INT(11) NOT NULL,
+            `orden_produccion_id` INT(11) NOT NULL,
+            `unidad_id` INT(11) DEFAULT NULL,
+            `cantidad` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+            `estado_unidad_posterior` VARCHAR(50) NOT NULL DEFAULT 'devuelto_stock',
+            `observaciones` TEXT DEFAULT NULL,
+            PRIMARY KEY (`id`),
+            KEY `idx_devolucion_id` (`devolucion_id`),
+            KEY `idx_op_id` (`orden_produccion_id`),
+            CONSTRAINT `fk_dev_detalle_devolucion` FOREIGN KEY (`devolucion_id`) 
+                REFERENCES `devoluciones` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ");
+
+    // Compatibilidad no destructiva en caso de que existieran restricciones previas
+    @$conn->query("ALTER TABLE `devoluciones_detalle` DROP FOREIGN KEY `fk_dev_detalle_unidad`");
+    @$conn->query("ALTER TABLE `devoluciones_detalle` MODIFY COLUMN `unidad_id` INT(11) NULL");
+    @$conn->query("ALTER TABLE `devoluciones_detalle` ADD COLUMN `cantidad` DECIMAL(10,2) NOT NULL DEFAULT 1.00 AFTER `orden_produccion_id`");
+} catch (Exception $e) {
+    // Continuar si las tablas ya existen
+}
+
+function generarCodigoDevolucionSimple(int $devolucionId, ?string $fecha = null): string {
+    $nOrden = numero_orden_produccion($devolucionId, $fecha);
+    return $nOrden !== '' ? 'DEV-' . $nOrden : sprintf('DEV-%04d', $devolucionId);
+}
 
 try {
     $action = $_POST['action'] ?? $_GET['action'] ?? '';
 
     switch ($action) {
-        case 'buscar_unidad':
-            $codigo = trim($_GET['codigo'] ?? $_POST['codigo'] ?? '');
-            if ($codigo === '') {
-                throw new Exception('Debe ingresar un número identificador.');
-            }
-
-            $unidad = OrdenProduccionUnidades::buscarUnidadPorIdentificador($conn, $codigo);
-            if (!$unidad) {
-                echo json_encode([
-                    'success' => false,
-                    'message' => 'No se encontró ningún producto terminado con el identificador: ' . htmlspecialchars($codigo)
-                ]);
-                exit;
-            }
-
-            // Consultar historial de devoluciones previas si tiene
-            $stHist = $conn->prepare("
-                SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.accion_inventario
-                FROM devoluciones_detalle dd
-                INNER JOIN devoluciones d ON d.id = dd.devolucion_id
-                WHERE dd.unidad_id = ?
-                ORDER BY d.fecha DESC
-            ");
-            $stHist->bind_param('i', $unidad['unidad_id']);
-            $stHist->execute();
-            $histRes = $stHist->get_result();
-            $historial = [];
-            while ($h = $histRes->fetch_assoc()) {
-                $historial[] = $h;
-            }
-            $stHist->close();
-
-            $unidad['historial_devoluciones'] = $historial;
-
-            echo json_encode([
-                'success' => true,
-                'unidad' => $unidad
-            ]);
-            break;
-
-        case 'buscar_unidades_select2':
+        case 'buscar_ordenes_select2':
             $q = trim($_GET['q'] ?? $_POST['q'] ?? '');
-            
-            OrdenProduccionUnidades::asegurarTablas($conn);
-            OrdenProduccionUnidades::sincronizarTodasLasOrdenes($conn);
 
             $sql = "
-                SELECT u.id AS unidad_id, u.numero_identificador, u.numero_secuencia, u.estado,
-                       op.id AS orden_id, op.creado_en AS orden_fecha,
-                       COALESCE(p.nombre, 'Producto') AS producto_nombre,
+                SELECT op.id, op.cantidad_a_producir, op.creado_en,
+                       p.nombre AS producto_nombre,
                        COALESCE(t.nombre, 'Única') AS talla_nombre
-                FROM ordenes_produccion_unidades u
-                INNER JOIN ordenes_produccion op ON op.id = u.orden_produccion_id
-                LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                LEFT JOIN productos p ON p.id = rp.producto_id
-                LEFT JOIN tallas t ON t.id = u.talla_id
+                FROM ordenes_produccion op
+                INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                INNER JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN tallas t ON t.id = op.talla_id
             ";
 
             $mesesMap = [
@@ -97,12 +100,8 @@ try {
                 $params = [];
                 $types = '';
 
-                // 1. Identificador de pieza, producto, talla
+                // Búsqueda por nombre de producto o talla
                 $qLike = '%' . $q . '%';
-                $orConditions[] = "u.numero_identificador LIKE ?";
-                $params[] = $qLike;
-                $types .= 's';
-
                 $orConditions[] = "p.nombre LIKE ?";
                 $params[] = $qLike;
                 $types .= 's';
@@ -111,7 +110,7 @@ try {
                 $params[] = $qLike;
                 $types .= 's';
 
-                // 2. Número de orden extraído (ej. "01-agost", "1-agost-26", "op 5", "5")
+                // Búsqueda por ID de orden parseado
                 $parsedId = parse_id_orden_produccion($q);
                 if ($parsedId > 0) {
                     $orConditions[] = "op.id = ?";
@@ -128,7 +127,7 @@ try {
                     }
                 }
 
-                // 3. Mes en la fecha de la orden si busca por mes (ej. "agost", "sept", "enero")
+                // Búsqueda por mes
                 $qLower = strtolower($q);
                 foreach ($mesesMap as $nomMes => $numMes) {
                     if (strpos($qLower, $nomMes) !== false) {
@@ -139,82 +138,84 @@ try {
                     }
                 }
 
-                $sql .= " WHERE (" . implode(" OR ", $orConditions) . ") ORDER BY op.id DESC, u.numero_secuencia ASC LIMIT 60";
+                $sql .= " WHERE (" . implode(" OR ", $orConditions) . ") ORDER BY op.id DESC LIMIT 40";
                 $st = $conn->prepare($sql);
                 if (!empty($params)) {
                     $st->bind_param($types, ...$params);
                 }
             } else {
-                $st = $conn->prepare($sql . " ORDER BY op.id DESC, u.numero_secuencia ASC LIMIT 40");
+                $st = $conn->prepare($sql . " ORDER BY op.id DESC LIMIT 40");
             }
 
             $st->execute();
             $res = $st->get_result();
             $items = [];
             while ($row = $res->fetch_assoc()) {
-                $numOrden = numero_orden_produccion((int)$row['orden_id'], $row['orden_fecha']);
+                $numOrden = numero_orden_produccion((int)$row['id'], $row['creado_en']);
                 $items[] = [
-                    'id' => $row['numero_identificador'],
-                    'text' => 'Orden ' . $numOrden . ' — ' . $row['numero_identificador'] . ' (' . $row['producto_nombre'] . ')',
-                    'unidad_id' => (int) $row['unidad_id'],
-                    'estado' => $row['estado'],
-                    'orden_numero' => $numOrden
+                    'id' => (int)$row['id'],
+                    'text' => $numOrden . ' — ' . $row['producto_nombre'] . ' (' . $row['talla_nombre'] . ')',
+                    'numero_orden' => $numOrden,
+                    'producto_nombre' => $row['producto_nombre'],
+                    'talla_nombre' => $row['talla_nombre'],
+                    'cantidad_a_producir' => $row['cantidad_a_producir'],
+                    'creado_en' => $row['creado_en']
                 ];
             }
             $st->close();
 
-            echo json_encode([
-                'results' => $items
-            ]);
+            echo json_encode(['results' => $items]);
             break;
 
-        case 'buscar_unidades_por_orden':
-            $ordenId = (int) ($_GET['orden_id'] ?? $_POST['orden_id'] ?? 0);
+        case 'obtener_orden_info':
+            $ordenId = (int)($_GET['orden_id'] ?? $_POST['orden_id'] ?? 0);
             if ($ordenId <= 0) {
-                throw new Exception('ID de orden inválido');
+                throw new Exception('ID de orden no válido.');
             }
 
-            // Asegurar que las unidades de esta orden existan
-            $stOrd = $conn->prepare("
-                SELECT op.id, op.cantidad_a_producir, op.talla_id, COALESCE(r.id, 0) AS receta_id
+            $st = $conn->prepare("
+                SELECT op.id, op.cantidad_a_producir, op.creado_en,
+                       p.nombre AS producto_nombre,
+                       COALESCE(t.nombre, 'Única') AS talla_nombre
                 FROM ordenes_produccion op
                 INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
-                    AND r.rango_tallas_id = rp.rango_tallas_id 
-                    AND r.tipo_produccion_id = rp.tipo_produccion_id
-                WHERE op.id = ? LIMIT 1
+                INNER JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN tallas t ON t.id = op.talla_id
+                WHERE op.id = ?
+                LIMIT 1
             ");
-            $stOrd->bind_param('i', $ordenId);
-            $stOrd->execute();
-            $ordData = $stOrd->get_result()->fetch_assoc();
-            $stOrd->close();
-            if ($ordData && (int)$ordData['receta_id'] > 0) {
-                OrdenProduccionUnidades::sincronizarUnidadesOrden(
-                    $conn,
-                    $ordenId,
-                    (int)$ordData['receta_id'],
-                    !empty($ordData['talla_id']) ? (int)$ordData['talla_id'] : null,
-                    (float)$ordData['cantidad_a_producir']
-                );
+            $st->bind_param('i', $ordenId);
+            $st->execute();
+            $orden = $st->get_result()->fetch_assoc();
+            $st->close();
+
+            if (!$orden) {
+                throw new Exception('No se encontró la orden de producción.');
             }
 
-            $unidades = OrdenProduccionUnidades::obtenerUnidadesPorOrden($conn, $ordenId);
+            $orden['numero_orden'] = numero_orden_produccion((int)$orden['id'], $orden['creado_en']);
+
             echo json_encode([
                 'success' => true,
-                'unidades' => $unidades
+                'orden' => $orden
             ]);
             break;
 
         case 'crear_devolucion':
-            $unidadId = (int) ($_POST['unidad_id'] ?? 0);
+            $ordenId = (int) ($_POST['orden_produccion_id'] ?? 0);
+            $cantidad = (float) ($_POST['cantidad'] ?? 1);
             $clienteId = !empty($_POST['cliente_id']) ? (int) $_POST['cliente_id'] : null;
             $motivo = trim($_POST['motivo'] ?? '');
             $observaciones = trim($_POST['observaciones'] ?? '');
             $usuarioId = !empty($_SESSION['iduser']) ? (int) $_SESSION['iduser'] : null;
-            $accionInventario = 'reingresar_stock'; // Siempre suma al inventario de productos terminados
+            $accionInventario = 'reingresar_stock';
 
-            if ($unidadId <= 0) {
-                throw new Exception('Debe seleccionar la unidad o producto terminado a devolver.');
+            if ($ordenId <= 0) {
+                throw new Exception('Debe seleccionar la orden de producción a devolver.');
+            }
+
+            if ($cantidad <= 0) {
+                throw new Exception('La cantidad a devolver debe ser mayor a 0.');
             }
 
             if ($motivo === '') {
@@ -223,24 +224,28 @@ try {
 
             $conn->begin_transaction();
             try {
-                // Obtener datos de la unidad
-                $stU = $conn->prepare("
-                    SELECT u.id, u.orden_produccion_id, u.receta_id, u.numero_identificador, u.estado,
-                           op.id AS op_id, op.creado_en AS op_fecha,
-                           p.nombre AS producto_nombre
-                    FROM ordenes_produccion_unidades u
-                    INNER JOIN ordenes_produccion op ON op.id = u.orden_produccion_id
-                    INNER JOIN recetas r ON r.id = u.receta_id
-                    INNER JOIN productos p ON p.id = r.producto_id
-                    WHERE u.id = ? FOR UPDATE
+                // Obtener datos de la orden de producción
+                $stOrd = $conn->prepare("
+                    SELECT op.id, op.cantidad_a_producir, op.creado_en,
+                           p.id AS producto_id, p.nombre AS producto_nombre,
+                           COALESCE(t.nombre, 'Única') AS talla_nombre,
+                           COALESCE(r.id, 0) AS receta_id
+                    FROM ordenes_produccion op
+                    INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                    INNER JOIN productos p ON p.id = rp.producto_id
+                    LEFT JOIN tallas t ON t.id = op.talla_id
+                    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+                        AND r.rango_tallas_id = rp.rango_tallas_id 
+                        AND r.tipo_produccion_id = rp.tipo_produccion_id
+                    WHERE op.id = ? FOR UPDATE
                 ");
-                $stU->bind_param('i', $unidadId);
-                $stU->execute();
-                $unidad = $stU->get_result()->fetch_assoc();
-                $stU->close();
+                $stOrd->bind_param('i', $ordenId);
+                $stOrd->execute();
+                $orden = $stOrd->get_result()->fetch_assoc();
+                $stOrd->close();
 
-                if (!$unidad) {
-                    throw new Exception('No se encontró la unidad seleccionada.');
+                if (!$orden) {
+                    throw new Exception('No se encontró la orden de producción seleccionada.');
                 }
 
                 $codigoTemp = 'TMP-DEV-' . bin2hex(random_bytes(4));
@@ -256,45 +261,35 @@ try {
                 $devolucionId = $conn->insert_id;
                 $stDev->close();
 
-                $codigoDevolucion = OrdenProduccionUnidades::generarCodigoDevolucion($devolucionId, $fechaActual);
+                $codigoDevolucion = generarCodigoDevolucionSimple($devolucionId, $fechaActual);
                 $conn->query("UPDATE devoluciones SET codigo_devolucion = '{$codigoDevolucion}' WHERE id = {$devolucionId}");
 
-                $estadoPosteriorUnidad = 'devuelto_stock';
-                $nuevoEstadoUnidad = 'disponible';
-
                 // Insertar detalle de devolución
-                $opId = (int) $unidad['orden_produccion_id'];
+                $estadoPosterior = 'devuelto_stock';
                 $stDet = $conn->prepare("
-                    INSERT INTO devoluciones_detalle (devolucion_id, unidad_id, orden_produccion_id, estado_unidad_posterior, observaciones)
+                    INSERT INTO devoluciones_detalle (devolucion_id, orden_produccion_id, cantidad, estado_unidad_posterior, observaciones)
                     VALUES (?, ?, ?, ?, ?)
                 ");
-                $stDet->bind_param('iiiss', $devolucionId, $unidadId, $opId, $estadoPosteriorUnidad, $motivo);
+                $stDet->bind_param('iidss', $devolucionId, $ordenId, $cantidad, $estadoPosterior, $motivo);
                 $stDet->execute();
                 $stDet->close();
 
-                // Actualizar estado de la unidad
-                $obsUnidad = "Devuelto en proceso {$codigoDevolucion} el " . date('d/m/Y H:i') . " - Motivo: " . $motivo;
-                $stUpU = $conn->prepare("UPDATE ordenes_produccion_unidades SET estado = ?, observaciones = ? WHERE id = ?");
-                $stUpU->bind_param('ssi', $nuevoEstadoUnidad, $obsUnidad, $unidadId);
-                $stUpU->execute();
-                $stUpU->close();
-
-                // SIEMPRE SUMA STOCK AL INVENTARIO DE PRODUCTOS TERMINADOS
-                $recetaId = (int) $unidad['receta_id'];
-                $numeroOrden = numero_orden_produccion((int)$unidad['op_id'], $unidad['op_fecha']);
+                // SUMAR STOCK AL INVENTARIO DE PRODUCTOS TERMINADOS
+                $recetaId = (int) $orden['receta_id'];
+                $numeroOrden = numero_orden_produccion((int)$orden['id'], $orden['creado_en']);
                 InventarioLotes::registrarEntrada($conn, [
                     'tipo_item' => 'producto',
                     'tipo_item_id' => $recetaId,
-                    'cantidad' => 1.00,
+                    'cantidad' => $cantidad,
                     'origen' => 'devolucion',
                     'origen_id' => $devolucionId,
-                    'observaciones' => "Reingreso por devolución {$codigoDevolucion} de unidad {$unidad['numero_identificador']} (OP: {$numeroOrden}) - Motivo: {$motivo}",
+                    'observaciones' => "Reingreso por devolución {$codigoDevolucion} ({$cantidad} unds) de OP {$numeroOrden} ({$orden['producto_nombre']}) - Motivo: {$motivo}",
                     'tipo_movimiento' => 'devolucion',
                 ]);
 
                 Auditoria::registrar(
                     $conn,
-                    "Registro de devolución {$codigoDevolucion} para el producto '{$unidad['producto_nombre']}' (Identificador: {$unidad['numero_identificador']}) de la OP #{$unidad['orden_produccion_id']}. Motivo: {$motivo}. Reingresada 1 unidad a stock.",
+                    "Registro de devolución {$codigoDevolucion} por {$cantidad} unds para el producto '{$orden['producto_nombre']}' de la OP #{$ordenId}. Motivo: {$motivo}. Reingreso a stock completado.",
                     'Devoluciones'
                 );
 
@@ -314,8 +309,6 @@ try {
 
         case 'listar_devoluciones':
             $busqueda = trim($_GET['busqueda'] ?? $_POST['busqueda'] ?? '');
-            $motivoFiltro = trim($_GET['motivo'] ?? $_POST['motivo'] ?? '');
-            $accionFiltro = trim($_GET['accion_inventario'] ?? $_POST['accion_inventario'] ?? '');
             $fechaDesde = trim($_GET['fecha_desde'] ?? $_POST['fecha_desde'] ?? '');
             $fechaHasta = trim($_GET['fecha_hasta'] ?? $_POST['fecha_hasta'] ?? '');
             $pagina = max(1, (int) ($_GET['page'] ?? $_POST['page'] ?? 1));
@@ -328,7 +321,6 @@ try {
             if ($busqueda !== '') {
                 $whereParts[] = "(
                     d.codigo_devolucion LIKE ? 
-                    OR u.numero_identificador LIKE ? 
                     OR p.nombre LIKE ? 
                     OR c.nombre LIKE ? 
                     OR c.numero_documento LIKE ?
@@ -342,21 +334,8 @@ try {
                 $params[] = $likeB;
                 $params[] = $likeB;
                 $params[] = $likeB;
-                $params[] = $likeB;
                 $params[] = $opNumInt;
-                $types .= "ssssssi";
-            }
-
-            if ($motivoFiltro !== '') {
-                $whereParts[] = "d.motivo LIKE ?";
-                $params[] = '%' . $motivoFiltro . '%';
-                $types .= "s";
-            }
-
-            if ($accionFiltro !== '') {
-                $whereParts[] = "d.accion_inventario = ?";
-                $params[] = $accionFiltro;
-                $types .= "s";
+                $types .= "sssssi";
             }
 
             if ($fechaDesde !== '') {
@@ -378,10 +357,9 @@ try {
                 SELECT COUNT(DISTINCT d.id) AS total
                 FROM devoluciones d
                 LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
-                LEFT JOIN ordenes_produccion_unidades u ON u.id = dd.unidad_id
                 LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
-                LEFT JOIN recetas r ON r.id = u.receta_id
-                LEFT JOIN productos p ON p.id = r.producto_id
+                LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                LEFT JOIN productos p ON p.id = rp.producto_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
                 WHERE {$whereSql}
             ";
@@ -401,18 +379,16 @@ try {
                 SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
                        d.accion_inventario, d.observaciones, d.creado_en,
                        c.id AS cliente_id, c.nombre AS cliente_nombre, c.numero_documento AS cliente_documento,
-                       dd.unidad_id, dd.orden_produccion_id, dd.estado_unidad_posterior,
-                       u.numero_identificador, u.numero_secuencia,
+                       dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
                        p.nombre AS producto_nombre,
                        COALESCE(t.nombre, 'Sin talla') AS talla_nombre,
                        op.creado_en AS orden_creado_en
                 FROM devoluciones d
                 LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
-                LEFT JOIN ordenes_produccion_unidades u ON u.id = dd.unidad_id
                 LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
-                LEFT JOIN recetas r ON r.id = u.receta_id
-                LEFT JOIN tallas t ON t.id = u.talla_id
-                LEFT JOIN productos p ON p.id = r.producto_id
+                LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                LEFT JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN tallas t ON t.id = op.talla_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
                 WHERE {$whereSql}
                 GROUP BY d.id
@@ -460,18 +436,16 @@ try {
                        d.accion_inventario, d.observaciones, d.creado_en,
                        c.id AS cliente_id, c.nombre AS cliente_nombre, c.numero_documento AS cliente_documento,
                        c.telefono AS cliente_telefono, c.email AS cliente_email,
-                       u.id AS unidad_id, u.numero_identificador, u.numero_secuencia, u.estado AS estado_actual_unidad,
+                       dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
                        p.nombre AS producto_nombre, p.categoria,
                        COALESCE(t.nombre, 'Sin talla') AS talla_nombre,
-                       op.id AS orden_produccion_id, op.creado_en AS orden_creado_en, op.estado AS estado_orden,
-                       dd.estado_unidad_posterior
+                       op.id AS orden_produccion_id, op.creado_en AS orden_creado_en, op.estado AS estado_orden
                 FROM devoluciones d
                 LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
-                LEFT JOIN ordenes_produccion_unidades u ON u.id = dd.unidad_id
                 LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
-                LEFT JOIN recetas r ON r.id = u.receta_id
-                LEFT JOIN tallas t ON t.id = u.talla_id
-                LEFT JOIN productos p ON p.id = r.producto_id
+                LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                LEFT JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN tallas t ON t.id = op.talla_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
                 WHERE d.id = ?
                 LIMIT 1
@@ -496,30 +470,6 @@ try {
                 'success' => true,
                 'devolucion' => $det
             ]);
-            break;
-
-        case 'obtener_ordenes_recientes':
-            // Retorna órdenes de producción recientes para que el usuario pueda seleccionarlas cómodamente en la modal
-            $sql = "
-                SELECT op.id, op.cantidad_a_producir, op.creado_en, op.fecha_inicio, op.estado,
-                       p.nombre AS producto_nombre,
-                       COALESCE(t.nombre, 'Única') AS talla_nombre
-                FROM ordenes_produccion op
-                INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                INNER JOIN productos p ON p.id = rp.producto_id
-                LEFT JOIN tallas t ON t.id = op.talla_id
-                ORDER BY op.id DESC
-                LIMIT 30
-            ";
-            $res = $conn->query($sql);
-            $ordenes = [];
-            if ($res) {
-                while ($r = $res->fetch_assoc()) {
-                    $r['numero_orden'] = numero_orden_produccion((int)$r['id'], $r['creado_en']);
-                    $ordenes[] = $r;
-                }
-            }
-            echo json_encode(['success' => true, 'ordenes' => $ordenes]);
             break;
 
         default:

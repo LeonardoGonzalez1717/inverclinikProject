@@ -351,9 +351,8 @@ try {
                     $btneditar = '<button class="btn btn-sm btn-primary" title="Editar Orden de Producción" onclick="editarOrden(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-pencil"></i></button>';
                     $btnTalleres = '<button class="btn btn-sm btn-info" title="Asignar / Ver Talleres" onclick="abrirModalTalleres(' . htmlspecialchars(json_encode($o), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-warehouse"></i></button>';
                 }
-                $btnUnidades = '<button class="btn btn-sm btn-secondary" title="Ver Identificadores / Unidades Producidas" onclick="verUnidadesOrden(' . (int)$o['orden_id'] . ', \'' . htmlspecialchars($o['numero_orden'], ENT_QUOTES, 'UTF-8') . '\')"><i class="fas fa-barcode"></i></button>';
                 echo '<td nowrap>' . $estadoHtml . '</td>';
-                echo '<td nowrap style="text-align: center;"><div class="btn-action-group">' . $btnUnidades . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
+                echo '<td nowrap style="text-align: center;"><div class="btn-action-group">' . $btnTalleres . $btnFinalizar . $btneditar . '</div></td>';
                 echo '</tr>';
             }
         } else {

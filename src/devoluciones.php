@@ -2,10 +2,6 @@
 require_once "../template/header.php";
 require_once "../connection/connection.php";
 require_once "../lib/orden_numero.php";
-require_once "../lib/OrdenProduccionUnidades.php";
-
-OrdenProduccionUnidades::asegurarTablas($conn);
-OrdenProduccionUnidades::sincronizarTodasLasOrdenes($conn);
 
 // Obtener listado de clientes
 $clientes = [];
@@ -16,7 +12,7 @@ if ($resClientes) {
     }
 }
 
-// Obtener órdenes de producción para el selector
+// Obtener órdenes de producción recientes para el selector
 $ordenes = [];
 $resOrdenes = $conn->query("
     SELECT op.id, op.cantidad_a_producir, op.creado_en, p.nombre AS producto_nombre, COALESCE(t.nombre, 'Única') AS talla_nombre
@@ -25,7 +21,7 @@ $resOrdenes = $conn->query("
     INNER JOIN productos p ON p.id = rp.producto_id
     LEFT JOIN tallas t ON t.id = op.talla_id
     ORDER BY op.id DESC
-    LIMIT 50
+    LIMIT 60
 ");
 if ($resOrdenes) {
     while ($o = $resOrdenes->fetch_assoc()) {
@@ -97,7 +93,7 @@ if ($resOrdenes) {
             background: #f8fafc;
             border: 2px dashed #cbd5e1;
             border-radius: 8px;
-            padding: 16px;
+            padding: 18px;
             margin: 15px 0;
             transition: all 0.2s;
         }
@@ -110,14 +106,14 @@ if ($resOrdenes) {
 
         .info-pill-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
         }
 
         .info-pill-item {
             background: white;
-            padding: 8px 10px;
+            padding: 10px 12px;
             border-radius: 6px;
             border: 1px solid #e2e8f0;
         }
@@ -133,7 +129,16 @@ if ($resOrdenes) {
         .info-pill-item span {
             font-weight: bold;
             color: #1e293b;
-            font-size: 13px;
+            font-size: 14px;
+        }
+
+        .form-section-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 24px;
+            margin-top: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
 
         @media print {
@@ -151,7 +156,6 @@ if ($resOrdenes) {
             }
         }
 
-        /* Select2 adaptado para modal */
         .select2-container--default .select2-selection--single {
             height: 42px !important;
             border: 1px solid #cbd5e1 !important;
@@ -176,7 +180,6 @@ if ($resOrdenes) {
             border-color: #cbd5e1 !important;
             border-radius: 6px !important;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
-            z-index: 1060 !important;
         }
         .select2-results__option {
             padding: 9px 12px !important;
@@ -193,9 +196,10 @@ if ($resOrdenes) {
     <div class="container-wrapper">
         <div class="container-inner">
             <h2 class="main-title">Devoluciones de Producto Terminado</h2>
-            <p class="subtitle" style="margin-bottom: 20px;">Control y trazabilidad de productos devueltos con reingreso automático al stock</p>
+            <p class="subtitle" style="margin-bottom: 20px;">Control y registro de productos devueltos con reingreso automático al stock</p>
 
             <div id="contenedor-vistas">
+                <!-- VISTA 1: LISTADO DE DEVOLUCIONES -->
                 <div id="vista-listado">
                     <div class="row form-group">
                         <div class="col-sm-12">
@@ -215,7 +219,7 @@ if ($resOrdenes) {
                         <div class="row" style="margin-bottom: 10px;">
                             <div class="col-sm-6">
                                 <label for="filtroBusqueda">Buscar</label>
-                                <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar por Código, Identificador (ej. OP1-U001), Producto, Cliente o Motivo...">
+                                <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar por Código de Devolución, Orden (ej. 01-AGOST), Producto, Cliente o Motivo...">
                             </div>
                             <div class="col-sm-3">
                                 <label for="filtroFechaDesde">Fecha Desde</label>
@@ -243,9 +247,9 @@ if ($resOrdenes) {
                                 <tr>
                                     <th>Código</th>
                                     <th>Fecha</th>
-                                    <th>Identificador Pieza</th>
                                     <th>Orden de Prod.</th>
                                     <th>Producto / Talla</th>
+                                    <th style="text-align: center;">Cantidad</th>
                                     <th>Cliente</th>
                                     <th>Motivo Escrito</th>
                                     <th>Efecto Inventario</th>
@@ -268,117 +272,130 @@ if ($resOrdenes) {
                         <div id="botonesPaginacion" style="display: flex; gap: 5px;"></div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
 
-<!-- Modal: Registrar Devolución -->
-<div class="modal fade" id="modalNuevaDevolucion" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #dee2e6;">
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-                <h4 class="modal-title" style="font-weight: bold; color: #1e293b;">
-                    <i class="fas fa-undo-alt text-primary"></i> Registrar Devolución de Producto Terminado
-                </h4>
-            </div>
-            <form id="formNuevaDevolucion">
-                <div class="modal-body">
-                    <!-- Buscador y Selector Unificado de Pieza -->
-                    <div class="form-group">
-                        <label for="selectUnidadDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
-                            <i class="fas fa-barcode text-primary"></i> Identificador / Orden del Producto a Devolver <span style="color: red;">*</span>
-                        </label>
-                        <select id="selectUnidadDevolver" class="form-control" style="width: 100%;">
-                            <option value="">-- Buscar por orden (ej. 01-AGOST), código o producto --</option>
-                        </select>
-                        <small class="text-muted" style="display: block; margin-top: 5px;">
-                            <i class="fas fa-info-circle"></i> Escriba el número de orden (ej: <code>01-AGOST</code>), el código único de la pieza (ej: <code>OP1-U001</code>) o el nombre del producto.
-                        </small>
-                    </div>
-
-                    <!-- Tarjeta Preview del Producto -->
-                    <div class="unit-preview-card" id="cardPreviewUnidad">
-                        <div id="previewVacio" style="text-align: center; color: #64748b; padding: 10px;">
-                            <i class="fas fa-barcode fa-2x" style="margin-bottom: 6px; color: #94a3b8;"></i>
-                            <div>Ingrese o seleccione el identificador único para validar los datos de producción.</div>
-                        </div>
-
-                        <div id="previewContenido" style="display: none;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">
-                                <div>
-                                    <span class="badge-code" id="prevCodigoIdentificador">OP1-U001</span>
-                                    <strong id="prevProductoNombre" style="margin-left: 8px; font-size: 15px; color: #0056b3;">Nombre Producto</strong>
-                                </div>
-                                <div id="prevEstadoBadge"></div>
-                            </div>
-
-                            <div class="info-pill-grid">
-                                <div class="info-pill-item">
-                                    <small>Talla</small>
-                                    <span id="prevTalla">M</span>
-                                </div>
-                                <div class="info-pill-item">
-                                    <small>Orden Prod.</small>
-                                    <span id="prevOrdenNumero">1-AGOST-26</span>
-                                </div>
-                                <div class="info-pill-item">
-                                    <small>Fecha Prod.</small>
-                                    <span id="prevFechaProd">--</span>
-                                </div>
-                                <div class="info-pill-item">
-                                    <small>Factura</small>
-                                    <span id="prevFactura">N/A</span>
-                                </div>
-                            </div>
-
-                            <div id="alertaHistorialDevoluciones" style="display: none; margin-top: 10px; padding: 8px 12px; background: #fff3cd; color: #856404; border-radius: 6px; font-size: 12px;">
-                                <i class="fas fa-exclamation-triangle"></i> Esta unidad ya cuenta con registros previos de devolución.
-                            </div>
-                        </div>
-                    </div>
-
-                    <input type="hidden" id="unidadIdSeleccionada" name="unidad_id" value="">
-
-                    <!-- Datos del Formulario -->
-                    <div class="form-group">
-                        <label>Cliente (Opcional)</label>
-                        <select id="inputClienteId" name="cliente_id" class="form-control">
-                            <option value="">-- Cliente no especificado / Anónimo --</option>
-                            <?php foreach ($clientes as $cl): ?>
-                                <option value="<?php echo $cl['id']; ?>">
-                                    <?php echo htmlspecialchars($cl['nombre'] . ($cl['numero_documento'] ? ' (' . $cl['numero_documento'] . ')' : '')); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <!-- MOTIVO ESCRITO POR EL USUARIO -->
-                    <div class="form-group">
-                        <label style="font-weight: bold;">Motivo de la Devolución <span style="color: red;">*</span></label>
-                        <textarea id="inputMotivo" name="motivo" class="form-control" rows="3" placeholder="Escriba aquí el motivo o razón por la cual se devuelve el producto..." required></textarea>
-                    </div>
-
-                    <!-- ACCIÓN EN EL INVENTARIO FIJA: SUMAR STOCK -->
-                    <div class="alert alert-info" style="margin-top: 15px; margin-bottom: 15px; font-size: 13px; background-color: #e7f3fe; border-color: #b8daff; color: #004085;">
-                        <i class="fas fa-boxes"></i> <strong>Efecto en Inventario:</strong> Al registrar la devolución, el sistema sumará automáticamente <strong>+1 unidad</strong> al stock de producto terminado en el inventario.
-                    </div>
-
-                    <div class="form-group">
-                        <label>Observaciones Adicionales (Opcional)</label>
-                        <textarea id="inputObservaciones" name="observaciones" class="form-control" rows="2" placeholder="Observaciones internas adicionales..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer" style="background: #f8fafc;">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnGuardarDevolucion" disabled>
-                        <i class="fas fa-save"></i> Guardar Devolución
+                <!-- VISTA 2: FORMULARIO REGISTRAR DEVOLUCIÓN (VISTA INTEGRADA) -->
+                <div id="vista-crear" style="display: none;">
+                    <button class="btn-volver" id="btn-volver-listado" type="button">
+                        <i class="fas fa-arrow-left"></i> Volver al Listado
                     </button>
+
+                    <div class="form-section-card">
+                        <h4 style="font-weight: bold; color: #1e293b; margin-top: 0; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+                            <i class="fas fa-undo-alt text-primary"></i> Registrar Devolución de Producto Terminado
+                        </h4>
+
+                        <form id="formNuevaDevolucion">
+                            <!-- Selector de Orden de Producción -->
+                            <div class="form-group">
+                                <label for="selectOrdenDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
+                                    <i class="fas fa-clipboard-list text-primary"></i> Orden de Producción <span style="color: red;">*</span>
+                                </label>
+                                <select id="selectOrdenDevolver" name="orden_produccion_id" class="form-control" style="width: 100%;" required>
+                                    <option value="">-- Buscar por número de orden (ej. 01-AGOST) o producto --</option>
+                                    <?php foreach ($ordenes as $ord): ?>
+                                        <option value="<?php echo $ord['id']; ?>"
+                                                data-producto="<?php echo htmlspecialchars($ord['producto_nombre']); ?>"
+                                                data-talla="<?php echo htmlspecialchars($ord['talla_nombre']); ?>"
+                                                data-orden="<?php echo htmlspecialchars($ord['numero_orden']); ?>"
+                                                data-cantidad="<?php echo htmlspecialchars($ord['cantidad_a_producir']); ?>">
+                                            <?php echo htmlspecialchars($ord['numero_orden'] . ' — ' . $ord['producto_nombre'] . ' (' . $ord['talla_nombre'] . ')'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted" style="display: block; margin-top: 5px;">
+                                    <i class="fas fa-info-circle"></i> Seleccione la orden de producción a la cual pertenece el producto devuelto.
+                                </small>
+                            </div>
+
+                            <!-- Tarjeta Preview del Producto y Orden -->
+                            <div class="unit-preview-card" id="cardPreviewOrden">
+                                <div id="previewVacio" style="text-align: center; color: #64748b; padding: 15px;">
+                                    <i class="fas fa-box-open fa-2x" style="margin-bottom: 8px; color: #94a3b8;"></i>
+                                    <div>Seleccione una orden de producción para ver los datos asociados.</div>
+                                </div>
+
+                                <div id="previewContenido" style="display: none;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">
+                                        <div>
+                                            <span class="badge-code" id="prevOrdenNumero">01-AGOST-26</span>
+                                            <strong id="prevProductoNombre" style="margin-left: 8px; font-size: 15px; color: #0056b3;">Nombre Producto</strong>
+                                        </div>
+                                        <div>
+                                            <span class="label label-info" id="prevCantTotalBadge">Total OP: -- unds</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="info-pill-grid">
+                                        <div class="info-pill-item">
+                                            <small>Talla</small>
+                                            <span id="prevTalla">M</span>
+                                        </div>
+                                        <div class="info-pill-item">
+                                            <small>Cantidad Producida</small>
+                                            <span id="prevCantidadProducida">--</span>
+                                        </div>
+                                        <div class="info-pill-item">
+                                            <small>Fecha Creación</small>
+                                            <span id="prevFechaProd">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cantidad a Devolver y Cliente -->
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label style="font-weight: bold; color: #1e293b;">Cantidad a Devolver <span style="color: red;">*</span></label>
+                                        <input type="number" step="1" min="1" id="inputCantidad" name="cantidad" class="form-control" value="1" required>
+                                        <small class="text-muted">Número de unidades devueltas que reingresarán al inventario.</small>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-group">
+                                        <label>Cliente (Opcional)</label>
+                                        <select id="inputClienteId" name="cliente_id" class="form-control">
+                                            <option value="">-- Cliente no especificado / Anónimo --</option>
+                                            <?php foreach ($clientes as $cl): ?>
+                                                <option value="<?php echo $cl['id']; ?>">
+                                                    <?php echo htmlspecialchars($cl['nombre'] . ($cl['numero_documento'] ? ' (' . $cl['numero_documento'] . ')' : '')); ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- MOTIVO ESCRITO POR EL USUARIO -->
+                            <div class="form-group">
+                                <label style="font-weight: bold;">Motivo de la Devolución <span style="color: red;">*</span></label>
+                                <textarea id="inputMotivo" name="motivo" class="form-control" rows="3" placeholder="Escriba aquí el motivo o razón por la cual se devuelve el producto..." required></textarea>
+                            </div>
+
+                            <!-- ACCIÓN EN EL INVENTARIO FIJA: SUMAR STOCK -->
+                            <div class="alert alert-info" style="margin-top: 15px; margin-bottom: 15px; font-size: 13px; background-color: #e7f3fe; border-color: #b8daff; color: #004085;">
+                                <i class="fas fa-boxes"></i> <strong>Efecto en Inventario:</strong> Al registrar la devolución, el sistema sumará automáticamente la cantidad ingresada al stock de producto terminado en el inventario.
+                            </div>
+
+                            <div class="form-group">
+                                <label>Observaciones Adicionales (Opcional)</label>
+                                <textarea id="inputObservaciones" name="observaciones" class="form-control" rows="2" placeholder="Observaciones internas adicionales..."></textarea>
+                            </div>
+
+                            <div class="row" style="margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 18px;">
+                                <div class="col-sm-12">
+                                    <button type="submit" class="btn btn-primary" id="btnGuardarDevolucion" disabled>
+                                        <i class="fas fa-save"></i> Guardar Devolución
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" id="btn-cancelar-crear">
+                                        <i class="fas fa-times"></i> Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
@@ -417,20 +434,20 @@ if ($resOrdenes) {
 
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
                     <h5 style="font-weight: bold; color: #334155; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
-                        <i class="fas fa-tshirt text-primary"></i> Información de la Pieza Devuelta
+                        <i class="fas fa-tshirt text-primary"></i> Información del Producto Devuelto
                     </h5>
                     <div class="row">
                         <div class="col-sm-6" style="margin-bottom: 8px;">
                             <small class="text-muted" style="display:block;">PRODUCTO</small>
                             <span id="detProducto" style="font-weight: bold; font-size: 15px;">--</span>
                         </div>
-                        <div class="col-sm-6" style="margin-bottom: 8px;">
+                        <div class="col-sm-3" style="margin-bottom: 8px;">
                             <small class="text-muted" style="display:block;">TALLA</small>
                             <span id="detTalla" style="font-weight: bold;">--</span>
                         </div>
-                        <div class="col-sm-6" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">NÚMERO IDENTIFICADOR (SERIAL)</small>
-                            <span class="badge-code" id="detIdentificador">--</span>
+                        <div class="col-sm-3" style="margin-bottom: 8px;">
+                            <small class="text-muted" style="display:block;">CANTIDAD DEVUELTA</small>
+                            <span id="detCantidad" style="font-weight: bold; color: #0056b3; font-size: 15px;">--</span>
                         </div>
                         <div class="col-sm-6" style="margin-bottom: 8px;">
                             <small class="text-muted" style="display:block;">ORDEN DE PRODUCCIÓN ORIGEN</small>
@@ -447,7 +464,7 @@ if ($resOrdenes) {
                 <div class="form-group">
                     <small class="text-muted" style="display:block; font-weight:bold;">ACCIÓN DE INVENTARIO APLICADA</small>
                     <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 10px; border-radius: 6px; font-size: 13px; color: #2e7d32; font-weight: bold;">
-                        <i class="fas fa-check-circle"></i> +1 unidad reingresada al stock de producto terminado
+                        <i class="fas fa-check-circle"></i> <span id="detEfectoInventario">Reingreso al stock de producto terminado</span>
                     </div>
                 </div>
 
@@ -502,10 +519,30 @@ $(document).ready(function() {
         cargarDevoluciones();
     });
 
-    // Inicializar Select2 en el buscador unificado
-    $('#selectUnidadDevolver').select2({
-        dropdownParent: $('#modalNuevaDevolucion'),
-        placeholder: '-- Buscar por orden (ej. 01-AGOST), código o producto --',
+    // Control de vistas (Listado / Crear)
+    function mostrarVista(vista) {
+        if (vista === 'crear') {
+            $('#vista-listado').hide();
+            $('#vista-crear').fadeIn(200);
+            resetearFormularioDevolucion();
+        } else {
+            $('#vista-crear').hide();
+            $('#vista-listado').fadeIn(200);
+            cargarDevoluciones();
+        }
+    }
+
+    $('#btn-ir-crear').on('click', function() {
+        mostrarVista('crear');
+    });
+
+    $('#btn-volver-listado, #btn-cancelar-crear').on('click', function() {
+        mostrarVista('listado');
+    });
+
+    // Inicializar Select2 en el selector de órdenes
+    $('#selectOrdenDevolver').select2({
+        placeholder: '-- Buscar por número de orden (ej. 01-AGOST) o producto --',
         allowClear: true,
         width: '100%',
         ajax: {
@@ -514,7 +551,7 @@ $(document).ready(function() {
             delay: 250,
             data: function (params) {
                 return {
-                    action: 'buscar_unidades_select2',
+                    action: 'buscar_ordenes_select2',
                     q: params.term || ''
                 };
             },
@@ -528,123 +565,87 @@ $(document).ready(function() {
         minimumInputLength: 0
     });
 
-    // Al seleccionar una unidad en Select2
-    $('#selectUnidadDevolver').on('select2:select change', function() {
-        const codigo = $(this).val();
-        if (codigo) {
-            buscarUnidad(codigo);
+    // Al seleccionar una orden en Select2
+    $('#selectOrdenDevolver').on('select2:select change', function(e) {
+        const ordenId = $(this).val();
+        if (ordenId) {
+            const data = $(this).select2('data')[0];
+            if (data && data.producto_nombre) {
+                mostrarPreviewOrden(data);
+            } else {
+                obtenerInfoOrden(ordenId);
+            }
         } else {
-            limpiarPreviewUnidad();
+            limpiarPreviewOrden();
         }
     });
 
-    $('#selectUnidadDevolver').on('select2:unselect', function() {
-        limpiarPreviewUnidad();
+    $('#selectOrdenDevolver').on('select2:unselect', function() {
+        limpiarPreviewOrden();
     });
 
-    // Abrir modal nueva devolución
-    $('#btn-ir-crear').on('click', function() {
-        resetearFormularioDevolucion();
-        $('#modalNuevaDevolucion').modal('show');
-        setTimeout(function() {
-            $('#selectUnidadDevolver').select2('open');
-        }, 350);
-    });
-
-    // Función de búsqueda y validación de unidad
-    function buscarUnidad(codigo) {
-        codigo = $.trim(codigo);
-        if (!codigo) {
-            limpiarPreviewUnidad();
-            return;
-        }
-
+    function obtenerInfoOrden(ordenId) {
         $.ajax({
             url: 'devoluciones_data.php',
             type: 'GET',
-            data: { action: 'buscar_unidad', codigo: codigo },
+            data: { action: 'obtener_orden_info', orden_id: ordenId },
             dataType: 'json',
             success: function(res) {
-                if (res.success && res.unidad) {
-                    mostrarPreviewUnidad(res.unidad);
+                if (res.success && res.orden) {
+                    mostrarPreviewOrden(res.orden);
                 } else {
-                    limpiarPreviewUnidad();
-                    Swal.fire('No encontrado', res.message || 'No se encontró el producto con ese identificador.', 'error');
+                    limpiarPreviewOrden();
+                    Swal.fire('Error', res.message || 'No se pudo obtener información de la orden.', 'error');
                 }
             },
-            error: function(xhr) {
-                limpiarPreviewUnidad();
-                let msg = 'Error de conexión con el servidor.';
-                try {
-                    const err = JSON.parse(xhr.responseText);
-                    if (err.message) msg = err.message;
-                } catch(e) {}
-                Swal.fire('Error', msg, 'error');
+            error: function() {
+                limpiarPreviewOrden();
             }
         });
     }
 
-    function mostrarPreviewUnidad(u) {
-        $('#unidadIdSeleccionada').val(u.unidad_id);
-        $('#prevCodigoIdentificador').text(u.numero_identificador);
-        $('#prevProductoNombre').text(u.producto_nombre);
-        $('#prevTalla').text(u.talla_nombre || 'Única');
-        $('#prevOrdenNumero').text(u.numero_orden || ('OP #' + u.orden_id));
-        $('#prevFechaProd').text(u.unidad_fecha_creacion ? u.unidad_fecha_creacion.substring(0, 10) : '--');
-        $('#prevFactura').text(u.venta_factura || 'N/A');
-
-        // Badge de estado
-        let badgeHtml = '';
-        if (u.estado_unidad === 'disponible') {
-            badgeHtml = '<span class="label label-success"><i class="fas fa-check"></i> Disponible</span>';
-        } else if (u.estado_unidad === 'devuelto') {
-            badgeHtml = '<span class="label label-warning"><i class="fas fa-undo"></i> Devuelto</span>';
-        } else if (u.estado_unidad === 'en_revision') {
-            badgeHtml = '<span class="label label-info"><i class="fas fa-tools"></i> En Revisión</span>';
-        } else if (u.estado_unidad === 'baja') {
-            badgeHtml = '<span class="label label-danger"><i class="fas fa-times"></i> De Baja</span>';
-        } else {
-            badgeHtml = `<span class="label label-default">${u.estado_unidad}</span>`;
-        }
-        $('#prevEstadoBadge').html(badgeHtml);
-
-        if (u.historial_devoluciones && u.historial_devoluciones.length > 0) {
-            $('#alertaHistorialDevoluciones').show();
-        } else {
-            $('#alertaHistorialDevoluciones').hide();
-        }
-
-        if (u.cliente_id) {
-            $('#inputClienteId').val(u.cliente_id);
-        }
+    function mostrarPreviewOrden(o) {
+        $('#prevOrdenNumero').text(o.numero_orden || ('OP #' + (o.id || '')));
+        $('#prevProductoNombre').text(o.producto_nombre || 'Producto');
+        $('#prevTalla').text(o.talla_nombre || 'Única');
+        $('#prevCantidadProducida').text((o.cantidad_a_producir || '--') + ' unds');
+        $('#prevCantTotalBadge').text('Total OP: ' + (o.cantidad_a_producir || '--') + ' unds');
+        $('#prevFechaProd').text(o.creado_en ? o.creado_en.substring(0, 10) : '--');
 
         $('#previewVacio').hide();
         $('#previewContenido').show();
-        $('#cardPreviewUnidad').addClass('active');
+        $('#cardPreviewOrden').addClass('active');
         $('#btnGuardarDevolucion').prop('disabled', false);
     }
 
-    function limpiarPreviewUnidad() {
-        $('#unidadIdSeleccionada').val('');
+    function limpiarPreviewOrden() {
         $('#previewContenido').hide();
         $('#previewVacio').show();
-        $('#cardPreviewUnidad').removeClass('active');
+        $('#cardPreviewOrden').removeClass('active');
         $('#btnGuardarDevolucion').prop('disabled', true);
     }
 
     function resetearFormularioDevolucion() {
         $('#formNuevaDevolucion')[0].reset();
-        $('#selectUnidadDevolver').val(null).trigger('change');
+        $('#selectOrdenDevolver').val(null).trigger('change');
         $('#inputClienteId').val('');
-        limpiarPreviewUnidad();
+        $('#inputCantidad').val('1');
+        limpiarPreviewOrden();
     }
 
     // Guardar Devolución
     $('#formNuevaDevolucion').on('submit', function(e) {
         e.preventDefault();
-        const unidadId = $('#unidadIdSeleccionada').val();
-        if (!unidadId) {
-            Swal.fire('Atención', 'Debe seleccionar y validar un producto terminado antes de guardar.', 'warning');
+        const ordenId = $('#selectOrdenDevolver').val();
+        if (!ordenId) {
+            Swal.fire('Atención', 'Debe seleccionar una orden de producción.', 'warning');
+            return;
+        }
+
+        const cantidad = parseFloat($('#inputCantidad').val());
+        if (isNaN(cantidad) || cantidad <= 0) {
+            Swal.fire('Atención', 'Ingrese una cantidad válida mayor a 0.', 'warning');
+            $('#inputCantidad').focus();
             return;
         }
 
@@ -662,7 +663,8 @@ $(document).ready(function() {
             type: 'POST',
             data: {
                 action: 'crear_devolucion',
-                unidad_id: unidadId,
+                orden_produccion_id: ordenId,
+                cantidad: cantidad,
                 cliente_id: $('#inputClienteId').val(),
                 motivo: motivo,
                 observaciones: $('#inputObservaciones').val()
@@ -671,13 +673,12 @@ $(document).ready(function() {
             success: function(res) {
                 $('#btnGuardarDevolucion').prop('disabled', false).html('<i class="fas fa-save"></i> Guardar Devolución');
                 if (res.success) {
-                    $('#modalNuevaDevolucion').modal('hide');
                     Swal.fire({
                         icon: 'success',
                         title: 'Devolución Registrada',
                         text: res.message
                     });
-                    cargarDevoluciones();
+                    mostrarVista('listado');
                 } else {
                     Swal.fire('Error', res.message || 'No se pudo registrar la devolución', 'error');
                 }
@@ -737,20 +738,21 @@ $(document).ready(function() {
         lista.forEach(function(d) {
             const fechaFormat = d.fecha ? d.fecha.substring(0, 16) : '--';
             const motivoTexto = d.motivo || '-';
+            const cantFormat = parseFloat(d.cantidad || 1);
 
             html += `
                 <tr>
                     <td><span class="badge-code">${d.codigo_devolucion}</span></td>
                     <td>${fechaFormat}</td>
-                    <td><strong>${d.numero_identificador || '-'}</strong></td>
                     <td><span style="color: #0056b3; font-weight: bold;">${d.numero_orden || '-'}</span></td>
                     <td>
                         <div><strong>${d.producto_nombre || '-'}</strong></div>
                         <small class="text-muted">Talla: ${d.talla_nombre || 'Única'}</small>
                     </td>
+                    <td style="text-align: center;"><strong>${cantFormat}</strong> <small class="text-muted">unds</small></td>
                     <td>${d.cliente_nombre ? d.cliente_nombre : '<span class="text-muted">Anónimo</span>'}</td>
                     <td><span title="${motivoTexto}" style="display: block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${motivoTexto}</span></td>
-                    <td><span class="label label-success" style="font-size: 12px;"><i class="fas fa-plus"></i> +1 Stock Sumado</span></td>
+                    <td><span class="label label-success" style="font-size: 12px;"><i class="fas fa-plus"></i> +${cantFormat} Stock Sumado</span></td>
                     <td style="text-align: center;">
                         <button class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle">
                             <i class="fas fa-eye"></i>
@@ -814,14 +816,17 @@ $(document).ready(function() {
             success: function(res) {
                 if (res.success && res.devolucion) {
                     const d = res.devolucion;
+                    const cant = parseFloat(d.cantidad || 1);
+
                     $('#detCodigoDevolucion').text(d.codigo_devolucion);
                     $('#detFecha').text(d.fecha || '--');
                     $('#detCliente').text(d.cliente_nombre ? (d.cliente_nombre + (d.cliente_documento ? ' (' + d.cliente_documento + ')' : '')) : 'Cliente no especificado');
                     $('#detProducto').text(d.producto_nombre || '--');
                     $('#detTalla').text(d.talla_nombre || 'Única');
-                    $('#detIdentificador').text(d.numero_identificador || '--');
+                    $('#detCantidad').text(cant + ' unds');
                     $('#detOrden').text(d.numero_orden || ('OP #' + d.orden_produccion_id));
                     $('#detMotivo').text(d.motivo || '--');
+                    $('#detEfectoInventario').text(`+${cant} unidad(es) reingresada(s) al stock de producto terminado`);
 
                     if (d.observaciones) {
                         $('#detObservaciones').text(d.observaciones);
