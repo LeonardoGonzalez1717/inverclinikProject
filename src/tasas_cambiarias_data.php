@@ -71,7 +71,7 @@ try {
 
         ob_start();
         foreach ($rows as $r) {
-            $fh = date('d/m/Y H:i', strtotime($r['fecha_hora']));
+            $fh = date('d/m/Y h:i A', strtotime($r['fecha_hora']));
             $origen = $r['origen'] === 'bcv' ? 'BCV' : 'Manual';
             echo '<tr>';
             echo '<td>' . htmlspecialchars($fh) . '</td>';

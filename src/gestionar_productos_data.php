@@ -117,7 +117,7 @@ try {
                 echo '<td>' . htmlspecialchars($p['tipo_genero'] ?? '-') . '</td>';
                 echo '<td>' . htmlspecialchars($p['rango_tallas_nombre'] ?? '—') . '</td>';
                 echo '<td>' . htmlspecialchars(substr($p['descripcion'] ?? '', 0, 50)) . (strlen($p['descripcion'] ?? '') > 50 ? '...' : '') . '</td>';
-                echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y H:i', strtotime($p['fecha_creacion'])) : '-') . '</td>';
+                echo '<td>' . ($p['fecha_creacion'] ? date('d/m/Y h:i A', strtotime($p['fecha_creacion'])) : '-') . '</td>';
                 echo '<td>';
                 echo '  <button class="btn btn-sm btn-primary" onclick="editarProducto(' . htmlspecialchars(json_encode($p), ENT_QUOTES, 'UTF-8') . ')"><i class="fas fa-edit"></i> Editar</button>';
                 echo '</td>';

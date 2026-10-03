@@ -199,20 +199,17 @@ if ($resOrdenes) {
     <div class="container-wrapper">
         <div class="container-inner">
             <h2 class="main-title">Devoluciones de Producto Terminado</h2>
-            <p class="subtitle" style="margin-bottom: 20px;">Control y registro de productos devueltos con reingreso automático al stock</p>
+            <p class="subtitle" style="margin-bottom: 20px;">Control y registro de devoluciones con derivación a control de calidad y material rechazado</p>
 
             <div id="contenedor-vistas">
                 <!-- VISTA 1: LISTADO DE DEVOLUCIONES -->
                 <div id="vista-listado">
                     <div class="row form-group">
                         <div class="col-sm-12">
-                            <div aria-label="Acciones de devoluciones">
+                            <div aria-label="Acciones de devoluciones" style="display: flex; gap: 8px; flex-wrap: wrap;">
                                 <button class="btn btn-success" id="btn-ir-crear" style="margin-bottom: 0px !important;" title="Registrar Nueva Devolución" data-toggle="tooltip">
                                     <i class="fas fa-plus"></i> Registrar Devolución
                                 </button>
-                                <a href="../reportes/devoluciones_form.php" class="btn btn-warning" id="btn-reporte-devoluciones" style="margin-bottom: 0px !important; color: #fff;" title="Generar Reporte de Devoluciones" data-toggle="tooltip">
-                                    <i class="fas fa-file-pdf"></i> Reporte
-                                </a>
                                 <button class="btn btn-info" id="btn-toggle-filtros" title="Filtros" data-toggle="tooltip">
                                     <i class="fas fa-filter"></i> Filtros
                                 </button>
@@ -257,9 +254,9 @@ if ($resOrdenes) {
                                     <th>Producto / Talla</th>
                                     <th style="text-align: center;">Cantidad</th>
                                     <th>Cliente</th>
-                                    <th>Motivo Escrito</th>
-                                    <th>Efecto Inventario</th>
-                                    <th style="text-align: center; width: 80px;">Acciones</th>
+                                    <th>Motivo Devolución</th>
+                                    <th>Estado / Efecto</th>
+                                    <th style="text-align: center; width: 1%; white-space: nowrap;">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="devolucionesTableBody">
@@ -327,7 +324,7 @@ if ($resOrdenes) {
                                             <strong id="prevProductoNombre" style="margin-left: 8px; font-size: 15px; color: #0056b3;">Nombre Producto</strong>
                                         </div>
                                         <div>
-                                            <span class="label label-info" id="prevCantTotalBadge">Total OP: -- unds</span>
+                                            <span class="label label-info" id="prevCantTotalBadge">Total OP: --</span>
                                         </div>
                                     </div>
 
@@ -378,9 +375,9 @@ if ($resOrdenes) {
                                 <textarea id="inputMotivo" name="motivo" class="form-control" rows="3" placeholder="Escriba aquí el motivo o razón por la cual se devuelve el producto..." required></textarea>
                             </div>
 
-                            <!-- ACCIÓN EN EL INVENTARIO FIJA: SUMAR STOCK -->
-                            <div class="alert alert-info" style="margin-top: 15px; margin-bottom: 15px; font-size: 13px; background-color: #e7f3fe; border-color: #b8daff; color: #004085;">
-                                <i class="fas fa-boxes"></i> <strong>Efecto en Inventario:</strong> Al registrar la devolución, el sistema sumará automáticamente la cantidad ingresada al stock de producto terminado en el inventario.
+                            <!-- ACCIÓN EN EL INVENTARIO: EVALUACIÓN DIRECTA -->
+                            <div class="alert alert-info" style="margin-top: 15px; margin-bottom: 15px; font-size: 13px; background-color: #eff6ff; border-color: #bfdbfe; color: #1e40af;">
+                                <i class="fas fa-info-circle"></i> <strong>Inspección de Devolución:</strong> Al registrar la devolución quedará en estado <em>Pendiente de Inspección</em>. Desde la tabla de devoluciones podrá validar si el producto está en <strong>Buen Estado</strong> (para reingresarlo al stock) o <strong>Rechazarlo</strong>.
                             </div>
 
                             <div class="form-group">
@@ -493,6 +490,38 @@ if ($resOrdenes) {
 <script>
 $(document).ready(function() {
     let paginaActual = 1;
+
+    function formatearFecha(str) {
+        if (!str) return '--';
+        const parts = str.split(' ')[0].split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return str;
+    }
+
+    function formatearFechaHora(str) {
+        if (!str) return '--';
+        const p = str.split(' ');
+        if (p.length >= 1) {
+            const dp = p[0].split('-');
+            if (dp.length === 3) {
+                let timeStr = '';
+                if (p[1]) {
+                    const tp = p[1].split(':');
+                    let h = parseInt(tp[0], 10);
+                    const m = tp[1] || '00';
+                    const ampm = h >= 12 ? 'PM' : 'AM';
+                    h = h % 12;
+                    h = h ? h : 12;
+                    const hStr = h < 10 ? '0' + h : h;
+                    timeStr = ` ${hStr}:${m} ${ampm}`;
+                }
+                return `${dp[2]}/${dp[1]}/${dp[0]}${timeStr}`;
+            }
+        }
+        return str;
+    }
 
     // Cargar listado inicial
     cargarDevoluciones();
@@ -614,9 +643,9 @@ $(document).ready(function() {
         $('#prevOrdenNumero').text(o.numero_orden || ('OP #' + (o.id || '')));
         $('#prevProductoNombre').text(o.producto_nombre || 'Producto');
         $('#prevTalla').text(o.talla_nombre || 'Única');
-        $('#prevCantidadProducida').text((o.cantidad_a_producir || '--') + ' unds');
-        $('#prevCantTotalBadge').text('Total OP: ' + (o.cantidad_a_producir || '--') + ' unds');
-        $('#prevFechaProd').text(o.creado_en ? o.creado_en.substring(0, 10) : '--');
+        $('#prevCantidadProducida').text((o.cantidad_a_producir || '--') + '');
+        $('#prevCantTotalBadge').text('Total OP: ' + (o.cantidad_a_producir || '--') + '');
+        $('#prevFechaProd').text(formatearFecha(o.creado_en));
 
         $('#previewVacio').hide();
         $('#previewContenido').show();
@@ -742,9 +771,54 @@ $(document).ready(function() {
 
         let html = '';
         lista.forEach(function(d) {
-            const fechaFormat = d.fecha ? d.fecha.substring(0, 16) : '--';
+            const fechaFormat = formatearFechaHora(d.fecha);
             const motivoTexto = d.motivo || '-';
             const cantFormat = parseFloat(d.cantidad || 1);
+            const estado = d.estado || 'pendiente';
+            const prodNombre = d.producto_nombre ? (d.producto_nombre + ' (' + (d.talla_nombre || 'Única') + ')') : 'Producto';
+
+            let estadoBadge = '';
+            let accionesHtml = '';
+
+            if (estado === 'pendiente') {
+                estadoBadge = `<span class="label label-warning" style="font-size: 11.5px; background-color: #f59e0b; color: white; padding: 4px 7px; border-radius: 4px;"><i class="fas fa-clock"></i> Pendiente</span>`;
+                accionesHtml = `
+                    <button type="button" class="btn btn-sm btn-success btn-aprobar-devolucion" 
+                            data-id="${d.id}" 
+                            data-codigo="${d.codigo_devolucion}" 
+                            data-producto="${prodNombre}" 
+                            data-cantidad="${cantFormat}" 
+                            title="Validar en Buen Estado y Reingresar al Stock" 
+                            style="margin-right: 3px; font-weight: 600; padding: 4px 8px;">
+                        <i class="fas fa-check"></i> Buen Estado
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger btn-rechazar-devolucion" 
+                            data-id="${d.id}" 
+                            data-codigo="${d.codigo_devolucion}" 
+                            data-producto="${prodNombre}" 
+                            title="Rechazar Devolución (Sin reingreso a stock)" 
+                            style="margin-right: 3px; font-weight: 600; padding: 4px 8px;">
+                        <i class="fas fa-ban"></i> Rechazar
+                    </button>
+                    <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                `;
+            } else if (estado === 'aprobado') {
+                estadoBadge = `<span class="label label-success" style="font-size: 11.5px; background-color: #10b981; color: white; padding: 4px 7px; border-radius: 4px;"><i class="fas fa-check-circle"></i> +${cantFormat} En Stock</span>`;
+                accionesHtml = `
+                    <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                `;
+            } else {
+                estadoBadge = `<span class="label label-danger" style="font-size: 11.5px; background-color: #ef4444; color: white; padding: 4px 7px; border-radius: 4px;"><i class="fas fa-ban"></i> Rechazado</span>`;
+                accionesHtml = `
+                    <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                `;
+            }
 
             html += `
                 <tr>
@@ -757,12 +831,10 @@ $(document).ready(function() {
                     </td>
                     <td style="text-align: center;"><strong>${cantFormat}</strong> <small class="text-muted">unds</small></td>
                     <td>${d.cliente_nombre ? d.cliente_nombre : '<span class="text-muted">Anónimo</span>'}</td>
-                    <td><span title="${motivoTexto}" style="display: block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${motivoTexto}</span></td>
-                    <td><span class="label label-success" style="font-size: 12px;"><i class="fas fa-plus"></i> +${cantFormat} Stock Sumado</span></td>
-                    <td style="text-align: center;">
-                        <button class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle">
-                            <i class="fas fa-eye"></i>
-                        </button>
+                    <td><span title="${motivoTexto}" style="display: block; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${motivoTexto}</span></td>
+                    <td>${estadoBadge}</td>
+                    <td style="text-align: center; white-space: nowrap; width: 1%;">
+                        ${accionesHtml}
                     </td>
                 </tr>
             `;
@@ -774,6 +846,121 @@ $(document).ready(function() {
         $('.btnVerDetalleDevolucion').on('click', function() {
             const devId = $(this).data('id');
             verDetalleDevolucion(devId);
+        });
+
+        // Event listener para validar en Buen Estado
+        $('.btn-aprobar-devolucion').on('click', function() {
+            const id = $(this).data('id');
+            const codigo = $(this).data('codigo') || 'DEV';
+            const producto = $(this).data('producto') || 'material';
+            const cantidad = $(this).data('cantidad') || 1;
+
+            Swal.fire({
+                title: '¿Validar en Buen Estado?',
+                html: `¿Desea validar la devolución <b>${codigo}</b> (${cantidad} de <i>${producto}</i>) en <b>Buen Estado</b>?<br><br><small class="text-muted">El material reingresará inmediatamente al stock disponible del inventario.</small>`,
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="fas fa-check"></i> Sí, Buen Estado (Stock)',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Procesando...',
+                        text: 'Reingresando material al inventario...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    $.ajax({
+                        url: 'devoluciones_data.php',
+                        type: 'POST',
+                        data: {
+                            action: 'aprobar_buen_estado',
+                            devolucion_id: id
+                        },
+                        dataType: 'json',
+                        success: function(res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: '¡Material Validado!',
+                                    text: res.message
+                                });
+                                cargarDevoluciones();
+                            } else {
+                                Swal.fire('Error', res.message || 'No se pudo validar la devolución.', 'error');
+                            }
+                        },
+                        error: function(xhr) {
+                            let msg = 'Error en el servidor al validar la devolución.';
+                            try {
+                                const err = JSON.parse(xhr.responseText);
+                                if (err.message) msg = err.message;
+                            } catch(e) {}
+                            Swal.fire('Error', msg, 'error');
+                        }
+                    });
+                }
+            });
+        });
+
+        // Event listener para Rechazar Devolución (sin pedir motivo extra)
+        $('.btn-rechazar-devolucion').on('click', function() {
+            const id = $(this).data('id');
+            const codigo = $(this).data('codigo') || 'DEV';
+            const producto = $(this).data('producto') || 'material';
+
+            Swal.fire({
+                title: '¿Rechazar Devolución?',
+                html: `¿Está seguro de rechazar la devolución <b>${codigo}</b> (${producto})?<br><br><small class="text-muted">El material no ingresará al inventario y se marcará como descartado/rechazado.</small>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: '<i class="fas fa-ban"></i> Sí, Rechazar',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'Procesando...',
+                        text: 'Registrando rechazo...',
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    $.ajax({
+                        url: 'devoluciones_data.php',
+                        type: 'POST',
+                        data: {
+                            action: 'rechazar_material',
+                            devolucion_id: id
+                        },
+                        dataType: 'json',
+                        success: function(res) {
+                            if (res.success) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Devolución Rechazada',
+                                    text: res.message
+                                });
+                                cargarDevoluciones();
+                            } else {
+                                Swal.fire('Error', res.message || 'No se pudo rechazar la devolución.', 'error');
+                            }
+                        },
+                        error: function(xhr) {
+                            let msg = 'Error en el servidor al rechazar la devolución.';
+                            try {
+                                const err = JSON.parse(xhr.responseText);
+                                if (err.message) msg = err.message;
+                            } catch(e) {}
+                            Swal.fire('Error', msg, 'error');
+                        }
+                    });
+                }
+            });
         });
     }
 
@@ -823,16 +1010,24 @@ $(document).ready(function() {
                 if (res.success && res.devolucion) {
                     const d = res.devolucion;
                     const cant = parseFloat(d.cantidad || 1);
+                    const estado = d.estado || 'pendiente';
 
                     $('#detCodigoDevolucion').text(d.codigo_devolucion);
-                    $('#detFecha').text(d.fecha || '--');
+                    $('#detFecha').text(formatearFechaHora(d.fecha));
                     $('#detCliente').text(d.cliente_nombre ? (d.cliente_nombre + (d.cliente_documento ? ' (' + d.cliente_documento + ')' : '')) : 'Cliente no especificado');
                     $('#detProducto').text(d.producto_nombre || '--');
                     $('#detTalla').text(d.talla_nombre || 'Única');
-                    $('#detCantidad').text(cant + ' unds');
+                    $('#detCantidad').text(cant + '');
                     $('#detOrden').text(d.numero_orden || ('OP #' + d.orden_produccion_id));
                     $('#detMotivo').text(d.motivo || '--');
-                    $('#detEfectoInventario').text(`+${cant} unidad(es) reingresada(s) al stock de producto terminado`);
+
+                    if (estado === 'pendiente') {
+                        $('#detEfectoInventario').html('<span class="text-warning"><i class="fas fa-clock"></i> Pendiente de Inspección en Material Rechazado</span>');
+                    } else if (estado === 'aprobado') {
+                        $('#detEfectoInventario').html(`<span class="text-success"><i class="fas fa-check-circle"></i> +${cant} unidad(es) reingresada(s) al stock de producto terminado</span>`);
+                    } else {
+                        $('#detEfectoInventario').html('<span class="text-danger"><i class="fas fa-ban"></i> Material Rechazado (Descartado sin reingreso a stock)</span>');
+                    }
 
                     if (d.observaciones) {
                         $('#detObservaciones').text(d.observaciones);

@@ -31,19 +31,21 @@ if ($orden_id > 0) {
 if ($estatus_transito !== '') {
     if ($estatus_transito === 'recibido') {
         $where[] = "ot.recibido = 1";
-    } else {
-        $where[] = "ot.recibido = 0";
+    } elseif ($estatus_transito === 'afuera' || $estatus_transito === 'en_taller') {
+        $where[] = "ot.enviado = 1 AND ot.recibido = 0";
+    } elseif ($estatus_transito === 'por_enviar') {
+        $where[] = "ot.enviado = 0";
     }
 }
 
 if ($fecha_desde !== '') {
     $fDesde = $conn->real_escape_string($fecha_desde);
-    $where[] = "ot.fecha_asignacion >= '$fDesde 00:00:00'";
+    $where[] = "COALESCE(ot.fecha_envio, ot.fecha_asignacion) >= '$fDesde 00:00:00'";
 }
 
 if ($fecha_hasta !== '') {
     $fHasta = $conn->real_escape_string($fecha_hasta);
-    $where[] = "ot.fecha_asignacion <= '$fHasta 23:59:59'";
+    $where[] = "COALESCE(ot.fecha_envio, ot.fecha_asignacion) <= '$fHasta 23:59:59'";
 }
 
 $fil = "";
@@ -59,14 +61,20 @@ $sqlBody = "
         ot.taller_id,
         ot.observaciones,
         ot.fecha_asignacion,
+        ot.fecha_envio,
         ot.fecha_entrega,
+        ot.enviado,
         ot.recibido,
         t.nombre AS taller_nombre,
         op.creado_en,
-        op.fecha_inicio
+        op.fecha_inicio,
+        op.cantidad_a_producir,
+        p.nombre AS producto_nombre
     FROM ordenes_talleres ot
     INNER JOIN talleres t ON ot.taller_id = t.id
     INNER JOIN ordenes_produccion op ON op.id = ot.orden_produccion_id
+    LEFT JOIN recetas_productos rp ON op.receta_producto_id = rp.id
+    LEFT JOIN productos p ON rp.producto_id = p.id
 " . $fil;
 
 // Inicialización de la paginación nativa de tu sistema
@@ -74,7 +82,7 @@ $total = Pagination::countFromSubquery($conn, $sqlBody);
 $pg = Pagination::fromInput($total, $_POST);
 
 $sql = $sqlBody . '
-    ORDER BY ot.id DESC
+    ORDER BY ot.orden_produccion_id DESC, ot.id ASC
 ' . $pg->limitClause();
 
 $result = $conn->query($sql);
@@ -92,15 +100,31 @@ if (!empty($filas)) {
     foreach ($filas as $r) {
         $i++;
         
-        // Formateo de fechas de control
-        $fDespacho = $r['fecha_asignacion'] ? date('d/m/Y h:i A', strtotime($r['fecha_asignacion'])) : '—';
-        $fRetorno  = $r['fecha_entrega'] ? date('d/m/Y h:i A', strtotime($r['fecha_entrega'])) : '<i class="text-muted">No retornado</i>';
+        // Formateo de fechas de envío y recepción
+        if ($r['enviado'] == 1 && $r['fecha_envio']) {
+            $fDespacho = date('d/m/Y h:i A', strtotime($r['fecha_envio']));
+        } else {
+            $fDespacho = '<span class="text-muted">—</span>';
+        }
+
+        if ($r['recibido'] == 1 && $r['fecha_entrega']) {
+            $fRetorno = date('d/m/Y h:i A', strtotime($r['fecha_entrega']));
+        } else {
+            $fRetorno = '<span class="text-muted">—</span>';
+        }
         
         // Renderización estética de Badges según estatus del tránsito físico
         if ($r['recibido'] == 1) {
-            $transitoHtml = '<span style="background-color: #198754; color: #ffffff; padding: 4px 8px; border-radius: 6px; font-weight: bold; display: inline-block; width: 140px; text-align: center;"><i class="fas fa-check-circle"></i> Recibido</span>';
+            $transitoHtml = '<span style="background-color: #198754; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px;"><i class="fas fa-check-circle"></i> Recibido</span>';
+        } elseif ($r['enviado'] == 1) {
+            $transitoHtml = '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px;"><i class="fas fa-truck-moving"></i> En Taller</span>';
         } else {
-            $transitoHtml = '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 8px; border-radius: 6px; font-weight: bold; display: inline-block; width: 140px; text-align: center;"><i class="fas fa-truck-moving"></i> Taller</span>';
+            $transitoHtml = '<span style="background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; padding: 4px 10px; border-radius: 6px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px;"><i class="fas fa-hourglass-start"></i> Por Enviar</span>';
+        }
+
+        $productoInfo = htmlspecialchars($r['producto_nombre'] ?? '—');
+        if (!empty($r['cantidad_a_producir'])) {
+            $productoInfo .= '<br><small class="text-muted">' . number_format((float)$r['cantidad_a_producir'], 0) . ' uds.</small>';
         }
 
         // Sanitización y truncado de observaciones largas
@@ -111,8 +135,9 @@ if (!empty($filas)) {
 
         echo '<tr>';
         echo '<td>' . $i . '</td>';
-        echo '<td><strong class="text-primary">' . htmlspecialchars(numero_orden_produccion((int)$r['orden_produccion_id'], $r['creado_en'] ?? $r['fecha_inicio'] ?? null)) . '</strong></td>';
-        echo '<td>' . htmlspecialchars($r['taller_nombre']) . '</td>';
+        echo '<td><strong style="color: #0056b3;"><i class="fas fa-file-lines" style="margin-right: 4px; opacity: 0.7;"></i>' . htmlspecialchars(numero_orden_produccion((int)$r['orden_produccion_id'], $r['creado_en'] ?? $r['fecha_inicio'] ?? null)) . '</strong></td>';
+        echo '<td>' . $productoInfo . '</td>';
+        echo '<td><strong>' . htmlspecialchars($r['taller_nombre']) . '</strong></td>';
         echo '<td>' . $fDespacho . '</td>';
         echo '<td>' . $fRetorno . '</td>';
         echo '<td style="text-align: center; vertical-align: middle;">' . $transitoHtml . '</td>';
@@ -120,7 +145,7 @@ if (!empty($filas)) {
         echo '</tr>';
     }
 } else {
-    echo '<tr><td colspan="7" class="text-center text-muted" style="padding: 25px;">No se encontraron movimientos de talleres con los filtros aplicados.</td></tr>';
+    echo '<tr><td colspan="8" class="text-center text-muted" style="padding: 25px;">No se encontraron movimientos de talleres con los filtros aplicados.</td></tr>';
 }
 
 $rowsHtml = ob_get_clean();

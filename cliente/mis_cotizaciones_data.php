@@ -253,7 +253,7 @@ switch ($action) {
             'SELECT codigo_cotizacion, codigo_presupuesto_origen, total, modalidad_pago, porcentaje_pago_minimo, status,
              DATE_FORMAT(fecha_registro, \'%d/%m/%Y\') AS fecha,
              comprobante_referencia, comprobante_archivo, comprobante_monto,
-             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %h:%i %p\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
         $stmtCab->bind_param('ii', $id_cotizacion, $id_cliente);
@@ -343,7 +343,7 @@ switch ($action) {
         $stmt = $conn->prepare(
             'SELECT codigo_cotizacion, total, modalidad_pago, porcentaje_pago_minimo, comprobante_monto,
              comprobante_referencia, comprobante_archivo, forma_pago_id,
-             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %h:%i %p\') AS comprobante_fecha
              FROM cotizaciones WHERE id_cotizacion = ? AND id_cliente = ?'
         );
         $stmt->bind_param('ii', $id_cot, $id_cliente);

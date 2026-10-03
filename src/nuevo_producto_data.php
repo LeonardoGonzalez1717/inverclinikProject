@@ -221,7 +221,7 @@ try {
             $i = $pg->rowNumberStart() - 1;
             foreach ($recetas as $r) {
                 $i++;
-                $fecha = $r['creado_en'] ? date('d/m/Y H:i', strtotime($r['creado_en'])) : '';
+                $fecha = $r['creado_en'] ? date('d/m/Y h:i A', strtotime($r['creado_en'])) : '';
                 echo '<tr>';
                 echo '<td>' .$i. '</td>';
                 echo '<td>' . htmlspecialchars($r['producto_nombre']) . '</td>';

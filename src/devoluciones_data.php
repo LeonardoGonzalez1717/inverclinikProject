@@ -166,7 +166,8 @@ try {
             $motivo = trim($_POST['motivo'] ?? '');
             $observaciones = trim($_POST['observaciones'] ?? '');
             $usuarioId = !empty($_SESSION['iduser']) ? (int) $_SESSION['iduser'] : null;
-            $accionInventario = 'reingresar_stock';
+            $accionInventario = 'pendiente_inspeccion';
+            $estado = 'pendiente';
 
             if ($ordenId <= 0) {
                 throw new Exception('Debe seleccionar la orden de producción a devolver.');
@@ -209,12 +210,12 @@ try {
                 $codigoTemp = 'TMP-DEV-' . bin2hex(random_bytes(4));
                 $fechaActual = date('Y-m-d H:i:s');
 
-                // Insertar cabecera de devolución
+                // Insertar cabecera de devolución (estado pendiente de inspección)
                 $stDev = $conn->prepare("
-                    INSERT INTO devoluciones (codigo_devolucion, fecha, cliente_id, motivo, descripcion_motivo, accion_inventario, usuario_id, observaciones)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO devoluciones (codigo_devolucion, fecha, cliente_id, motivo, descripcion_motivo, accion_inventario, estado, usuario_id, observaciones)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ");
-                $stDev->bind_param('ssisssis', $codigoTemp, $fechaActual, $clienteId, $motivo, $motivo, $accionInventario, $usuarioId, $observaciones);
+                $stDev->bind_param('ssissssis', $codigoTemp, $fechaActual, $clienteId, $motivo, $motivo, $accionInventario, $estado, $usuarioId, $observaciones);
                 $stDev->execute();
                 $devolucionId = $conn->insert_id;
                 $stDev->close();
@@ -222,8 +223,8 @@ try {
                 $codigoDevolucion = generarCodigoDevolucionSimple($devolucionId, $fechaActual);
                 $conn->query("UPDATE devoluciones SET codigo_devolucion = '{$codigoDevolucion}' WHERE id = {$devolucionId}");
 
-                // Insertar detalle de devolución
-                $estadoPosterior = 'devuelto_stock';
+                // Insertar detalle de devolución con estado 'pendiente_inspeccion'
+                $estadoPosterior = 'pendiente_inspeccion';
                 $stDet = $conn->prepare("
                     INSERT INTO devoluciones_detalle (devolucion_id, orden_produccion_id, cantidad, estado_unidad_posterior, observaciones)
                     VALUES (?, ?, ?, ?, ?)
@@ -232,22 +233,12 @@ try {
                 $stDet->execute();
                 $stDet->close();
 
-                // SUMAR STOCK AL INVENTARIO DE PRODUCTOS TERMINADOS
-                $recetaId = (int) $orden['receta_id'];
+                // El material NO entra a inventario activo de inmediato.
+                // Se envía al módulo de "Material Rechazado" para evaluación de calidad.
                 $numeroOrden = numero_orden_produccion((int)$orden['id'], $orden['creado_en']);
-                InventarioLotes::registrarEntrada($conn, [
-                    'tipo_item' => 'producto',
-                    'tipo_item_id' => $recetaId,
-                    'cantidad' => $cantidad,
-                    'origen' => 'devolucion',
-                    'origen_id' => $devolucionId,
-                    'observaciones' => "Reingreso por devolución {$codigoDevolucion} ({$cantidad} unds) de OP {$numeroOrden} ({$orden['producto_nombre']}) - Motivo: {$motivo}",
-                    'tipo_movimiento' => 'devolucion',
-                ]);
-
                 Auditoria::registrar(
                     $conn,
-                    "Registro de devolución {$codigoDevolucion} por {$cantidad} unds para el producto '{$orden['producto_nombre']}' de la OP #{$ordenId}. Motivo: {$motivo}. Reingreso a stock completado.",
+                    "Registro de devolución {$codigoDevolucion} por {$cantidad} para el producto '{$orden['producto_nombre']}' de la OP {$numeroOrden}. Motivo: {$motivo}. Enviado al módulo de Material Rechazado para su validación de estado.",
                     'Devoluciones'
                 );
 
@@ -255,7 +246,7 @@ try {
 
                 echo json_encode([
                     'success' => true,
-                    'message' => "Devolución {$codigoDevolucion} registrada correctamente.",
+                    'message' => "Devolución {$codigoDevolucion} registrada correctamente y enviada al módulo de Material Rechazado para su inspección.",
                     'id' => $devolucionId,
                     'codigo_devolucion' => $codigoDevolucion
                 ]);
@@ -269,6 +260,7 @@ try {
             $busqueda = trim($_GET['busqueda'] ?? $_POST['busqueda'] ?? '');
             $fechaDesde = trim($_GET['fecha_desde'] ?? $_POST['fecha_desde'] ?? '');
             $fechaHasta = trim($_GET['fecha_hasta'] ?? $_POST['fecha_hasta'] ?? '');
+            $filtroEstado = trim($_GET['estado'] ?? $_POST['estado'] ?? '');
             $pagina = max(1, (int) ($_GET['page'] ?? $_POST['page'] ?? 1));
             $porPagina = 15;
 
@@ -294,6 +286,12 @@ try {
                 $params[] = $likeB;
                 $params[] = $opNumInt;
                 $types .= "sssssi";
+            }
+
+            if ($filtroEstado !== '') {
+                $whereParts[] = "d.estado = ?";
+                $params[] = $filtroEstado;
+                $types .= "s";
             }
 
             if ($fechaDesde !== '') {
@@ -335,7 +333,10 @@ try {
             // Consultar datos de la página
             $sqlData = "
                 SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
-                       d.accion_inventario, d.observaciones, d.creado_en,
+                       d.accion_inventario, COALESCE(d.estado, 'pendiente') AS estado,
+                       d.fecha_inspeccion, d.usuario_inspeccion_id, d.motivo_inspeccion,
+                       d.observaciones, d.creado_en,
+                       u_insp.username AS inspector_nombre,
                        c.id AS cliente_id, c.nombre AS cliente_nombre, c.numero_documento AS cliente_documento,
                        dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
                        p.nombre AS producto_nombre,
@@ -348,6 +349,7 @@ try {
                 LEFT JOIN productos p ON p.id = rp.producto_id
                 LEFT JOIN tallas t ON t.id = op.talla_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
+                LEFT JOIN users u_insp ON u_insp.id = d.usuario_inspeccion_id
                 WHERE {$whereSql}
                 GROUP BY d.id
                 ORDER BY d.fecha DESC, d.id DESC
@@ -391,7 +393,11 @@ try {
 
             $sql = "
                 SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
-                       d.accion_inventario, d.observaciones, d.creado_en,
+                       d.accion_inventario, COALESCE(d.estado, 'pendiente') AS estado,
+                       d.fecha_inspeccion, d.usuario_inspeccion_id, d.motivo_inspeccion,
+                       d.observaciones, d.creado_en,
+                       u_reg.username AS usuario_registro_nombre,
+                       u_insp.username AS inspector_nombre,
                        c.id AS cliente_id, c.nombre AS cliente_nombre, c.numero_documento AS cliente_documento,
                        c.telefono AS cliente_telefono, c.email AS cliente_email,
                        dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
@@ -405,6 +411,8 @@ try {
                 LEFT JOIN productos p ON p.id = rp.producto_id
                 LEFT JOIN tallas t ON t.id = op.talla_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
+                LEFT JOIN users u_reg ON u_reg.id = d.usuario_id
+                LEFT JOIN users u_insp ON u_insp.id = d.usuario_inspeccion_id
                 WHERE d.id = ?
                 LIMIT 1
             ";
@@ -428,6 +436,213 @@ try {
                 'success' => true,
                 'devolucion' => $det
             ]);
+            break;
+
+        case 'aprobar_buen_estado':
+            $devolucionId = (int) ($_POST['devolucion_id'] ?? 0);
+            $observacionesInspeccion = trim($_POST['observaciones_inspeccion'] ?? '');
+            $usuarioId = !empty($_SESSION['iduser']) ? (int) $_SESSION['iduser'] : null;
+
+            if ($devolucionId <= 0) {
+                throw new Exception('ID de devolución inválido.');
+            }
+
+            $conn->begin_transaction();
+            try {
+                $st = $conn->prepare("
+                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo,
+                           dd.id AS detalle_id, dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+                           op.id AS op_id, op.creado_en AS orden_creado_en,
+                           p.id AS producto_id, p.nombre AS producto_nombre,
+                           COALESCE(r.id, 0) AS receta_id
+                    FROM devoluciones d
+                    INNER JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
+                    INNER JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
+                    INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                    INNER JOIN productos p ON p.id = rp.producto_id
+                    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+                        AND r.rango_tallas_id = rp.rango_tallas_id 
+                        AND r.tipo_produccion_id = rp.tipo_produccion_id
+                    WHERE d.id = ? FOR UPDATE
+                ");
+                $st->bind_param('i', $devolucionId);
+                $st->execute();
+                $dev = $st->get_result()->fetch_assoc();
+                $st->close();
+
+                if (!$dev) {
+                    throw new Exception('No se encontró el registro de devolución.');
+                }
+
+                if ($dev['estado'] === 'aprobado') {
+                    throw new Exception('Esta devolución ya fue aprobada y reingresada al inventario.');
+                }
+
+                $recetaId = (int) $dev['receta_id'];
+                $cantidad = (float) $dev['cantidad'];
+                $codigoDev = $dev['codigo_devolucion'];
+                $numeroOrden = numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']);
+                $fechaActual = date('Y-m-d H:i:s');
+
+                if ($recetaId <= 0) {
+                    $stR = $conn->prepare("SELECT id FROM recetas WHERE producto_id = ? LIMIT 1");
+                    $stR->bind_param('i', $dev['producto_id']);
+                    $stR->execute();
+                    $rRow = $stR->get_result()->fetch_assoc();
+                    $stR->close();
+                    if ($rRow) {
+                        $recetaId = (int)$rRow['id'];
+                    } else {
+                        $conn->query("INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id) VALUES ({$dev['producto_id']}, 1, 1)");
+                        $recetaId = (int)$conn->insert_id;
+                    }
+                }
+
+                $obsInventario = "Reingreso por devolución {$codigoDev} ({$cantidad}) de OP {$numeroOrden} ({$dev['producto_nombre']}) - Validado en BUEN ESTADO.";
+                if ($observacionesInspeccion !== '') {
+                    $obsInventario .= " Obs: " . $observacionesInspeccion;
+                }
+
+                $resEntrada = InventarioLotes::registrarEntrada($conn, [
+                    'tipo_item' => 'producto',
+                    'tipo_item_id' => $recetaId,
+                    'cantidad' => $cantidad,
+                    'origen' => 'devolucion',
+                    'origen_id' => $devolucionId,
+                    'observaciones' => $obsInventario,
+                    'tipo_movimiento' => 'devolucion',
+                ]);
+
+                $loteId = (int)($resEntrada['lote_id'] ?? 0);
+                $numeroLote = $resEntrada['numero_lote'] ?? '';
+
+                $motivoInspeccionFinal = $observacionesInspeccion !== '' ? $observacionesInspeccion : 'Bobina/Producto validado en buen estado para stock.';
+                $stUpd = $conn->prepare("
+                    UPDATE devoluciones 
+                    SET estado = 'aprobado', 
+                        accion_inventario = 'reingresar_stock', 
+                        fecha_inspeccion = ?, 
+                        usuario_inspeccion_id = ?, 
+                        motivo_inspeccion = ?
+                    WHERE id = ?
+                ");
+                $stUpd->bind_param('sisi', $fechaActual, $usuarioId, $motivoInspeccionFinal, $devolucionId);
+                $stUpd->execute();
+                $stUpd->close();
+
+                $stUpdDet = $conn->prepare("
+                    UPDATE devoluciones_detalle 
+                    SET estado_unidad_posterior = 'devuelto_stock',
+                        lote_id = ?
+                    WHERE id = ?
+                ");
+                $detalleId = (int)$dev['detalle_id'];
+                $stUpdDet->bind_param('ii', $loteId, $detalleId);
+                $stUpdDet->execute();
+                $stUpdDet->close();
+
+                Auditoria::registrar(
+                    $conn,
+                    "Inspección de devolución {$codigoDev}: VALIDADO EN BUEN ESTADO. Reingresaron {$cantidad} al inventario (Lote: {$numeroLote}) de la OP {$numeroOrden}.",
+                    'Devoluciones'
+                );
+
+                $conn->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "La bobina/material fue validada en BUEN ESTADO y reingresada exitosamente al inventario de stock.",
+                    'numero_lote' => $numeroLote
+                ]);
+            } catch (Exception $e) {
+                $conn->rollback();
+                throw $e;
+            }
+            break;
+
+        case 'rechazar_material':
+            $devolucionId = (int) ($_POST['devolucion_id'] ?? 0);
+            $motivoRechazo = trim($_POST['motivo_rechazo'] ?? '');
+            $usuarioId = !empty($_SESSION['iduser']) ? (int) $_SESSION['iduser'] : null;
+
+            if ($devolucionId <= 0) {
+                throw new Exception('ID de devolución inválido.');
+            }
+
+            $conn->begin_transaction();
+            try {
+                $st = $conn->prepare("
+                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo,
+                           dd.id AS detalle_id, dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+                           op.id AS op_id, op.creado_en AS orden_creado_en,
+                           p.nombre AS producto_nombre
+                    FROM devoluciones d
+                    INNER JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
+                    INNER JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
+                    INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                    INNER JOIN productos p ON p.id = rp.producto_id
+                    WHERE d.id = ? FOR UPDATE
+                ");
+                $st->bind_param('i', $devolucionId);
+                $st->execute();
+                $dev = $st->get_result()->fetch_assoc();
+                $st->close();
+
+                if (!$dev) {
+                    throw new Exception('No se encontró el registro de devolución.');
+                }
+
+                if ($dev['estado'] === 'aprobado') {
+                    throw new Exception('Esta devolución ya fue aprobada previamente.');
+                }
+
+                $codigoDev = $dev['codigo_devolucion'];
+                $cantidad = (float) $dev['cantidad'];
+                $numeroOrden = numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']);
+                $fechaActual = date('Y-m-d H:i:s');
+                if ($motivoRechazo === '') {
+                    $motivoRechazo = !empty($dev['motivo']) ? $dev['motivo'] : 'Material rechazado / no conforme';
+                }
+
+                $stUpd = $conn->prepare("
+                    UPDATE devoluciones 
+                    SET estado = 'rechazado', 
+                        accion_inventario = 'rechazado_sin_stock', 
+                        fecha_inspeccion = ?, 
+                        usuario_inspeccion_id = ?, 
+                        motivo_inspeccion = ?
+                    WHERE id = ?
+                ");
+                $stUpd->bind_param('sisi', $fechaActual, $usuarioId, $motivoRechazo, $devolucionId);
+                $stUpd->execute();
+                $stUpd->close();
+
+                $stUpdDet = $conn->prepare("
+                    UPDATE devoluciones_detalle 
+                    SET estado_unidad_posterior = 'rechazado'
+                    WHERE id = ?
+                ");
+                $detalleId = (int)$dev['detalle_id'];
+                $stUpdDet->bind_param('i', $detalleId);
+                $stUpdDet->execute();
+                $stUpdDet->close();
+
+                Auditoria::registrar(
+                    $conn,
+                    "Inspección de devolución {$codigoDev}: RECHAZADA Y DESCARTADA ({$cantidad} de OP {$numeroOrden}). Motivo: {$motivoRechazo}. No ingresó al inventario.",
+                    'Devoluciones'
+                );
+
+                $conn->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "La bobina/material fue marcada como RECHAZADA. No se sumará al inventario."
+                ]);
+            } catch (Exception $e) {
+                $conn->rollback();
+                throw $e;
+            }
             break;
 
         default:

@@ -148,22 +148,28 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             margin-bottom: 15px; 
         }
 
-        /* NUEVO: Estilos estéticos para las secciones de los Talleres dentro del Modal */
+        /* Estilos estéticos para las secciones de los Talleres dentro del Modal */
         .seccion-taller-card {
-            background: #f8f9fa;
+            background: #fff;
             border-left: 4px solid #6c757d;
             padding: 15px;
-            margin-bottom: 15px;
+            margin-bottom: 14px;
             border-radius: 0 8px 8px 0;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+            border: 1px solid #e9ecef;
+            border-left-width: 4px;
+        }
+        .seccion-taller-card.pendiente {
+            border-left-color: #f59e0b;
+            background: #fffdf7;
         }
         .seccion-taller-card.activa {
-            border-left-color: #0275d8;
+            border-left-color: #0d6efd;
             background: #f0f7ff;
         }
         .seccion-taller-card.completada {
-            border-left-color: #5cb85c;
-            background: #f4faf4;
+            border-left-color: #198754;
+            background: #f4faf6;
         }
     </style>
 </head>
@@ -552,7 +558,7 @@ function abrirModalTalleres(orden) {
     $('#btn-anexar-otro-taller').hide();
     $('#btn-marcar-orden-lista').hide();
     $('#seccion-nuevo-taller').hide();
-    $('#cronologia-talleres').html('<p class="text-center"><i class="fas fa-spinner fa-spin"></i>&nbsp; Cargando historial de la orden...</p>');
+    $('#cronologia-talleres').html('<p class="text-center" style="padding: 20px;"><i class="fas fa-spinner fa-spin"></i>&nbsp; Cargando historial de la orden...</p>');
     $('#modalTalleresTitle').text(numeroOrden ? 'Asignación de Talleres — ' + numeroOrden : 'Asignación de Talleres');
 
     $('#modalTalleres').modal('show');
@@ -571,31 +577,57 @@ function abrirModalTalleres(orden) {
 
             if(historial.length === 0) {
                 html = `<div class="alert alert-info text-center">
-                            <i class="fas fa-info-circle"></i>&nbsp;  Esta orden no ha sido enviada a ningún taller aún.
+                            <i class="fas fa-info-circle"></i>&nbsp; Esta orden no tiene talleres asignados aún.
                         </div>`;
                 $('#btn-anexar-otro-taller').text('Asignar Taller').show();
             } else {
                 var totalElementos = historial.length;
-                var ultimoTrabajoCompletado = true;
+                var todosCompletados = true;
 
                 historial.forEach(function(item, index) {
-                    var esUltimo = (index === totalElementos - 1);
                     var cardClass = 'seccion-taller-card';
                     var badgeStatus = '';
                     var botonAccion = '';
 
-                    if(item.fecha_retorno) {
+                    var esEnviado = parseInt(item.enviado) === 1;
+                    var esRecibido = parseInt(item.recibido) === 1;
+
+                    var infoFechas = '';
+                    if (item.fecha_envio) {
+                        infoFechas += `<div style="font-size:13px; margin-bottom: 3px;">
+                            <strong>Fecha de Envío:</strong> ${item.fecha_envio}
+                        </div>`;
+                    }
+                    if (item.fecha_retorno) {
+                        infoFechas += `<div style="font-size:13px; margin-bottom: 3px;">
+                            <strong>Fecha de Recepción:</strong> ${item.fecha_retorno}
+                        </div>`;
+                    }
+
+                    if (esRecibido) {
                         cardClass += ' completada';
-                        badgeStatus = '<span class="badge badge-success float-right"><i class="fas fa-check"></i> Trabajo Completado</span>';
-                    } else {
+                        badgeStatus = '';
+                    } else if (esEnviado) {
                         cardClass += ' activa';
-                        badgeStatus = '<span class="badge badge-success float-right"><i class="fas fa-clock"></i> En Proceso</span>';
-                        ultimoTrabajoCompletado = false;
+                        badgeStatus = '<span class="badge badge-primary float-right" style="font-size: 12px; padding: 6px 10px; background-color: #0d6efd; color: white"><i class="fas fa-clock"></i> En Proceso (En Taller)</span>';
+                        todosCompletados = false;
 
                         botonAccion = `
-                            <div class="text-right">
+                            <div class="text-right" style="margin-top: 10px;">
                                 <button type="button" class="btn btn-success btn-sm" onclick="registrarRetornoTaller(${item.id})">
-                                    <i class="fas fa-undo"></i> Recepion de Mercancía
+                                    <i class="fas fa-box-open"></i> Recepción de Mercancía
+                                </button>
+                            </div>`;
+                    } else {
+                        // Pendiente por Enviar
+                        cardClass += ' pendiente';
+                        badgeStatus = '<span class="badge badge-warning float-right" style="font-size: 12px; padding: 6px 10px; background-color: #ffc107; color: #212529;"><i class="fas fa-hourglass-start"></i> Pendiente por Enviar</span>';
+                        todosCompletados = false;
+
+                        botonAccion = `
+                            <div class="text-right" style="margin-top: 10px;">
+                                <button type="button" class="btn btn-primary btn-sm" onclick="registrarEnvioTaller(${item.id})">
+                                    <i class="fas fa-paper-plane"></i> Enviar Mercancía
                                 </button>
                             </div>`;
                     }
@@ -603,14 +635,19 @@ function abrirModalTalleres(orden) {
                     html += `
                     <div class="${cardClass}">
                         ${badgeStatus}
-                        <h6 style="font-weight:bold; color:#333;">Taller ${index + 1}: ${item.taller_nombre}</h6>
-                        <p style="margin-bottom:5px; font-size:14px;"><strong>Especificaciones:</strong> ${item.observaciones || '<i>Sin observaciones</i>'}</p>
+                        <h6 style="font-weight:bold; color:#1a202c; margin-bottom: 6px;">
+                            <i class="fas fa-warehouse text-muted"></i> Taller ${index + 1}: ${item.taller_nombre}
+                        </h6>
+                        <p style="margin-bottom:6px; font-size:13.5px; color:#4a5568;">
+                            <strong>Especificaciones:</strong> ${item.observaciones || '<i>Sin observaciones</i>'}
+                        </p>
+                        ${infoFechas}
                         ${botonAccion}
                     </div>`;
                 });
 
-                // REGLA CLAVE: Si el último taller ya retornó mercancía, habilitamos los caminos finales en el footer
-                if(ultimoTrabajoCompletado) {
+                // REGLA CLAVE: Si todos los talleres ya retornaron mercancía, habilitamos los caminos finales en el footer
+                if(todosCompletados) {
                     $('#btn-anexar-otro-taller').text('Asignar Taller').show();
                     $('#btn-marcar-orden-lista').show();
                 }
@@ -623,17 +660,49 @@ function abrirModalTalleres(orden) {
     }, 'json');
 }
 
-// NUEVO: Cambiar estado del registro intermedio a Recibido
+// Enviar mercancía al taller
+function registrarEnvioTaller(historialId) {
+    if(!historialId) return;
+
+    Swal.fire({
+        title: '¿Confirmar envío de mercancía?',
+        text: 'Se registrará el despacho y salida física de las prendas hacia el taller seleccionado.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-paper-plane"></i> Sí, enviar mercancía',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#0056b3'
+    }).then(function(result) {
+        if(result.isConfirmed) {
+            $.post('orden_produccion_data.php', {
+                action: 'registrar_envio_taller',
+                historial_id: historialId,
+                orden_id: ordenActualId
+            }, function(resp) {
+                if(resp && resp.success) {
+                    Swal.fire({ icon: 'success', text: resp.message || 'Mercancía despachada correctamente.' });
+                    abrirModalTalleres(ordenActualId);
+                    cargarListado();
+                } else {
+                    Swal.fire({ icon: 'error', text: resp.message || 'Error al procesar el envío.' });
+                }
+            }, 'json');
+        }
+    });
+}
+
+// Recepción de mercancía del taller
 function registrarRetornoTaller(historialId) {
     if(!historialId) return;
 
     Swal.fire({
-        title: '¿Confirmar recepción?',
+        title: '¿Confirmar recepción de mercancía?',
         text: 'Al aceptar registrará el retorno físico de las prendas a la empresa y pasará a revisión.',
         icon: 'info',
         showCancelButton: true,
-        confirmButtonText: 'Sí, recibir',
-        cancelButtonText: 'Cancelar'
+        confirmButtonText: '<i class="fas fa-box-open"></i> Sí, recibir mercancía',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#28a745'
     }).then(function(result) {
         if(result.isConfirmed) {
             $.post('orden_produccion_data.php', {
@@ -643,8 +712,8 @@ function registrarRetornoTaller(historialId) {
             }, function(resp) {
                 if(resp && resp.success) {
                     Swal.fire({ icon: 'success', text: resp.message || 'Retorno registrado con éxito.' });
-                    abrirModalTalleres(ordenActualId); // Refresca el modal para mutar a modo lectura y activar el "+" o "Marcar Lista"
-                    cargarListado(); // Sincroniza la tabla de fondo
+                    abrirModalTalleres(ordenActualId);
+                    cargarListado();
                 } else {
                     Swal.fire({ icon: 'error', text: resp.message || 'Error al procesar el retorno.' });
                 }

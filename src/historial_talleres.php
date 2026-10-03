@@ -57,7 +57,8 @@ if ($resTalleres) {
                                     <label for="filtro-estatus">Estatus en Tránsito</label>
                                     <select id="filtro-estatus" class="form-control clase-filtro">
                                         <option value="">Todos</option>
-                                        <option value="afuera">En Taller (Afuera)</option>
+                                        <option value="por_enviar">Por Enviar</option>
+                                        <option value="afuera">En Taller (Enviado)</option>
                                         <option value="recibido">Recibido (En Planta)</option>
                                     </select>
                                 </div>
@@ -84,12 +85,13 @@ if ($resTalleres) {
                                 <thead>
                                     <tr>
                                         <th style="width: 1%;">#</th>
-                                        <th style="width: 8%;" nowrap>N° Orden</th>
-                                        <th style="width: 18%;">Taller</th>
-                                        <th style="width: 14%;">Fecha Despacho</th>
-                                        <th style="width: 14%;">Fecha Retorno</th>
-                                        <th style="width: 15%; text-align: center;">Estatus Tránsito</th>
-                                        <th style="width: 30%;">Especificaciones / Observaciones</th>
+                                        <th style="width: 10%;" nowrap>N° Orden</th>
+                                        <th style="width: 16%;">Producto / Cantidad</th>
+                                        <th style="width: 14%;">Taller</th>
+                                        <th style="width: 14%;">Fecha Envío</th>
+                                        <th style="width: 14%;">Fecha Recepción</th>
+                                        <th style="width: 13%; text-align: center;">Estatus</th>
+                                        <th style="width: 18%;">Especificaciones / Observaciones</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tbody-historial-talleres">

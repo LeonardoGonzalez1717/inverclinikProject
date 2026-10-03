@@ -21,6 +21,7 @@ $where = [];
 $cliente_id = isset($_GET['cliente_id']) ? (int) $_GET['cliente_id'] : 0;
 $producto_id = isset($_GET['producto_id']) ? (int) $_GET['producto_id'] : 0;
 $orden_id = isset($_GET['orden_produccion_id']) ? (int) $_GET['orden_produccion_id'] : 0;
+$estado = trim($_GET['estado'] ?? '');
 $fecha_desde = trim($_GET['fecha_desde'] ?? '');
 $fecha_hasta = trim($_GET['fecha_hasta'] ?? '');
 
@@ -34,6 +35,11 @@ if ($producto_id > 0) {
 
 if ($orden_id > 0) {
     $where[] = "op.id = " . $orden_id;
+}
+
+if (!empty($estado)) {
+    $estadoEsc = $conn->real_escape_string($estado);
+    $where[] = "COALESCE(d.estado, 'pendiente') = '$estadoEsc'";
 }
 
 if (!empty($fecha_desde)) {
@@ -50,7 +56,8 @@ $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";
 
 $sql = "
     SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
-           d.accion_inventario, d.observaciones,
+           d.accion_inventario, COALESCE(d.estado, 'pendiente') AS estado,
+           d.motivo_inspeccion, d.observaciones,
            c.nombre AS cliente_nombre,
            dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
            p.nombre AS producto_nombre,
@@ -80,7 +87,7 @@ $result = $conn->query($sql);
       </div>
     </div>
     <div class="titulo-reporte">
-      <h2>Reporte de Devoluciones</h2>
+      <h2>Reporte de Devoluciones y Control de Calidad</h2>
     </div>
   </div>
 
@@ -97,21 +104,32 @@ $result = $conn->query($sql);
           <th>Cantidad</th>
           <th>Cliente</th>
           <th>Motivo</th>
+          <th>Estado Calidad</th>
         </tr>
       </thead>
       <tbody>
         <?php $i = 1; ?>
         <?php while ($row = $result->fetch_assoc()): ?>
+        <?php
+          $est = $row['estado'] ?? 'pendiente';
+          $estLabel = 'Pendiente';
+          if ($est === 'aprobado') {
+              $estLabel = 'Buen Estado (En Stock)';
+          } elseif ($est === 'rechazado') {
+              $estLabel = 'Rechazado (Descartado)';
+          }
+        ?>
         <tr>
           <td style="text-align: right"><?= $i++ ?></td>
           <td><?= htmlspecialchars($row['codigo_devolucion']) ?></td>
-          <td><?= !empty($row['fecha']) ? date('d/m/Y', strtotime($row['fecha'])) : '—' ?></td>
+          <td><?= !empty($row['fecha']) ? date('d/m/Y h:i A', strtotime($row['fecha'])) : '—' ?></td>
           <td><?= htmlspecialchars(!empty($row['orden_produccion_id']) ? numero_orden_produccion((int)$row['orden_produccion_id'], $row['orden_creado_en']) : '—') ?></td>
           <td style="text-align: left"><?= htmlspecialchars($row['producto_nombre'] ?? '—') ?></td>
           <td><?= htmlspecialchars($row['talla_nombre'] ?? 'Única') ?></td>
           <td style="text-align: right"><?= number_format((float)($row['cantidad'] ?? 1), 0) ?></td>
           <td style="text-align: left"><?= htmlspecialchars($row['cliente_nombre'] ?? 'Anónimo') ?></td>
           <td style="text-align: left"><?= htmlspecialchars($row['motivo'] ?? '—') ?></td>
+          <td style="text-align: center; font-weight: bold;"><?= htmlspecialchars($estLabel) ?></td>
         </tr>
       <?php endwhile; ?>
       </tbody>
@@ -121,7 +139,7 @@ $result = $conn->query($sql);
   <?php endif; ?>
 
   <div class="reporte-footer">
-    Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+    Generado el <?= date('d/m/Y \a \l\a\s h:i A') ?>
   </div>
 </div>
 
