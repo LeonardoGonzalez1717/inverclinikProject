@@ -1,6 +1,9 @@
 <?php
 // connection.php
 
+// Establecer zona horaria de Venezuela a nivel global en PHP
+date_default_timezone_set('America/Caracas');
+
 $host = "localhost";
 $user = "root";
 $pass = ""; 
@@ -21,6 +24,10 @@ if ($conn->connect_error) {
         die("Conexión fallida: " . $conn->connect_error);
     }
 }
+
+// Configurar zona horaria de Venezuela (UTC-4) y codificación en la conexión MySQL
+$conn->set_charset("utf8mb4");
+$conn->query("SET time_zone = '-04:00'");
 
 // --- SISTEMA DE SEGURIDAD GLOBAL ---
 if (session_status() === PHP_SESSION_NONE) {

@@ -144,10 +144,11 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                         <th>Cliente</th>
                                         <th>Fecha</th>
                                         <th nowrap>Nro. Factura</th>
-                                        <th>Cotización</th>
                                         <th>Cantidad</th>
-                                        <th>Total</th>
-                                        <th nowrap>Total Bs.</th>
+                                        <th nowrap>Monto Pagado</th>
+                                        <th nowrap>Equivalente Bs.</th>
+                                        <th nowrap>Tasa de Cambio</th>
+                                        <th nowrap>Total Venta</th>
                                         <th>Estado</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -759,19 +760,52 @@ function verDetalle(ventaId) {
             
             html += '<div class="row mb-3">';
             html += '<div class="col-md-6"><strong>Factura:</strong> ' + (resp.venta.numero_factura || '-') + '</div>';
-            html += '<div class="col-md-6"><strong>Cotización:</strong> ' + (resp.venta.codigo_cotizacion ? $('<div>').text(resp.venta.codigo_cotizacion).html() : '—') + '</div>';
+            html += '<div class="col-md-6"><strong>Cotización:</strong> ' + (resp.venta.codigo_cotizacion ? '<span class="badge badge-info" style="font-size: 0.9rem; padding: 4px 8px;">' + $('<div>').text(resp.venta.codigo_cotizacion).html() + '</span>' : '<span class="text-muted">—</span>') + '</div>';
             html += '</div>';
+
+            var tasaVal = parseFloat(resp.venta.tasa_venta || 0);
+            var tasaBsText = (tasaVal > 0) ? 'Bs. ' + tasaVal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 4}) : '<span class="text-muted">—</span>';
+
             html += '<div class="row mb-3">';
             html += '<div class="col-md-6"><strong>Forma de pago:</strong> ' + (resp.venta.forma_pago_nombre ? $('<div>').text(resp.venta.forma_pago_nombre).html() : '<span class="text-muted">—</span>') + '</div>';
-            html += '<div class="col-md-6"></div>';
+            html += '<div class="col-md-6"><strong>Tasa de cambio:</strong> ' + tasaBsText + '</div>';
             html += '</div>';
+
             var estTxt = resp.venta.estado_texto || resp.venta.estado || '—';
             var estCls = resp.venta.estado_badge_class || 'badge-secondary';
+            var refV = (resp.venta.comprobante_referencia || '').trim();
+
             html += '<div class="row mb-3">';
             html += '<div class="col-md-6"><strong>Estado:</strong> <span class="badge ' + $('<div>').text(estCls).html() + '">' + $('<div>').text(estTxt).html() + '</span></div>';
-            var refV = (resp.venta.comprobante_referencia || '').trim();
             html += '<div class="col-md-6"><strong>Ref. comprobante (venta):</strong> ' + (refV ? $('<div>').text(refV).html() : '<span class="text-muted">—</span>') + '</div>';
             html += '</div>';
+
+            var totalVal = parseFloat(resp.venta.total || 0);
+            var pagadoVal = parseFloat(resp.venta.monto_pagado || 0);
+            var saldoVal = parseFloat(resp.venta.saldo_pendiente || 0);
+            var totalBsVal = (tasaVal > 0) ? (totalVal * tasaVal) : 0;
+            var totalBsText = (tasaVal > 0) ? ' <small class="text-muted">(Bs. ' + totalBsVal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')</small>' : '';
+            var pagadoBsVal = (tasaVal > 0) ? (pagadoVal * tasaVal) : 0;
+            var pagadoBsText = (tasaVal > 0) ? ' <small class="text-muted">(Bs. ' + pagadoBsVal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')</small>' : '';
+
+            html += '<div class="row mb-3">';
+            html += '<div class="col-md-6"><strong>Total Venta:</strong> <span style="font-weight: bold;">$' + totalVal.toFixed(2) + totalBsText + '</span></div>';
+            html += '<div class="col-md-6"><strong>Monto Pagado:</strong> <span style="font-weight: bold;">$' + pagadoVal.toFixed(2) + pagadoBsText + '</span></div>';
+            html += '</div>';
+
+            if (saldoVal > 0.009) {
+                var saldoBsVal = (tasaVal > 0) ? (saldoVal * tasaVal) : 0;
+                var saldoBsText = (tasaVal > 0) ? ' <small class="text-muted">(Bs. ' + saldoBsVal.toLocaleString('es-VE', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ')</small>' : '';
+                html += '<div class="row mb-3">';
+                html += '<div class="col-md-6"><strong>Saldo Pendiente:</strong> <span style="color: #dc3545; font-weight: bold;">$' + saldoVal.toFixed(2) + saldoBsText + '</span></div>';
+                html += '<div class="col-md-6"></div>';
+                html += '</div>';
+            } else {
+                html += '<div class="row mb-3">';
+                html += '<div class="col-md-6"><strong>Saldo Pendiente:</strong> <span class="text-muted">$0.00 (Pagado completo)</span></div>';
+                html += '<div class="col-md-6"></div>';
+                html += '</div>';
+            }
             
             html += '<hr>';
             html += '<h6><strong>Detalle de Productos:</strong></h6>';

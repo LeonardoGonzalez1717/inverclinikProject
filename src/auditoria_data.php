@@ -123,7 +123,7 @@ try {
             echo '<tr><td colspan="5" class="text-center text-muted">No hay registros de auditoría.</td></tr>';
         } else {
             while ($row = $res->fetch_assoc()) {
-                $fecha = $row['fecha_hora'] ? date('d/m/Y H:i:s', strtotime($row['fecha_hora'])) : '';
+                $fecha = $row['fecha_hora'] ? date('d/m/Y h:i:s A', strtotime($row['fecha_hora'])) : '';
                 $mod = htmlspecialchars($row['modulo'] ?? '', ENT_QUOTES, 'UTF-8');
                 $actor = htmlspecialchars($row['nombre_actor'] ?? '', ENT_QUOTES, 'UTF-8');
                 $acc = htmlspecialchars($row['accion'] ?? '', ENT_QUOTES, 'UTF-8');

@@ -33,7 +33,7 @@ try {
             $i = $pg->rowNumberStart() - 1;
             foreach ($usuarios as $user) {
                 $i++;
-                $fecha = date('d/m/Y H:i', strtotime($user['createdAt']));
+                $fecha = date('d/m/Y h:i A', strtotime($user['createdAt']));
                 $rol = $user['rol'] ?? 'No asignado';
                 $rolDisplay = ucfirst($rol);
                 echo '<tr>';

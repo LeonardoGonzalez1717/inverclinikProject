@@ -615,7 +615,7 @@ try {
         $chk = $conn->prepare(
             'SELECT id_cliente, comprobante_referencia, comprobante_archivo, comprobante_monto,
              forma_pago_id,
-             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %H:%i\') AS comprobante_fecha_fmt
+             DATE_FORMAT(comprobante_fecha, \'%d/%m/%Y %h:%i %p\') AS comprobante_fecha_fmt
              FROM cotizaciones WHERE id_cotizacion = ? AND status != 3'
         );
         $chk->bind_param('i', $cotizacion_id);
@@ -711,12 +711,15 @@ try {
                 fp.nombre AS forma_pago_nombre,
                 tc.tasa AS tasa_venta,
                 c.nombre AS cliente_nombre,
-                cot.codigo_cotizacion
+                cot.codigo_cotizacion,
+                COALESCE(cxc.monto_pagado, CASE WHEN v.estado IN ('aprobado', 'entregado', 'en_proceso') THEN v.total ELSE 0.00 END) AS monto_pagado,
+                COALESCE(cxc.saldo_pendiente, CASE WHEN v.estado IN ('aprobado', 'entregado', 'en_proceso') THEN 0.00 ELSE v.total END) AS saldo_pendiente
             FROM ventas v
             INNER JOIN clientes c ON v.cliente_id = c.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN formas_pago fp ON fp.id = v.forma_pago_id
             LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
+            LEFT JOIN cuentas_por_cobrar cxc ON cxc.venta_id = v.id
             WHERE v.id = ?
         ";
         
@@ -828,6 +831,8 @@ try {
                 c.nombre AS cliente_nombre,
                 cot.codigo_cotizacion,
                 cot.status AS cotizacion_status,
+                COALESCE(cxc.monto_pagado, CASE WHEN v.estado IN ('aprobado', 'entregado', 'en_proceso') THEN v.total ELSE 0.00 END) AS monto_pagado,
+                COALESCE(cxc.saldo_pendiente, CASE WHEN v.estado IN ('aprobado', 'entregado', 'en_proceso') THEN 0.00 ELSE v.total END) AS saldo_pendiente,
                 (
                     SELECT COUNT(*)
                     FROM cuentas_por_cobrar cxc2
@@ -839,12 +844,13 @@ try {
             LEFT JOIN tasas_cambiarias tc ON tc.id = v.tasa_cambiaria_id
             LEFT JOIN cotizaciones cot ON cot.id_cotizacion = v.cotizacion_id
             LEFT JOIN detalle_venta dv ON v.id = dv.venta_id
+            LEFT JOIN cuentas_por_cobrar cxc ON cxc.venta_id = v.id
             WHERE NOT (
                 v.cotizacion_id IS NOT NULL
                 AND COALESCE(v.estado, 'pendiente') IN ('pendiente', 'por_pagar')
                 AND v.tasa_cambiaria_id IS NULL
             )
-            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, cot.status, v.creado_en
+            GROUP BY v.id, v.fecha, v.numero_factura, v.total, v.tasa_cambiaria_id, v.cotizacion_id, v.estado, tc.tasa, c.nombre, cot.codigo_cotizacion, cot.status, v.creado_en, cxc.monto_pagado, cxc.saldo_pendiente
         ";
 
         $total = Pagination::countFromSubquery($conn, $sqlBase);
@@ -866,23 +872,29 @@ try {
         if (!empty($ventas)) {
             foreach ($ventas as $v) {
                 $i++;
-                $totalBs = null;
+                $montoPagado = (float)($v['monto_pagado'] ?? 0);
+                $totalVenta = (float)($v['total'] ?? 0);
+
+                $pagadoBs = null;
                 if (!empty($v['tasa_venta']) && (float)$v['tasa_venta'] > 0) {
-                    $totalBs = (float)$v['total'] * (float)$v['tasa_venta'];
+                    $pagadoBs = $montoPagado * (float)$v['tasa_venta'];
                 }
-                $totalBsTexto = $totalBs !== null ? 'Bs. ' . number_format($totalBs, 2, '.', ',') : '—';
+                $pagadoBsTexto = $pagadoBs !== null ? 'Bs. ' . number_format($pagadoBs, 2, '.', ',') : '—';
+                $tasaVentaTexto = !empty($v['tasa_venta']) && (float)$v['tasa_venta'] > 0 
+                    ? 'Bs. ' . number_format((float)$v['tasa_venta'], 2, '.', ',') 
+                    : '—';
+
                 [$estTxt, $estStyle] = etiqueta_estado_venta($v['estado'] ?? null);
                 echo '<tr>';
                 echo '<td>' . htmlspecialchars($i) . '</td>';
                 echo '<td>' . htmlspecialchars($v['cliente_nombre']) . '</td>';
                 echo '<td>' . date('d/m/Y', strtotime($v['fecha'])) . '</td>';
                 echo '<td>' . htmlspecialchars($v['numero_factura'] ?? '-') . '</td>';
-                $codCot = $v['codigo_cotizacion'] ?? '';
-                echo '<td>' . ($codCot !== '' && $codCot !== null ? htmlspecialchars($codCot) : '<span class="text-muted">—</span>') . '</td>';
                 echo '<td style="text-align: right;">' . number_format($v['cantidad_total'], 2, '.', ',') .'</td>';
-                echo '<td style="text-align: right; font-weight: bold;">$' . number_format($v['total'], 2, '.', ',') . '</td>';
-                echo '<td style="text-align: right; font-weight: bold;"nowrap>' . htmlspecialchars($totalBsTexto) . '</td>';
-                [$estTxt, $estCls] = etiqueta_estado_venta($v['estado'] ?? null);
+                echo '<td style="text-align: right; font-weight: bold;">$' . number_format($montoPagado, 2, '.', ',') . '</td>';
+                echo '<td style="text-align: right; font-weight: bold;" nowrap>' . htmlspecialchars($pagadoBsTexto) . '</td>';
+                echo '<td style="text-align: right;" nowrap>' . htmlspecialchars($tasaVentaTexto) . '</td>';
+                echo '<td style="text-align: right; font-weight: bold;">$' . number_format($totalVenta, 2, '.', ',') . '</td>';
                 echo '<td><span style="' . htmlspecialchars($estStyle, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($estTxt) . '</span></td>';
                 echo '<td style="white-space: nowrap;">';
                 $pendienteAprobarPago = !empty($v['cotizacion_id'])
@@ -900,7 +912,7 @@ try {
                 echo '</tr>';
             }
         } else {
-            echo '<tr><td colspan="10" class="text-center text-muted" style="padding: 20px;">No se encontraron ventas con los filtros aplicados.</td></tr>';
+            echo '<tr><td colspan="11" class="text-center text-muted" style="padding: 20px;">No se encontraron ventas con los filtros aplicados.</td></tr>';
         }
         $rowsHtml = ob_get_clean();
         Pagination::sendJsonList($rowsHtml, $pg);

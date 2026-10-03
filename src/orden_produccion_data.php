@@ -70,7 +70,9 @@ function asegurar_tabla_ordenes_talleres(mysqli $conn): void
         orden_produccion_id INT NOT NULL,
         taller_id INT NOT NULL,
         fecha_asignacion DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        fecha_envio DATETIME NULL,
         fecha_entrega DATETIME NULL, 
+        enviado TINYINT(1) NOT NULL DEFAULT 0,
         recibido TINYINT(1) NOT NULL DEFAULT 0, 
         observaciones TEXT NULL,
         CONSTRAINT fk_talleres_orden FOREIGN KEY (orden_produccion_id) 
@@ -82,6 +84,18 @@ function asegurar_tabla_ordenes_talleres(mysqli $conn): void
             ON DELETE RESTRICT 
             ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $chkEnv = $conn->query("SHOW COLUMNS FROM ordenes_talleres LIKE 'enviado'");
+    if (!$chkEnv || $chkEnv->num_rows === 0) {
+        @$conn->query("ALTER TABLE ordenes_talleres ADD COLUMN enviado TINYINT(1) NOT NULL DEFAULT 0 AFTER fecha_asignacion");
+    }
+
+    $chkFEnv = $conn->query("SHOW COLUMNS FROM ordenes_talleres LIKE 'fecha_envio'");
+    if (!$chkFEnv || $chkFEnv->num_rows === 0) {
+        @$conn->query("ALTER TABLE ordenes_talleres ADD COLUMN fecha_envio DATETIME NULL AFTER fecha_asignacion");
+    }
+
+    @$conn->query("UPDATE ordenes_talleres SET enviado = 1, fecha_envio = fecha_asignacion WHERE recibido = 1 AND (enviado = 0 OR fecha_envio IS NULL)");
 }
 
 asegurar_tabla_ordenes_talleres($conn);
@@ -379,10 +393,15 @@ try {
 
         $sql = "SELECT 
                     ot.id,
+                    ot.orden_produccion_id,
                     ot.taller_id,
                     t.nombre AS taller_nombre,
+                    t.costo AS taller_costo,
                     ot.observaciones, 
-                    DATE_FORMAT(ot.fecha_asignacion, '%d/%m/%Y %h:%i %p') AS fecha_despacho,
+                    COALESCE(ot.enviado, 0) AS enviado,
+                    COALESCE(ot.recibido, 0) AS recibido,
+                    DATE_FORMAT(ot.fecha_asignacion, '%d/%m/%Y %h:%i %p') AS fecha_asignacion,
+                    DATE_FORMAT(ot.fecha_envio, '%d/%m/%Y %h:%i %p') AS fecha_envio,
                     DATE_FORMAT(ot.fecha_entrega, '%d/%m/%Y %h:%i %p') AS fecha_retorno
                 FROM ordenes_talleres ot
                 INNER JOIN talleres t ON ot.taller_id = t.id
@@ -407,33 +426,62 @@ try {
         exit;
     }
 
-    if ($action === 'enviar_a_taller') {
+    if ($action === 'enviar_a_taller' || $action === 'asignar_taller') {
         $orden_id    = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
         $taller_id   = isset($_POST['taller_id']) ? (int)$_POST['taller_id'] : 0;
         $descripcion = isset($_POST['observaciones']) ? $conn->real_escape_string(trim($_POST['observaciones'])) : '';
 
         if ($orden_id <= 0 || $taller_id <= 0) {
-            echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios para el despacho.']);
+            echo json_encode(['success' => false, 'message' => 'Faltan datos obligatorios para la asignación del taller.']);
             exit;
         }
 
         $conn->begin_transaction();
 
         try {
-            $sqlInsert = "INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, observaciones, fecha_asignacion, recibido) 
-                        VALUES ($orden_id, $taller_id, '$descripcion', NOW(), 0)";
+            $sqlInsert = "INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, observaciones, fecha_asignacion, enviado, recibido) 
+                        VALUES ($orden_id, $taller_id, '$descripcion', NOW(), 0, 0)";
             
             if (!$conn->query($sqlInsert)) {
-                throw new Exception("Error al insertar el registro del taller.");
-            }
-
-            $sqlUpdate = "UPDATE ordenes_produccion SET estado = 'en_taller' WHERE id = $orden_id";
-            if (!$conn->query($sqlUpdate)) {
-                throw new Exception("Error al actualizar el estado de la orden principal.");
+                throw new Exception("Error al registrar el taller.");
             }
 
             $conn->commit();
-            echo json_encode(['success' => true, 'message' => 'Enviado al taller correctamente.']);
+            echo json_encode(['success' => true, 'message' => 'Taller asignado correctamente.']);
+        } catch (Exception $e) {
+            $conn->rollback();
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+        }
+        exit;
+    }
+
+    if ($action === 'registrar_envio_taller') {
+        $historial_id = isset($_POST['historial_id']) ? (int)$_POST['historial_id'] : 0;
+        $orden_id     = isset($_POST['orden_id']) ? (int)$_POST['orden_id'] : 0;
+
+        if ($historial_id <= 0 || $orden_id <= 0) {
+            echo json_encode(['success' => false, 'message' => 'IDs de referencia no válidos.']);
+            exit;
+        }
+
+        $conn->begin_transaction();
+
+        try {
+            $sqlEnvio = "UPDATE ordenes_talleres 
+                         SET enviado = 1, fecha_envio = NOW() 
+                         WHERE id = $historial_id AND orden_produccion_id = $orden_id";
+            
+            if (!$conn->query($sqlEnvio)) {
+                throw new Exception("Error al registrar el envío de mercancía.");
+            }
+
+            $sqlUpdateStatus = "UPDATE ordenes_produccion SET estado = 'en_taller' WHERE id = $orden_id";
+            if (!$conn->query($sqlUpdateStatus)) {
+                throw new Exception("Error al actualizar el estado de la orden.");
+            }
+
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Mercancía despachada y enviada al taller con éxito.']);
         } catch (Exception $e) {
             $conn->rollback();
             echo json_encode(['success' => false, 'message' => $e->getMessage()]);
@@ -455,15 +503,22 @@ try {
         try {
             $sqlReturn = "UPDATE ordenes_talleres 
                         SET recibido = 1, fecha_entrega = NOW() 
-                        WHERE id = $historial_id";
+                        WHERE id = $historial_id AND orden_produccion_id = $orden_id";
             
             if (!$conn->query($sqlReturn)) {
-                throw new Exception("Error al asentar el retorno en la base de datos.");
+                throw new Exception("Error al asentar la recepción en la base de datos.");
             }
 
-            $sqlUpdateStatus = "UPDATE ordenes_produccion SET estado = 'en_empresa' WHERE id = $orden_id";
-            if (!$conn->query($sqlUpdateStatus)) {
-                throw new Exception("Error al actualizar el estado de la orden.");
+            // Verificar si todos los talleres de la orden ya fueron recibidos
+            $chkPend = $conn->query("SELECT COUNT(*) AS total_pendientes FROM ordenes_talleres WHERE orden_produccion_id = $orden_id AND recibido = 0");
+            $rowPend = $chkPend ? $chkPend->fetch_assoc() : null;
+            $pendientes = (int)($rowPend['total_pendientes'] ?? 0);
+
+            if ($pendientes === 0) {
+                $sqlUpdateStatus = "UPDATE ordenes_produccion SET estado = 'en_empresa' WHERE id = $orden_id";
+                if (!$conn->query($sqlUpdateStatus)) {
+                    throw new Exception("Error al actualizar el estado de la orden.");
+                }
             }
 
             $conn->commit();
@@ -686,7 +741,7 @@ try {
                 // Guardar los talleres asignados
                 $talleres = isset($_POST['talleres']) ? (is_array($_POST['talleres']) ? $_POST['talleres'] : json_decode($_POST['talleres'], true)) : [];
                 if (!empty($talleres) && is_array($talleres)) {
-                    $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, recibido) VALUES (?, ?, 0)");
+                    $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, enviado, recibido) VALUES (?, ?, 0, 0)");
                     foreach ($talleres as $tallerId) {
                         $tid = (int)$tallerId;
                         if ($tid > 0) {
@@ -1034,7 +1089,7 @@ try {
                     $stmtDelOT->close();
 
                     if (!empty($talleres)) {
-                        $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, recibido) VALUES (?, ?, 0)");
+                        $stmtOT = $conn->prepare("INSERT INTO ordenes_talleres (orden_produccion_id, taller_id, enviado, recibido) VALUES (?, ?, 0, 0)");
                         foreach ($talleres as $tallerId) {
                             $tid = (int)$tallerId;
                             if ($tid > 0) {

@@ -133,7 +133,7 @@ switch ($action) {
 
         $stmt = $conn->prepare(
             'SELECT p.id, p.monto, p.referencia, p.observaciones, p.es_pago_inicial, p.origen,
-                    DATE_FORMAT(p.fecha_pago, \'%d/%m/%Y %H:%i\') AS fecha_fmt,
+                    DATE_FORMAT(p.fecha_pago, \'%d/%m/%Y %h:%i %p\') AS fecha_fmt,
                     fp.nombre AS forma_pago
              FROM cuentas_por_cobrar_pagos p
              LEFT JOIN formas_pago fp ON fp.id = p.forma_pago_id

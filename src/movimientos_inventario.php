@@ -154,6 +154,11 @@ if ($resultRecetas) {
                                     Productos Terminados
                                 </button>
                             </li>
+                            <li class="nav-item">
+                                <button class="nav-link" id="material-rechazado-tab" type="button" onclick="cambiarTab('material_rechazado');">
+                                    Material Rechazado
+                                </button>
+                            </li>
                         </ul>
                         
                         <div class="tab-content" id="inventario-tab-content">
@@ -201,6 +206,31 @@ if ($resultRecetas) {
                                     </table>
                                 </div>
                                 <div id="paginacion-productos"></div>
+                            </div>
+
+                            <div class="tab-pane" id="material-rechazado" role="tabpanel">
+                                <h5 class="subtitle">Material Rechazado / Devoluciones</h5>
+                                <div class="table-container">
+                                    <table class="recipe-table">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Fecha</th>
+                                                <th>Código DEV</th>
+                                                <th>Orden de Prod.</th>
+                                                <th>Material / Producto</th>
+                                                <th style="text-align: right;">Cantidad</th>
+                                                <th>Cliente</th>
+                                                <th>Motivo Devolución</th>
+                                                <th style="text-align: center;">Estado</th>
+                                                <th style="text-align: center;">Situación Inventario</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-material-rechazado">
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div id="paginacion-material-rechazado"></div>
                             </div>
                         </div>
                     </div>
@@ -403,6 +433,9 @@ function cambiarTab(tipo) {
     if (tipo === 'materia_prima') {
         $('#materia-prima-tab').addClass('active');
         $('#materia-prima').addClass('active');
+    } else if (tipo === 'material_rechazado') {
+        $('#material-rechazado-tab').addClass('active');
+        $('#material-rechazado').addClass('active');
     } else {
         $('#productos-tab').addClass('active');
         $('#productos').addClass('active');
@@ -429,6 +462,9 @@ function cargarListado(tipo, page) {
                 if (tipo === 'materia_prima') {
                     $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">' + msg + '</td></tr>');
                     $('#paginacion-materia-prima').empty();
+                } else if (tipo === 'material_rechazado') {
+                    $('#tbody-material-rechazado').html('<tr><td colspan="10" class="text-center text-danger">' + msg + '</td></tr>');
+                    $('#paginacion-material-rechazado').empty();
                 } else {
                     $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">' + msg + '</td></tr>');
                     $('#paginacion-productos').empty();
@@ -438,6 +474,9 @@ function cargarListado(tipo, page) {
             if (tipo === 'materia_prima') {
                 $('#tbody-materia-prima').html(resp.rows_html || '');
                 $('#paginacion-materia-prima').html(resp.pagination_html || '');
+            } else if (tipo === 'material_rechazado') {
+                $('#tbody-material-rechazado').html(resp.rows_html || '');
+                $('#paginacion-material-rechazado').html(resp.pagination_html || '');
             } else {
                 $('#tbody-productos').html(resp.rows_html || '');
                 $('#paginacion-productos').html(resp.pagination_html || '');
@@ -452,6 +491,9 @@ function cargarListado(tipo, page) {
             if (tipo === 'materia_prima') {
                 $('#tbody-materia-prima').html('<tr><td colspan="7" class="text-center text-danger">' + msg + '</td></tr>');
                 $('#paginacion-materia-prima').empty();
+            } else if (tipo === 'material_rechazado') {
+                $('#tbody-material-rechazado').html('<tr><td colspan="10" class="text-center text-danger">' + msg + '</td></tr>');
+                $('#paginacion-material-rechazado').empty();
             } else {
                 $('#tbody-productos').html('<tr><td colspan="9" class="text-center text-danger">' + msg + '</td></tr>');
                 $('#paginacion-productos').empty();
@@ -525,9 +567,132 @@ function limpiarFormulario() {
 
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
-    cargarListado('materia_prima', 1);
+    
+    // Comprobar si viene un tab en la URL (ej. ?tab=material_rechazado)
+    var urlParams = new URLSearchParams(window.location.search);
+    var tabParam = urlParams.get('tab');
+    if (tabParam && (tabParam === 'material_rechazado' || tabParam === 'productos' || tabParam === 'materia_prima')) {
+        cambiarTab(tabParam);
+    } else {
+        cargarListado('materia_prima', 1);
+    }
+
     bindCrudPagination('#paginacion-materia-prima', function(p) { cargarListado('materia_prima', p); });
     bindCrudPagination('#paginacion-productos', function(p) { cargarListado('productos', p); });
+    bindCrudPagination('#paginacion-material-rechazado', function(p) { cargarListado('material_rechazado', p); });
+});
+
+// Botón para validar bobina / material en buen estado
+$(document).on('click', '.btn-aprobar-bobina', function() {
+    var devId = $(this).data('id');
+    var codigo = $(this).data('codigo');
+    var producto = $(this).data('producto');
+    var cant = $(this).data('cantidad');
+
+    Swal.fire({
+        title: '¿Validar en Buen Estado?',
+        html: `¿Desea validar la devolución <b>${codigo}</b> (${producto}, ${cant} unds) en buen estado?<br><br><small class="text-muted">La cantidad reingresará automáticamente al inventario de stock disponible.</small>`,
+        icon: 'question',
+        input: 'text',
+        inputPlaceholder: 'Observaciones de inspección (opcional)',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-check"></i> Sí, ingresar al inventario',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: 'movimientos_inventario_data.php',
+                type: 'POST',
+                data: {
+                    action: 'aprobar_buen_estado',
+                    devolucion_id: devId,
+                    observaciones_inspeccion: result.value || ''
+                },
+                dataType: 'json',
+                success: function(resp) {
+                    if (resp && resp.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Reingresado a Stock!',
+                            text: resp.message + (resp.numero_lote ? ' (Lote: ' + resp.numero_lote + ')' : ''),
+                            timer: 2500,
+                            showConfirmButton: true
+                        });
+                        cargarListado('material_rechazado', 1);
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: resp ? resp.message : 'No se pudo aprobar la devolución'
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de servidor',
+                        text: xhr.responseJSON ? xhr.responseJSON.message : 'Error al procesar la solicitud'
+                    });
+                }
+            });
+        }
+    });
+});
+
+// Botón para rechazar bobina / material
+$(document).on('click', '.btn-rechazar-bobina', function() {
+    var devId = $(this).data('id');
+    var codigo = $(this).data('codigo');
+    var producto = $(this).data('producto');
+    var cant = $(this).data('cantidad');
+
+    Swal.fire({
+        title: '¿Rechazar Bobina / Material?',
+        html: `¿Está seguro de rechazar la devolución <b>${codigo}</b> (${producto}, ${cant} unds)?<br><br><b style="color: #ef4444;">El material no ingresará al inventario disponible.</b>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-ban"></i> Sí, rechazar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ef4444'
+    }).then(function(result) {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: 'movimientos_inventario_data.php',
+                type: 'POST',
+                data: {
+                    action: 'rechazar_material',
+                    devolucion_id: devId
+                },
+                dataType: 'json',
+                success: function(resp) {
+                    if (resp && resp.success) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Material Rechazado',
+                            text: resp.message,
+                            timer: 2500,
+                            showConfirmButton: true
+                        });
+                        cargarListado('material_rechazado', 1);
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: resp ? resp.message : 'No se pudo rechazar la devolución'
+                        });
+                    }
+                },
+                error: function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error de servidor',
+                        text: xhr.responseJSON ? xhr.responseJSON.message : 'Error al procesar la solicitud'
+                    });
+                }
+            });
+        }
+    });
 });
 
 $("#form-crear").on("submit", function(e) {

@@ -74,7 +74,7 @@ if ($r) {
                 </div>
 
                 <div class="row form-group">
-                    <div class="col-sm-6">
+                    <div class="col-sm-4">
                         <label class="form-label">Orden de Producción</label>
                         <select name="orden_produccion_id" id="orden_produccion_id" class="form-control">
                             <option value="">Todas las órdenes</option>
@@ -83,6 +83,16 @@ if ($r) {
                                     <?php echo htmlspecialchars($o['numero_orden'] . ' — ' . $o['producto_nombre'] . ' (' . $o['talla_nombre'] . ')', ENT_QUOTES, 'UTF-8'); ?>
                                 </option>
                             <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-sm-2">
+                        <label class="form-label">Estado de Inspección</label>
+                        <select name="estado" id="estado" class="form-control">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente">Pendiente de Inspección</option>
+                            <option value="aprobado">Buen Estado (En Stock)</option>
+                            <option value="rechazado">Rechazado (Descartado)</option>
                         </select>
                     </div>
 

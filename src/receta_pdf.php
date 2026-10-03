@@ -68,7 +68,7 @@ while ($row = $res2->fetch_assoc()) {
 $stmt2->close();
 $conn->close();
 
-$fecha_creacion = $receta['creado_en'] ? date('d/m/Y H:i', strtotime($receta['creado_en'])) : '—';
+$fecha_creacion = $receta['creado_en'] ? date('d/m/Y h:i A', strtotime($receta['creado_en'])) : '—';
 $titulo = 'Guia de corte: ' . $receta['producto_nombre'] . ' — ' . $receta['rango_tallas_nombre'] . ' — ' . $receta['tipo_produccion_nombre'];
 
 // Crear PDF

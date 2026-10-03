@@ -131,7 +131,7 @@ No existen productos terminados en inventario con esos filtros.
 <?php endif; ?>
 
 <div class="reporte-footer">
-Generado el <?= date('d/m/Y \a \l\a\s H:i') ?>
+Generado el <?= date('d/m/Y \a \l\a\s h:i A') ?>
 </div>
 
 </div>
