@@ -139,6 +139,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                         </button>
                         <!-- <h5 class="subtitle">Registrar Nueva Compra</h5> -->
                         <form id="form-compra">
+                            <input type="hidden" name="id_orden_compra" id="id_orden_compra" value="">
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label">Proveedor <span style="color: red;">*</span></label>
@@ -160,6 +161,25 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
                                     <label class="form-label">Número de Factura</label>
                                     <input type="text" name="numero_factura" id="numero_factura" class="form-control"
                                         maxlength="50" placeholder="Ej: FAC-001">
+                                </div>
+                            </div>
+
+                            <!-- Selector/Botón opcional: Cargar datos desde Orden de Compra (Encima de Proveedor) -->
+                            <div class="card mb-3" style="padding: 12px 16px; background-color: #f0f6ff; border: 1px dashed #0056b3; border-radius: 8px;">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap" style="gap: 10px;">
+                                    <div>
+                                        <strong style="color: #0056b3;">Buscar Orden de Compra</strong>
+                                        <div class="small text-muted">Seleccione primero el <strong>Proveedor</strong> para consultar sus Órdenes de Compra en estado <strong>EMITIDA</strong>.</div>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span id="badge-oc-cargada" class="badge badge-primary" style="display: none; font-size: 0.9rem; padding: 6px 10px;"></span>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" id="btn-quitar-oc" style="display: none;" title="Desvincular Orden de Compra">
+                                            <i class="fas fa-unlink"></i> Quitar O.C.
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-primary" id="btn-abrir-modal-oc">
+                                            <i class="fas fa-search"></i> Cargar datos desde Orden de Compra
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -263,6 +283,32 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
         </div>
     </div>
 
+    <!-- Modal para cargar Orden de Compra pendiente (EMITIDA) del proveedor -->
+    <div class="modal fade" id="modalOrdenesCompraPendientes" tabindex="-1" role="dialog" aria-labelledby="modalOrdenesCompraPendientesLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <h5 class="modal-title" id="modalOrdenesCompraPendientesLabel">
+                        <i class="fas fa-file-invoice-dollar"></i> Órdenes de Compra Pendientes (Estado: EMITIDA)
+                    </h5>
+                </div>
+                <div class="modal-body" id="modalOrdenesCompraPendientesBody">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="sr-only">Cargando...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <script>
 var insumosAgregados = [];
 var tasaCambiariaActual = <?php echo $tasa_actual !== null ? json_encode($tasa_actual) : 'null'; ?>;
@@ -320,11 +366,18 @@ function cargarListado(page) {
     limpiarFormulario();
 }
 
+function limpiarOrdenCompraSeleccionada() {
+    $('#id_orden_compra').val('');
+    $('#badge-oc-cargada').text('').hide();
+    $('#btn-quitar-oc').hide();
+}
+
 function limpiarFormulario() {
     $('#form-compra')[0].reset();
     $('#fecha').val('<?php echo date('Y-m-d'); ?>');
     $('#estado').val('pendiente');
     $('#proveedor_id').val('');
+    limpiarOrdenCompraSeleccionada();
     insumosAgregados = [];
     actualizarTablaInsumos();
     limpiarFormularioInsumo();
@@ -461,8 +514,9 @@ function verDetalle(compraId) {
             html += '</div>';
             
             html += '<div class="row mb-3">';
-            html += '<div class="col-md-6"><strong>Número de Factura:</strong> ' + (resp.compra.numero_factura || '-') + '</div>';
-            html += '<div class="col-md-6"><strong>Estado:</strong> ' + resp.compra.estado_badge + '</div>';
+            html += '<div class="col-md-4"><strong>Número de Factura:</strong> ' + (resp.compra.numero_factura || '-') + '</div>';
+            html += '<div class="col-md-4"><strong>Orden de Compra:</strong> ' + (resp.compra.codigo_oc ? '<span class="badge badge-info">' + resp.compra.codigo_oc + '</span>' : '<span class="text-muted">Compra Directa</span>') + '</div>';
+            html += '<div class="col-md-4"><strong>Estado:</strong> ' + resp.compra.estado_badge + '</div>';
             html += '</div>';
             
             html += '<hr>';
@@ -531,11 +585,129 @@ function cargarInsumosPorProveedor(proveedorId) {
     });
 }
 
+function abrirModalOrdenesCompra() {
+    var proveedorId = $('#proveedor_id').val();
+    if (!proveedorId) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Seleccione un Proveedor',
+            text: 'Solo después de seleccionar el proveedor se podrá abrir el modal para cargar las órdenes de compra asignadas a ese proveedor.'
+        });
+        return;
+    }
+
+    var proveedorNombre = $('#proveedor_id option:selected').text().trim();
+    $('#modalOrdenesCompraPendientesLabel').html('<i class="fas fa-file-invoice-dollar"></i> Órdenes de Compra Pendientes - ' + proveedorNombre);
+    $('#modalOrdenesCompraPendientesBody').html('<div class="text-center p-4"><div class="spinner-border text-primary" role="status"><span class="sr-only">Cargando...</span></div></div>');
+    $('#modalOrdenesCompraPendientes').modal('show');
+
+    $.post('registrar_compra_data.php', {
+        action: 'obtener_ordenes_compra_proveedor',
+        proveedor_id: proveedorId
+    }, function(resp) {
+        if (!resp || !resp.success) {
+            $('#modalOrdenesCompraPendientesBody').html('<div class="alert alert-danger">Error al consultar las órdenes de compra.</div>');
+            return;
+        }
+        var ordenes = resp.ordenes || [];
+        if (ordenes.length === 0) {
+            $('#modalOrdenesCompraPendientesBody').html('<div class="alert alert-info mb-0">No existen Órdenes de Compra en estado <strong>EMITIDA</strong> pendientes para el proveedor seleccionado.</div>');
+            return;
+        }
+        var html = '<div class="table-responsive"><table class="table table-sm table-bordered table-hover">';
+        html += '<thead class="thead-light"><tr><th>Código O.C.</th><th>Fecha Emisión</th><th>Ítems</th><th>Total Estimado</th><th>Observaciones</th><th>Acción</th></tr></thead><tbody>';
+        ordenes.forEach(function(oc) {
+            if (!oc) return;
+            var montoOc = parseFloat(oc.monto_total !== undefined ? oc.monto_total : (oc.total || 0)) || 0;
+            var totalItems = oc.total_items !== undefined ? oc.total_items : 0;
+            var codigoOc = oc.codigo_oc || ('OC #' + (oc.id || ''));
+            var fechaFmt = oc.fecha_formateada || oc.fecha || '-';
+            html += '<tr>';
+            html += '<td><strong>' + codigoOc + '</strong></td>';
+            html += '<td>' + fechaFmt + '</td>';
+            html += '<td class="text-center"><span class="badge badge-secondary">' + totalItems + '</span></td>';
+            html += '<td><strong>$' + montoOc.toFixed(2) + '</strong></td>';
+            html += '<td>' + (oc.observaciones || '-') + '</td>';
+            html += '<td class="text-center"><button type="button" class="btn btn-sm btn-success" onclick="seleccionarOrdenCompra(' + oc.id + ')"><i class="fas fa-download"></i> Cargar O.C.</button></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        $('#modalOrdenesCompraPendientesBody').html(html);
+    }, 'json').fail(function() {
+        $('#modalOrdenesCompraPendientesBody').html('<div class="alert alert-danger">Error de conexión al cargar órdenes de compra.</div>');
+    });
+}
+
+function seleccionarOrdenCompra(ordenId) {
+    $.post('registrar_compra_data.php', {
+        action: 'obtener_insumos_orden_compra',
+        orden_compra_id: ordenId
+    }, function(resp) {
+        if (!resp || !resp.success) {
+            Swal.fire({ icon: 'error', text: (resp && resp.message) ? resp.message : 'No se pudo cargar la Orden de Compra.' });
+            return;
+        }
+
+        var oc = (resp && (resp.orden || resp.orden_compra || resp.data)) ? (resp.orden || resp.orden_compra || resp.data) : (resp || {});
+        var idProveedor = oc.id_proveedor || oc.proveedor_id || resp.id_proveedor || resp.proveedor_id || $('#proveedor_id').val() || '';
+        var idOrden = oc.id || oc.id_orden_compra || resp.id || ordenId || '';
+        var codigoOc = oc.codigo_oc || resp.codigo_oc || ('OC #' + idOrden);
+
+        if (idProveedor && String($('#proveedor_id').val() || '') !== String(idProveedor)) {
+            $('#proveedor_id').val(idProveedor);
+            cargarInsumosPorProveedor(idProveedor);
+        }
+
+        $('#id_orden_compra').val(idOrden);
+        $('#badge-oc-cargada').html('<i class="fas fa-link"></i> O.C. Vinculada: ' + codigoOc).show();
+        $('#btn-quitar-oc').show();
+
+        insumosAgregados = [];
+        var listaInsumos = Array.isArray(resp.insumos) ? resp.insumos : (Array.isArray(oc.insumos) ? oc.insumos : []);
+        listaInsumos.forEach(function(item) {
+            if (!item) return;
+            var cant = parseFloat(item.cantidad) || 0;
+            var costo = parseFloat(item.costo_unitario) || 0;
+            var insumoId = item.insumo_id || item.id_insumo || '';
+            if (!insumoId || cant <= 0) return;
+            insumosAgregados.push({
+                insumo_id: insumoId,
+                insumo_nombre: item.insumo_nombre || item.nombre || ('Insumo #' + insumoId),
+                unidad_medida: item.unidad_medida || 'unidad',
+                cantidad: cant,
+                costo_unitario: costo,
+                subtotal: cant * costo
+            });
+        });
+
+        actualizarTablaInsumos();
+        $('#modalOrdenesCompraPendientes').modal('hide');
+        Swal.fire({
+            icon: 'success',
+            title: 'Orden de Compra Cargada',
+            text: 'Se han cargado los insumos de la Orden de Compra ' + codigoOc + '.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }, 'json').fail(function() {
+        Swal.fire({ icon: 'error', text: 'Error de conexión al cargar los insumos de la Orden de Compra.' });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     mostrarVista('listado');
     cargarListado(1);
     bindCrudPagination('#paginacion-compras', cargarListado);
 
+    $('#btn-abrir-modal-oc').on('click', function() {
+        abrirModalOrdenesCompra();
+    });
+
+    $('#btn-quitar-oc').on('click', function() {
+        limpiarOrdenCompraSeleccionada();
+        insumosAgregados = [];
+        actualizarTablaInsumos();
+    });
     
     // DENTRO DE TU document.addEventListener('DOMContentLoaded', function() { ... }) AGREGA ESTO:
     $('#btn-toggle-filtros').on('click', function() {
@@ -559,6 +731,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     $('#proveedor_id').on('change', function() {
         var proveedorId = $(this).val();
+        limpiarOrdenCompraSeleccionada();
         cargarInsumosPorProveedor(proveedorId);
         insumosAgregados = [];
         actualizarTablaInsumos();
@@ -596,6 +769,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     $('#btn-guardar-compra').prop('disabled', true);
+
+    // Si viene redirigido desde Órdenes de Compra (?oc_id=X&proveedor_id=Y)
+    var urlParams = new URLSearchParams(window.location.search);
+    var ocIdParam = parseInt(urlParams.get('oc_id') || '0', 10);
+    var provIdParam = parseInt(urlParams.get('proveedor_id') || '0', 10);
+    if (ocIdParam > 0 && provIdParam > 0) {
+        mostrarVista('crear');
+        limpiarFormulario();
+        $('#proveedor_id').val(provIdParam);
+        cargarInsumosPorProveedor(provIdParam);
+        seleccionarOrdenCompra(ocIdParam);
+    }
 });
 
 $("#form-compra").on("submit", function(e) {
@@ -609,6 +794,7 @@ $("#form-compra").on("submit", function(e) {
     var datos = {
         action: 'crear',
         proveedor_id: $("#proveedor_id").val(),
+        id_orden_compra: $("#id_orden_compra").val() || null,
         fecha: $("#fecha").val(),
         numero_factura: $("#numero_factura").val() || "",
         estado: $("#estado").val(),

@@ -4,6 +4,9 @@ require_once __DIR__ . '/../lib/Auditoria.php';
 require_once __DIR__ . '/../lib/inventario_cantidad_unidad.php';
 require_once __DIR__ . '/../lib/Pagination.php';
 require_once __DIR__ . '/../lib/InventarioLotes.php';
+require_once __DIR__ . '/../lib/AbastecimientoService.php';
+
+AbastecimientoService::asegurarTablas($conn);
 
 $tieneInventarioNuevo = $conn->query("SHOW COLUMNS FROM inventario LIKE 'tipo_item'")->num_rows > 0;
 
@@ -26,6 +29,147 @@ if (empty($action)) {
 }
 
 try {
+    if ($action === 'obtener_ordenes_compra_proveedor') {
+        $proveedor_id = isset($_POST['proveedor_id']) ? (int) $_POST['proveedor_id'] : 0;
+        if ($proveedor_id <= 0) {
+            throw new Exception("Debe seleccionar un proveedor para consultar sus Órdenes de Compra pendientes.");
+        }
+
+        $sql = "
+            SELECT 
+                oc.id,
+                oc.codigo_oc,
+                oc.proveedor_id,
+                oc.proveedor_id AS id_proveedor,
+                oc.fecha,
+                oc.modalidad,
+                oc.total,
+                oc.total AS monto_total,
+                oc.estado,
+                oc.observaciones,
+                COUNT(ocd.id) AS total_items,
+                COALESCE(SUM(ocd.cantidad), 0) AS cantidad_total
+            FROM ordenes_compra oc
+            LEFT JOIN orden_compra_detalles ocd ON ocd.orden_compra_id = oc.id
+            WHERE oc.proveedor_id = ?
+              AND oc.estado = 'EMITIDA'
+            GROUP BY oc.id, oc.codigo_oc, oc.proveedor_id, oc.fecha, oc.modalidad, oc.total, oc.estado, oc.observaciones
+            ORDER BY oc.id DESC
+        ";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('i', $proveedor_id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+
+        $ordenes = [];
+        while ($row = $res->fetch_assoc()) {
+            $row['id'] = (int) $row['id'];
+            $row['proveedor_id'] = (int) $row['proveedor_id'];
+            $row['id_proveedor'] = (int) $row['proveedor_id'];
+            $row['total'] = (float) $row['total'];
+            $row['monto_total'] = (float) $row['total'];
+            $row['total_items'] = (int) $row['total_items'];
+            $row['fecha_formateada'] = date('d/m/Y', strtotime($row['fecha']));
+            $ordenes[] = $row;
+        }
+        $stmt->close();
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => true,
+            'ordenes' => $ordenes
+        ]);
+        $conn->close();
+        exit;
+    }
+
+    if ($action === 'obtener_insumos_orden_compra') {
+        $orden_compra_id = isset($_POST['orden_compra_id']) ? (int) $_POST['orden_compra_id'] : 0;
+        if ($orden_compra_id <= 0) {
+            throw new Exception("ID de Orden de Compra inválido");
+        }
+
+        $stmtCab = $conn->prepare("
+            SELECT 
+                oc.id,
+                oc.codigo_oc,
+                oc.proveedor_id,
+                oc.proveedor_id AS id_proveedor,
+                oc.fecha,
+                oc.total,
+                oc.total AS monto_total,
+                oc.estado,
+                oc.observaciones,
+                p.nombre AS proveedor_nombre
+            FROM ordenes_compra oc
+            INNER JOIN proveedores p ON p.id = oc.proveedor_id
+            WHERE oc.id = ?
+            LIMIT 1
+        ");
+        $stmtCab->bind_param('i', $orden_compra_id);
+        $stmtCab->execute();
+        $oc = $stmtCab->get_result()->fetch_assoc();
+        $stmtCab->close();
+
+        if (!$oc) {
+            throw new Exception("Orden de Compra no encontrada");
+        }
+        if ($oc['estado'] !== 'EMITIDA') {
+            throw new Exception("Solo se pueden cargar Órdenes de Compra pendientes en estado EMITIDA.");
+        }
+
+        $oc['id'] = (int) $oc['id'];
+        $oc['proveedor_id'] = (int) $oc['proveedor_id'];
+        $oc['id_proveedor'] = (int) $oc['proveedor_id'];
+        $oc['total'] = (float) $oc['total'];
+        $oc['monto_total'] = (float) $oc['total'];
+
+        $sqlDet = "
+            SELECT 
+                ocd.insumo_id,
+                ocd.cantidad,
+                ocd.costo_unitario,
+                ocd.subtotal,
+                i.nombre AS insumo_nombre,
+                um.codigo AS unidad_medida
+            FROM orden_compra_detalles ocd
+            INNER JOIN insumos i ON i.id = ocd.insumo_id
+            INNER JOIN unidad_medida um ON um.id = i.unidad_medida_id
+            WHERE ocd.orden_compra_id = ?
+            ORDER BY ocd.id ASC
+        ";
+        $stmtDet = $conn->prepare($sqlDet);
+        $stmtDet->bind_param('i', $orden_compra_id);
+        $stmtDet->execute();
+        $resDet = $stmtDet->get_result();
+
+        $insumos = [];
+        while ($row = $resDet->fetch_assoc()) {
+            $insumos[] = [
+                'insumo_id' => (int) $row['insumo_id'],
+                'id_insumo' => (int) $row['insumo_id'],
+                'insumo_nombre' => $row['insumo_nombre'],
+                'unidad_medida' => $row['unidad_medida'],
+                'cantidad' => (float) $row['cantidad'],
+                'costo_unitario' => (float) $row['costo_unitario'],
+                'subtotal' => (float) $row['subtotal'],
+            ];
+        }
+        $stmtDet->close();
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => true,
+            'id_proveedor' => $oc['id_proveedor'],
+            'proveedor_id' => $oc['proveedor_id'],
+            'orden' => $oc,
+            'orden_compra' => $oc,
+            'insumos' => $insumos
+        ]);
+        $conn->close();
+        exit;
+    }
+
     if ($action === 'obtener_insumos_proveedor') {
         $proveedor_id = $_POST['proveedor_id'] ?? null;
         
@@ -70,6 +214,8 @@ try {
         $sqlCompra = "
             SELECT 
                 c.id,
+                c.id_orden_compra,
+                oc.codigo_oc,
                 c.fecha,
                 c.numero_factura,
                 c.total,
@@ -80,6 +226,7 @@ try {
             FROM compras c
             INNER JOIN proveedores p ON c.proveedor_id = p.id
             LEFT JOIN tasas_cambiarias tc ON tc.id = c.tasa_cambiaria_id
+            LEFT JOIN ordenes_compra oc ON oc.id = c.id_orden_compra
             WHERE c.id = ?
         ";
         
@@ -384,6 +531,7 @@ try {
         }
         $data = $requestJson;
         $proveedor_id = $data['proveedor_id'] ?? null;
+        $id_orden_compra = !empty($data['id_orden_compra']) ? (int) $data['id_orden_compra'] : null;
         $fecha = $data['fecha'] ?? null;
         $numero_factura = trim($data['numero_factura'] ?? '');
         $estado = $data['estado'] ?? 'recibido';
@@ -462,13 +610,35 @@ try {
         $conn->begin_transaction();
 
         try {
+            $codigoOcAsociada = null;
+            if ($id_orden_compra !== null && $id_orden_compra > 0) {
+                $stmtChkOc = $conn->prepare("SELECT id, codigo_oc, proveedor_id, estado FROM ordenes_compra WHERE id = ? FOR UPDATE");
+                $stmtChkOc->bind_param('i', $id_orden_compra);
+                $stmtChkOc->execute();
+                $ocRow = $stmtChkOc->get_result()->fetch_assoc();
+                $stmtChkOc->close();
+
+                if (!$ocRow) {
+                    throw new Exception("La Orden de Compra seleccionada no existe.");
+                }
+                if ((int) $ocRow['proveedor_id'] !== (int) $proveedor_id) {
+                    throw new Exception("La Orden de Compra seleccionada no pertenece al proveedor indicado.");
+                }
+                if ($ocRow['estado'] !== 'EMITIDA') {
+                    throw new Exception("La Orden de Compra {$ocRow['codigo_oc']} ya no se encuentra en estado EMITIDA.");
+                }
+                $codigoOcAsociada = (string) $ocRow['codigo_oc'];
+            } else {
+                $id_orden_compra = null;
+            }
+
             $stmt = $conn->prepare("
-                INSERT INTO compras (proveedor_id, fecha, numero_factura, total, estado, tasa_cambiaria_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO compras (proveedor_id, id_orden_compra, fecha, numero_factura, total, estado, tasa_cambiaria_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
             $numero_factura = empty($numero_factura) ? null : $numero_factura;
-            $stmt->bind_param("issdsi", $proveedor_id, $fecha, $numero_factura, $total, $estado, $tasa_cambiaria_id);
+            $stmt->bind_param("iissdsi", $proveedor_id, $id_orden_compra, $fecha, $numero_factura, $total, $estado, $tasa_cambiaria_id);
             $stmt->execute();
             
             $compra_id = $conn->insert_id;
@@ -476,6 +646,13 @@ try {
 
             if (!$compra_id) {
                 throw new Exception("Error al crear la compra");
+            }
+
+            if ($id_orden_compra !== null && $id_orden_compra > 0) {
+                $stmtUpdOc = $conn->prepare("UPDATE ordenes_compra SET estado = 'COMPLETADA' WHERE id = ?");
+                $stmtUpdOc->bind_param('i', $id_orden_compra);
+                $stmtUpdOc->execute();
+                $stmtUpdOc->close();
             }
 
             $stmtDetalle = $conn->prepare("
@@ -502,7 +679,7 @@ try {
                     'fecha_entrada' => $fecha,
                     'origen' => 'compra',
                     'origen_id' => $compra_id,
-                    'observaciones' => "Entrada por compra #{$compra_id}",
+                    'observaciones' => "Entrada por compra #{$compra_id}" . ($codigoOcAsociada ? " (O.C. {$codigoOcAsociada})" : ""),
                     'tipo_movimiento' => 'compra',
                     'costo_unitario' => $costo_unitario,
                 ]);
@@ -515,15 +692,16 @@ try {
             $facturaCmp = $data['numero_factura'] ?? '';
             $facturaCmp = is_string($facturaCmp) ? trim($facturaCmp) : '';
             $facturaTxt = $facturaCmp !== '' ? $facturaCmp : 'sin número';
+            $ocTxt = $codigoOcAsociada ? " O.C.: {$codigoOcAsociada}." : "";
             Auditoria::registrar(
                 $conn,
-                "Compra #{$compra_id} registrada. Proveedor #{$proveedor_id}. Factura: {$facturaTxt}. Total: {$total}. Estado: {$estado}.",
+                "Compra #{$compra_id} registrada. Proveedor #{$proveedor_id}.{$ocTxt} Factura: {$facturaTxt}. Total: {$total}. Estado: {$estado}.",
                 'Compras'
             );
 
             echo json_encode([
                 'success' => true, 
-                'message' => 'Compra registrada exitosamente',
+                'message' => 'Compra registrada exitosamente' . ($codigoOcAsociada ? " (Orden de Compra {$codigoOcAsociada} completada)" : ''),
                 'compra_id' => $compra_id
             ]);
 

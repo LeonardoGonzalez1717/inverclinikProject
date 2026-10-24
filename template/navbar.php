@@ -76,6 +76,9 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                         <i class="fas fa-shopping-cart"></i> <span>Compras</span>
                     </button>
                     <ul class="collapsible-content">
+                        <li><a href="../src/requisiciones.php"><i class="fas fa-clipboard-list"></i> <span>Requisiciones</span></a></li>
+                        <li><a href="../src/aprobacion_requisiciones.php"><i class="fas fa-check-double"></i> <span>Aprobación Req.</span></a></li>
+                        <li><a href="../src/ordenes_compra.php"><i class="fas fa-file-invoice-dollar"></i> <span>Órdenes de Compra</span></a></li>
                         <li><a href="../src/registrar_compra.php"><i class="fas fa-cart-plus"></i> <span>Registrar Compra</span></a></li>
                         <li><a href="../src/gestionar_proveedores.php"><i class="fas fa-truck"></i> <span>Proveedores</span></a></li>
                     </ul>
@@ -183,6 +186,7 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <li><a href="../src/nuevo_producto.php"><i class="fas fa-cut"></i> <span>Guía de Corte</span></a></li>
                             <li><a href="../src/orden_produccion.php"><i class="fas fa-clipboard-list"></i> <span>Orden de Producción</span></a></li>
                             <li><a href="../src/historial_talleres.php"><i class="fas fa-warehouse"></i> <span>Historial Talleres</span></a></li>
+                            <li><a href="../src/requisiciones.php"><i class="fas fa-clipboard-check"></i> <span>Requisiciones</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -195,6 +199,9 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                             <i class="fas fa-shopping-cart"></i> <span>Compras</span>
                         </button>
                         <ul class="collapsible-content">
+                            <li><a href="../src/requisiciones.php"><i class="fas fa-clipboard-list"></i> <span>Requisiciones</span></a></li>
+                            <li><a href="../src/aprobacion_requisiciones.php"><i class="fas fa-check-double"></i> <span>Aprobación Req.</span></a></li>
+                            <li><a href="../src/ordenes_compra.php"><i class="fas fa-file-invoice-dollar"></i> <span>Órdenes de Compra</span></a></li>
                             <li><a href="../src/registrar_compra.php"><i class="fas fa-cart-plus"></i> <span>Registrar Compra</span></a></li>
                         </ul>
                     </li>

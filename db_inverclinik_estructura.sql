@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS `clientes` (
 CREATE TABLE IF NOT EXISTS `compras` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `proveedor_id` int(11) NOT NULL,
+  `id_orden_compra` int(11) DEFAULT NULL COMMENT 'FK opcional a ordenes_compra.id',
   `fecha` date NOT NULL,
   `numero_factura` varchar(50) DEFAULT NULL,
   `total` decimal(12,2) NOT NULL DEFAULT 0.00,
@@ -47,7 +48,8 @@ CREATE TABLE IF NOT EXISTS `compras` (
   `tasa_cambiaria_id` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `tasa_cambiaria_id` (`tasa_cambiaria_id`),
-  KEY `idx_orden_produccion` (`orden_produccion_id`)
+  KEY `idx_orden_produccion` (`orden_produccion_id`),
+  KEY `idx_compras_orden_compra` (`id_orden_compra`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -1647,6 +1649,94 @@ WHERE cot.`codigo_cotizacion` = 'COT-0001'
     WHERE cd.`id_cotizacion` = cot.id_cotizacion
       AND cd.`id_receta` = r.id
   );
+
+-- --------------------------------------------------------
+-- MÓDULOS DE ABASTECIMIENTO EMPRESARIAL (REQUISICIONES Y ÓRDENES DE COMPRA)
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `requisiciones` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_requisicion` varchar(30) NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL COMMENT 'Usuario solicitante (users.id)',
+  `fecha_solicitud` datetime NOT NULL DEFAULT current_timestamp(),
+  `justificacion` text DEFAULT NULL COMMENT 'Motivo o justificación de la solicitud',
+  `observaciones` text DEFAULT NULL,
+  `estado` tinyint(4) NOT NULL DEFAULT 1 COMMENT '1=PENDIENTE, 2=APROBADA, 3=RECHAZADA, 4=PROCESADA, 5=PARCIAL',
+  `estado_orden` tinyint(4) NOT NULL DEFAULT 0 COMMENT '0=PENDIENTE_OC, 1=PROCESADA, 2=PARCIAL',
+  `usuario_aprobacion_id` int(11) DEFAULT NULL COMMENT 'Usuario que aprobó o rechazó (users.id)',
+  `fecha_aprobacion` datetime DEFAULT NULL,
+  `motivo_rechazo` text DEFAULT NULL,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_codigo_requisicion` (`codigo_requisicion`),
+  KEY `idx_req_usuario` (`usuario_id`),
+  KEY `idx_req_estado` (`estado`),
+  KEY `idx_req_fecha` (`fecha_solicitud`),
+  KEY `idx_req_aprobador` (`usuario_aprobacion_id`),
+  CONSTRAINT `fk_requisiciones_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_requisiciones_aprobador` FOREIGN KEY (`usuario_aprobacion_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `requisicion_detalles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `requisicion_id` int(11) NOT NULL,
+  `insumo_id` int(11) NOT NULL,
+  `cantidad` decimal(12,2) NOT NULL COMMENT 'Cantidad solicitada en la requisición',
+  `cantidad_pedida` decimal(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Cantidad acumulada ya incluida en Órdenes de Compra activas',
+  `observaciones` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_req_det_requisicion` (`requisicion_id`),
+  KEY `idx_req_det_insumo` (`insumo_id`),
+  CONSTRAINT `fk_req_detalles_requisicion` FOREIGN KEY (`requisicion_id`) REFERENCES `requisiciones` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_req_detalles_insumo` FOREIGN KEY (`insumo_id`) REFERENCES `insumos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `ordenes_compra` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_oc` varchar(30) NOT NULL,
+  `proveedor_id` int(11) NOT NULL,
+  `usuario_id` int(11) DEFAULT NULL COMMENT 'Usuario que emitió la O.C. (users.id)',
+  `fecha` date NOT NULL,
+  `modalidad` enum('requisicion','directa') NOT NULL DEFAULT 'directa',
+  `requisiciones_ids` varchar(255) DEFAULT NULL COMMENT 'Lista CSV de IDs de requisiciones vinculadas para trazabilidad',
+  `total` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `tasa_cambiaria_id` int(11) DEFAULT NULL,
+  `estado` enum('EMITIDA','COMPLETADA','CANCELADA') NOT NULL DEFAULT 'EMITIDA',
+  `observaciones` text DEFAULT NULL,
+  `creado_en` timestamp NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_codigo_oc` (`codigo_oc`),
+  KEY `idx_oc_proveedor` (`proveedor_id`),
+  KEY `idx_oc_estado` (`estado`),
+  KEY `idx_oc_fecha` (`fecha`),
+  KEY `idx_oc_usuario` (`usuario_id`),
+  KEY `idx_oc_tasa` (`tasa_cambiaria_id`),
+  CONSTRAINT `fk_oc_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `proveedores` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_oc_usuario` FOREIGN KEY (`usuario_id`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_oc_tasa_cambiaria` FOREIGN KEY (`tasa_cambiaria_id`) REFERENCES `tasas_cambiarias` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE IF NOT EXISTS `orden_compra_detalles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `orden_compra_id` int(11) NOT NULL,
+  `insumo_id` int(11) NOT NULL,
+  `requisicion_id` int(11) DEFAULT NULL COMMENT 'Requisición origen si aplica',
+  `requisicion_detalle_id` int(11) DEFAULT NULL COMMENT 'Línea específica de requisición origen si aplica',
+  `cantidad` decimal(12,2) NOT NULL,
+  `costo_unitario` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `subtotal` decimal(12,2) GENERATED ALWAYS AS (`cantidad` * `costo_unitario`) STORED,
+  PRIMARY KEY (`id`),
+  KEY `idx_ocd_orden` (`orden_compra_id`),
+  KEY `idx_ocd_insumo` (`insumo_id`),
+  KEY `idx_ocd_requisicion` (`requisicion_id`),
+  KEY `idx_ocd_req_detalle` (`requisicion_detalle_id`),
+  CONSTRAINT `fk_ocd_orden_compra` FOREIGN KEY (`orden_compra_id`) REFERENCES `ordenes_compra` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_ocd_insumo` FOREIGN KEY (`insumo_id`) REFERENCES `insumos` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_ocd_requisicion` FOREIGN KEY (`requisicion_id`) REFERENCES `requisiciones` (`id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_ocd_requisicion_detalle` FOREIGN KEY (`requisicion_detalle_id`) REFERENCES `requisicion_detalles` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 COMMIT;
 
