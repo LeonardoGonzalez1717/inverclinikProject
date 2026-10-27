@@ -8,28 +8,28 @@
     --primary-hover: #004494;
     --primary-light: #e7f1ff;
     --primary-border: #0056b3;
-    
+
     --secondary: #6c757d;
     --secondary-hover: #565e64;
     --secondary-light: #f1f3f5;
-    
+
     --success: #28a745;
     --success-hover: #218838;
     --success-light: #e8f7ec;
-    
+
     --danger: #dc3545;
     --danger-hover: #c82333;
     --danger-light: #fde8e9;
-    
+
     --warning: #ffc107;
     --warning-hover: #e0a800;
     --warning-light: #fff9e6;
     --warning-text: #856404;
-    
+
     --info: #17a2b8;
     --info-hover: #138496;
     --info-light: #e2f7fa;
-    
+
     --dark: #343a40;
     --light: #f8f9fa;
     --border-color: #dee2e6;
@@ -145,17 +145,20 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.btn:focus, .btn:focus-visible {
+.btn:focus,
+.btn:focus-visible {
     outline: none;
     box-shadow: 0 0 0 3.5px rgba(0, 86, 179, 0.25);
 }
 
-.btn i, .btn svg {
+.btn i,
+.btn svg {
     font-size: 0.95em;
     transition: transform 0.2s ease;
 }
 
-.btn:hover i, .btn:hover svg {
+.btn:hover i,
+.btn:hover svg {
     transform: scale(1.12);
 }
 
@@ -244,6 +247,7 @@ body {
     color: var(--primary) !important;
     border-color: var(--primary);
 }
+
 .btn-outline-primary:hover {
     background-color: var(--primary);
     color: #ffffff !important;
@@ -254,6 +258,7 @@ body {
     color: var(--secondary) !important;
     border-color: #ced4da;
 }
+
 .btn-outline-secondary:hover {
     background-color: #f1f3f5;
     color: #333333 !important;
@@ -265,6 +270,7 @@ body {
     color: var(--success) !important;
     border-color: var(--success);
 }
+
 .btn-outline-success:hover {
     background-color: var(--success);
     color: #ffffff !important;
@@ -275,6 +281,7 @@ body {
     color: var(--danger) !important;
     border-color: var(--danger);
 }
+
 .btn-outline-danger:hover {
     background-color: var(--danger);
     color: #ffffff !important;
@@ -285,6 +292,7 @@ body {
     color: var(--info) !important;
     border-color: var(--info);
 }
+
 .btn-outline-info:hover {
     background-color: var(--info);
     color: #ffffff !important;
@@ -310,10 +318,10 @@ body {
     border-radius: var(--radius-pill);
 }
 
-.btn-volver { 
+.btn-volver {
     background-color: #ffffff;
-    color: var(--secondary) !important;
-    border: 1px solid #ced4da;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1;
     padding: 8px 16px;
     border-radius: var(--radius-md);
     cursor: pointer;
@@ -322,7 +330,7 @@ body {
     align-items: center;
     gap: 8px;
     font-weight: 600;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     transition: all 0.2s ease;
 }
 
@@ -344,9 +352,9 @@ body {
     white-space: nowrap !important;
 }
 
-.btn-action-group > .btn,
-.btn-action-group > button,
-.btn-action-group > a {
+.btn-action-group>.btn,
+.btn-action-group>button,
+.btn-action-group>a {
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -389,13 +397,15 @@ body {
     border: 1px solid var(--border-color);
 }
 
-.recipe-table, .tabla-moderna {
+.recipe-table,
+.tabla-moderna {
     width: 100%;
     border-collapse: collapse;
     font-size: 14px;
 }
 
-.recipe-table thead th, .tabla-moderna thead th {
+.recipe-table thead th,
+.tabla-moderna thead th {
     background-color: #f8fafc;
     color: #475569;
     font-weight: 600;
@@ -407,22 +417,26 @@ body {
     text-align: left;
 }
 
-.recipe-table tbody td, .tabla-moderna tbody td {
+.recipe-table tbody td,
+.tabla-moderna tbody td {
     padding: 12px 16px;
     border-bottom: 1px solid #f1f5f9;
     vertical-align: middle;
     color: #334155;
 }
 
-.recipe-table tbody tr, .tabla-moderna tbody tr {
+.recipe-table tbody tr,
+.tabla-moderna tbody tr {
     transition: background-color 0.15s ease;
 }
 
-.recipe-table tbody tr:hover, .tabla-moderna tbody tr:hover {
+.recipe-table tbody tr:hover,
+.tabla-moderna tbody tr:hover {
     background-color: #f8fafc;
 }
 
-.recipe-table tbody tr:last-child td, .tabla-moderna tbody tr:last-child td {
+.recipe-table tbody tr:last-child td,
+.tabla-moderna tbody tr:last-child td {
     border-bottom: none;
 }
 

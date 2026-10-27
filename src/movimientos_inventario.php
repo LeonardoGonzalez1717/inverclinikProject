@@ -67,40 +67,36 @@ if ($resultRecetas) {
     <title>Movimientos de Inventario</title>
     <link rel="stylesheet" href="../css/movimientos_inventario.css">
     <style>
-        .btn-volver { 
-            background: #6c757d; 
-            color: white; 
-            border: none; 
-            padding: 8px 15px; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            margin-bottom: 15px; 
-        }
+
 
         #inventario-tabs {
             border-bottom: 2px solid #e9ecef;
             margin-bottom: 25px;
             border-radius: 8px 8px 0 0;
-            padding: 6px 6px 0 6px;
+            padding: 6px 0 0 0;
+            display: flex;
+            width: 100%;
         }
 
         #inventario-tabs .nav-item {
-            padding: 0 4px;
+            flex: 1 1 0;
+            padding: 0 3px;
         }
 
         #inventario-tabs .nav-link {
             color: #495057;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14.5px;
             border: none;
             background: transparent;
-            padding: 12px 20px;
+            padding: 12px 10px;
             border-radius: 6px 6px 0 0;
             transition: all 0.25s ease-in-out;
             display: flex;
             align-items: center;
             justify-content: center;
             width: 100%;
+            white-space: nowrap;
         }
 
         #inventario-tabs .nav-link:hover {

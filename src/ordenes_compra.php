@@ -28,19 +28,6 @@ $req_id_preseleccionada = isset($_GET['req_id']) ? (int) $_GET['req_id'] : 0;
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Órdenes de Compra - INVERCLINIK</title>
     <style>
-        .btn-volver {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-bottom: 15px;
-        }
-        .btn-volver:hover {
-            background: #5a6268;
-            color: white;
-        }
         .modalidad-selector {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));

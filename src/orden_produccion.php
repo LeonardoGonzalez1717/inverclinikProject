@@ -138,15 +138,7 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
             display: none;
         }
 
-        .btn-volver { 
-            background: #6c757d; 
-            color: white; 
-            border: none; 
-            padding: 8px 15px; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            margin-bottom: 15px; 
-        }
+
 
         /* Estilos estéticos para las secciones de los Talleres dentro del Modal */
         .seccion-taller-card {

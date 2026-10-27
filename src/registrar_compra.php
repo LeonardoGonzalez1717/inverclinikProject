@@ -37,15 +37,6 @@ if ($rt && $row_tasa = $rt->fetch_assoc()) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrar Compra</title>
     <style>
-        .btn-volver { 
-            background: #6c757d; 
-            color: white; 
-            border: none; 
-            padding: 8px 15px; 
-            border-radius: 5px; 
-            cursor: pointer; 
-            margin-bottom: 15px; 
-        }
     </style>
 </head>
 <body>

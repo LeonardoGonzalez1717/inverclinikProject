@@ -44,19 +44,6 @@ $nombreUsuarioSesion = $_SESSION['username'] ?? 'Usuario';
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Requisiciones de Compra - INVERCLINIK</title>
     <style>
-        .btn-volver {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-bottom: 15px;
-        }
-        .btn-volver:hover {
-            background: #5a6268;
-            color: white;
-        }
         .info-stock-badge {
             display: inline-block;
             padding: 4px 10px;
