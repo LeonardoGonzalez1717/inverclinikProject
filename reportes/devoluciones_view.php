@@ -18,19 +18,21 @@ $row = $result->fetch_assoc();
 // Filtros
 $where = [];
 
-$cliente_id = isset($_GET['cliente_id']) ? (int) $_GET['cliente_id'] : 0;
 $producto_id = isset($_GET['producto_id']) ? (int) $_GET['producto_id'] : 0;
 $orden_id = isset($_GET['orden_produccion_id']) ? (int) $_GET['orden_produccion_id'] : 0;
 $estado = trim($_GET['estado'] ?? '');
 $fecha_desde = trim($_GET['fecha_desde'] ?? '');
 $fecha_hasta = trim($_GET['fecha_hasta'] ?? '');
 
-if ($cliente_id > 0) {
-    $where[] = "d.cliente_id = " . $cliente_id;
+$tipo_origen = trim($_GET['tipo_origen'] ?? '');
+
+if (!empty($tipo_origen)) {
+    $tipoEsc = $conn->real_escape_string($tipo_origen);
+    $where[] = "COALESCE(d.tipo_origen, 'orden_produccion') = '$tipoEsc'";
 }
 
 if ($producto_id > 0) {
-    $where[] = "p.id = " . $producto_id;
+    $where[] = "(p_op.id = $producto_id OR p_v.id = $producto_id OR p_dd.id = $producto_id)";
 }
 
 if ($orden_id > 0) {
@@ -57,19 +59,24 @@ $condiciones = count($where) ? "WHERE " . implode(" AND ", $where) : "";
 $sql = "
     SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
            d.accion_inventario, COALESCE(d.estado, 'pendiente') AS estado,
+           COALESCE(d.tipo_origen, 'orden_produccion') AS tipo_origen,
            d.motivo_inspeccion, d.observaciones,
-           c.nombre AS cliente_nombre,
-           dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
-           p.nombre AS producto_nombre,
-           COALESCE(t.nombre, 'Única') AS talla_nombre,
-           op.creado_en AS orden_creado_en
+           dd.orden_produccion_id, dd.venta_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+           COALESCE(p_op.nombre, p_v.nombre, p_dd.nombre, '—') AS producto_nombre,
+           COALESCE(t_op.nombre, rt_v.nombre_rango, 'Única') AS talla_nombre,
+           op.creado_en AS orden_creado_en,
+           v.numero_factura
     FROM devoluciones d
     LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
     LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
     LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-    LEFT JOIN productos p ON p.id = rp.producto_id
-    LEFT JOIN tallas t ON t.id = op.talla_id
-    LEFT JOIN clientes c ON c.id = d.cliente_id
+    LEFT JOIN productos p_op ON p_op.id = rp.producto_id
+    LEFT JOIN tallas t_op ON t_op.id = op.talla_id
+    LEFT JOIN ventas v ON v.id = COALESCE(d.venta_id, dd.venta_id)
+    LEFT JOIN recetas r_v ON r_v.id = dd.receta_id
+    LEFT JOIN productos p_v ON p_v.id = r_v.producto_id
+    LEFT JOIN rangos_tallas rt_v ON rt_v.id = r_v.rango_tallas_id
+    LEFT JOIN productos p_dd ON p_dd.id = dd.producto_id
     $condiciones
     ORDER BY d.fecha DESC, d.id DESC
 ";
@@ -98,11 +105,10 @@ $result = $conn->query($sql);
           <th>#</th>
           <th>Código</th>
           <th>Fecha</th>
-          <th>Orden de Prod.</th>
+          <th>Origen (Doc.)</th>
           <th>Producto</th>
           <th>Talla</th>
           <th>Cantidad</th>
-          <th>Cliente</th>
           <th>Motivo</th>
           <th>Estado Calidad</th>
         </tr>
@@ -118,16 +124,22 @@ $result = $conn->query($sql);
           } elseif ($est === 'rechazado') {
               $estLabel = 'Rechazado (Descartado)';
           }
+
+          $origenDoc = '—';
+          if (($row['tipo_origen'] ?? '') === 'venta' || !empty($row['venta_id'])) {
+              $origenDoc = 'Factura: ' . (!empty($row['numero_factura']) ? $row['numero_factura'] : ('Venta #' . ($row['venta_id'] ?? '')));
+          } elseif (!empty($row['orden_produccion_id'])) {
+              $origenDoc = 'OP: ' . numero_orden_produccion((int)$row['orden_produccion_id'], $row['orden_creado_en']);
+          }
         ?>
         <tr>
           <td style="text-align: right"><?= $i++ ?></td>
           <td><?= htmlspecialchars($row['codigo_devolucion']) ?></td>
           <td><?= !empty($row['fecha']) ? date('d/m/Y h:i A', strtotime($row['fecha'])) : '—' ?></td>
-          <td><?= htmlspecialchars(!empty($row['orden_produccion_id']) ? numero_orden_produccion((int)$row['orden_produccion_id'], $row['orden_creado_en']) : '—') ?></td>
+          <td><?= htmlspecialchars($origenDoc) ?></td>
           <td style="text-align: left"><?= htmlspecialchars($row['producto_nombre'] ?? '—') ?></td>
           <td><?= htmlspecialchars($row['talla_nombre'] ?? 'Única') ?></td>
           <td style="text-align: right"><?= number_format((float)($row['cantidad'] ?? 1), 0) ?></td>
-          <td style="text-align: left"><?= htmlspecialchars($row['cliente_nombre'] ?? 'Anónimo') ?></td>
           <td style="text-align: left"><?= htmlspecialchars($row['motivo'] ?? '—') ?></td>
           <td style="text-align: center; font-weight: bold;"><?= htmlspecialchars($estLabel) ?></td>
         </tr>

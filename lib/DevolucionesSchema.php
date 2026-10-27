@@ -21,6 +21,8 @@ class DevolucionesSchema
                     `codigo_devolucion` VARCHAR(50) NOT NULL,
                     `fecha` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     `cliente_id` INT(11) DEFAULT NULL,
+                    `tipo_origen` VARCHAR(30) NOT NULL DEFAULT 'orden_produccion',
+                    `venta_id` INT(11) DEFAULT NULL,
                     `motivo` TEXT NOT NULL,
                     `descripcion_motivo` TEXT DEFAULT NULL,
                     `accion_inventario` VARCHAR(50) NOT NULL DEFAULT 'pendiente_inspeccion',
@@ -35,7 +37,9 @@ class DevolucionesSchema
                     UNIQUE KEY `uk_codigo_devolucion` (`codigo_devolucion`),
                     KEY `idx_cliente_id` (`cliente_id`),
                     KEY `idx_fecha` (`fecha`),
-                    KEY `idx_estado` (`estado`)
+                    KEY `idx_estado` (`estado`),
+                    KEY `idx_tipo_origen` (`tipo_origen`),
+                    KEY `idx_venta_id` (`venta_id`)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             ");
 
@@ -44,7 +48,11 @@ class DevolucionesSchema
                 CREATE TABLE IF NOT EXISTS `devoluciones_detalle` (
                     `id` INT(11) NOT NULL AUTO_INCREMENT,
                     `devolucion_id` INT(11) NOT NULL,
-                    `orden_produccion_id` INT(11) NOT NULL,
+                    `orden_produccion_id` INT(11) DEFAULT NULL,
+                    `venta_id` INT(11) DEFAULT NULL,
+                    `detalle_venta_id` INT(11) DEFAULT NULL,
+                    `receta_id` INT(11) DEFAULT NULL,
+                    `producto_id` INT(11) DEFAULT NULL,
                     `unidad_id` INT(11) DEFAULT NULL,
                     `cantidad` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
                     `estado_unidad_posterior` VARCHAR(50) NOT NULL DEFAULT 'pendiente_inspeccion',
@@ -53,10 +61,27 @@ class DevolucionesSchema
                     PRIMARY KEY (`id`),
                     KEY `idx_devolucion_id` (`devolucion_id`),
                     KEY `idx_op_id` (`orden_produccion_id`),
+                    KEY `idx_dev_det_venta` (`venta_id`),
+                    KEY `idx_dev_det_receta` (`receta_id`),
+                    KEY `idx_dev_det_producto` (`producto_id`),
                     CONSTRAINT `fk_dev_detalle_devolucion` FOREIGN KEY (`devolucion_id`) 
                         REFERENCES `devoluciones` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
             ");
+
+            // Asegurar columna `tipo_origen` en devoluciones
+            $chkTipoOrigen = $conn->query("SHOW COLUMNS FROM `devoluciones` LIKE 'tipo_origen'");
+            if ($chkTipoOrigen && $chkTipoOrigen->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones` ADD COLUMN `tipo_origen` VARCHAR(30) NOT NULL DEFAULT 'orden_produccion' AFTER `cliente_id`");
+                @$conn->query("ALTER TABLE `devoluciones` ADD INDEX `idx_tipo_origen` (`tipo_origen`)");
+            }
+
+            // Asegurar columna `venta_id` en devoluciones
+            $chkVentaId = $conn->query("SHOW COLUMNS FROM `devoluciones` LIKE 'venta_id'");
+            if ($chkVentaId && $chkVentaId->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones` ADD COLUMN `venta_id` INT(11) NULL DEFAULT NULL AFTER `tipo_origen`");
+                @$conn->query("ALTER TABLE `devoluciones` ADD INDEX `idx_venta_id` (`venta_id`)");
+            }
 
             // Asegurar columna `estado` en devoluciones
             $chkEstado = $conn->query("SHOW COLUMNS FROM `devoluciones` LIKE 'estado'");
@@ -82,6 +107,36 @@ class DevolucionesSchema
             $chkMotInsp = $conn->query("SHOW COLUMNS FROM `devoluciones` LIKE 'motivo_inspeccion'");
             if ($chkMotInsp && $chkMotInsp->num_rows === 0) {
                 @$conn->query("ALTER TABLE `devoluciones` ADD COLUMN `motivo_inspeccion` TEXT DEFAULT NULL AFTER `usuario_inspeccion_id`");
+            }
+
+            // Asegurar que orden_produccion_id sea NULLABLE en devoluciones_detalle
+            @$conn->query("ALTER TABLE `devoluciones_detalle` MODIFY COLUMN `orden_produccion_id` INT(11) NULL DEFAULT NULL");
+
+            // Asegurar columna `venta_id` en devoluciones_detalle
+            $chkVentaDet = $conn->query("SHOW COLUMNS FROM `devoluciones_detalle` LIKE 'venta_id'");
+            if ($chkVentaDet && $chkVentaDet->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD COLUMN `venta_id` INT(11) NULL DEFAULT NULL AFTER `orden_produccion_id`");
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD INDEX `idx_dev_det_venta` (`venta_id`)");
+            }
+
+            // Asegurar columna `detalle_venta_id` en devoluciones_detalle
+            $chkDetVentaId = $conn->query("SHOW COLUMNS FROM `devoluciones_detalle` LIKE 'detalle_venta_id'");
+            if ($chkDetVentaId && $chkDetVentaId->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD COLUMN `detalle_venta_id` INT(11) NULL DEFAULT NULL AFTER `venta_id`");
+            }
+
+            // Asegurar columna `receta_id` en devoluciones_detalle
+            $chkRecetaDet = $conn->query("SHOW COLUMNS FROM `devoluciones_detalle` LIKE 'receta_id'");
+            if ($chkRecetaDet && $chkRecetaDet->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD COLUMN `receta_id` INT(11) NULL DEFAULT NULL AFTER `detalle_venta_id`");
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD INDEX `idx_dev_det_receta` (`receta_id`)");
+            }
+
+            // Asegurar columna `producto_id` en devoluciones_detalle
+            $chkProdDet = $conn->query("SHOW COLUMNS FROM `devoluciones_detalle` LIKE 'producto_id'");
+            if ($chkProdDet && $chkProdDet->num_rows === 0) {
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD COLUMN `producto_id` INT(11) NULL DEFAULT NULL AFTER `receta_id`");
+                @$conn->query("ALTER TABLE `devoluciones_detalle` ADD INDEX `idx_dev_det_producto` (`producto_id`)");
             }
 
             // Asegurar columna `cantidad` si la tabla ya existía sin ella

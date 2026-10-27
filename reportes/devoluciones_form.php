@@ -5,14 +5,6 @@ DevolucionesSchema::asegurarTablas($conn);
 
 $iduser = $_SESSION['iduser'] ?? 0;
 
-$clientes = [];
-$r = $conn->query('SELECT id, nombre, numero_documento FROM clientes ORDER BY nombre ASC');
-if ($r) {
-    while ($cl = $r->fetch_assoc()) {
-        $clientes[] = $cl;
-    }
-}
-
 $productos = [];
 $r = $conn->query('SELECT id, nombre FROM productos ORDER BY nombre ASC');
 if ($r) {
@@ -49,18 +41,6 @@ if ($r) {
             <form method="GET" action="devoluciones_view.php" target="_blank">
                 <div class="row form-group">
                     <div class="col-sm-6">
-                        <label class="form-label">Cliente</label>
-                        <select name="cliente_id" id="cliente_id" class="form-control">
-                            <option value="">Todos los clientes</option>
-                            <?php foreach ($clientes as $c): ?>
-                                <option value="<?php echo (int)$c['id']; ?>">
-                                    <?php echo htmlspecialchars($c['nombre'] . ($c['numero_documento'] ? ' (' . $c['numero_documento'] . ')' : ''), ENT_QUOTES, 'UTF-8'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="col-sm-6">
                         <label class="form-label">Producto</label>
                         <select name="producto_id" id="producto_id" class="form-control">
                             <option value="">Todos los productos</option>
@@ -71,10 +51,8 @@ if ($r) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                </div>
 
-                <div class="row form-group">
-                    <div class="col-sm-4">
+                    <div class="col-sm-6">
                         <label class="form-label">Orden de Producción</label>
                         <select name="orden_produccion_id" id="orden_produccion_id" class="form-control">
                             <option value="">Todas las órdenes</option>
@@ -85,23 +63,34 @@ if ($r) {
                             <?php endforeach; ?>
                         </select>
                     </div>
+                </div>
 
-                    <div class="col-sm-2">
-                        <label class="form-label">Estado de Inspección</label>
-                        <select name="estado" id="estado" class="form-control">
-                            <option value="">Todos los estados</option>
-                            <option value="pendiente">Pendiente de Inspección</option>
-                            <option value="aprobado">Buen Estado (En Stock)</option>
-                            <option value="rechazado">Rechazado (Descartado)</option>
+                <div class="row form-group">
+                    <div class="col-sm-3">
+                        <label class="form-label">Tipo de Devolución</label>
+                        <select name="tipo_origen" id="tipo_origen" class="form-control">
+                            <option value="">Todos los tipos</option>
+                            <option value="venta">Devolución de Venta (Factura)</option>
+                            <option value="orden_produccion">Devolución de Orden de Prod.</option>
                         </select>
                     </div>
 
                     <div class="col-sm-3">
+                        <label class="form-label">Estado</label>
+                        <select name="estado" id="estado" class="form-control">
+                            <option value="">Todos los estados</option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="aprobado">Buen Estado (En Stock)</option>
+                            <option value="rechazado">Rechazado</option>
+                        </select>
+                    </div>
+
+                    <div class="col-sm-2">
                         <label class="form-label">Fecha Desde</label>
                         <input type="date" name="fecha_desde" id="fecha_desde" class="form-control">
                     </div>
 
-                    <div class="col-sm-3">
+                    <div class="col-sm-2">
                         <label class="form-label">Fecha Hasta</label>
                         <input type="date" name="fecha_hasta" id="fecha_hasta" class="form-control">
                     </div>

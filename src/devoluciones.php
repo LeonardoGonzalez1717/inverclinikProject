@@ -1,35 +1,59 @@
 <?php
-require_once "../template/header.php";
-require_once "../connection/connection.php";
-require_once "../lib/orden_numero.php";
-require_once "../lib/DevolucionesSchema.php";
+require_once __DIR__ . "/../template/header.php";
+require_once __DIR__ . "/../connection/connection.php";
+require_once __DIR__ . "/../lib/orden_numero.php";
+require_once __DIR__ . "/../lib/DevolucionesSchema.php";
 
 DevolucionesSchema::asegurarTablas($conn);
-
-// Obtener listado de clientes
-$clientes = [];
-$resClientes = $conn->query("SELECT id, nombre, numero_documento FROM clientes ORDER BY nombre ASC");
-if ($resClientes) {
-    while ($c = $resClientes->fetch_assoc()) {
-        $clientes[] = $c;
-    }
-}
 
 // Obtener órdenes de producción recientes para el selector
 $ordenes = [];
 $resOrdenes = $conn->query("
-    SELECT op.id, op.cantidad_a_producir, op.creado_en, p.nombre AS producto_nombre, COALESCE(t.nombre, 'Única') AS talla_nombre
+    SELECT op.id, op.cantidad_a_producir, op.creado_en, 
+           p.id AS producto_id, p.nombre AS producto_nombre, 
+           COALESCE(t.nombre, 'Única') AS talla_nombre,
+           COALESCE(
+               inv.stock_actual,
+               (SELECT COALESCE(SUM(l.cantidad_restante), 0)
+                FROM inventario_lotes l
+                WHERE l.tipo_item = 'producto' 
+                  AND (l.tipo_item_id = r.id OR (r.id IS NULL AND l.tipo_item_id = p.id))
+                  AND l.cantidad_restante > 0),
+               0
+           ) AS stock_inventario
     FROM ordenes_produccion op
     INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
     INNER JOIN productos p ON p.id = rp.producto_id
     LEFT JOIN tallas t ON t.id = op.talla_id
+    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
+        AND r.rango_tallas_id = rp.rango_tallas_id 
+        AND r.tipo_produccion_id = rp.tipo_produccion_id
+    LEFT JOIN inventario inv ON inv.tipo_item = 'producto' AND inv.tipo_item_id = r.id
     ORDER BY op.id DESC
     LIMIT 60
 ");
 if ($resOrdenes) {
     while ($o = $resOrdenes->fetch_assoc()) {
         $o['numero_orden'] = numero_orden_produccion((int)$o['id'], $o['creado_en']);
+        $stockVal = (float)$o['stock_inventario'];
+        $o['stock_inventario_fmt'] = (fmod($stockVal, 1.0) == 0.0) ? number_format($stockVal, 0) : number_format($stockVal, 2, '.', ',');
         $ordenes[] = $o;
+    }
+}
+
+// Obtener ventas recientes para el selector
+$ventas = [];
+$resVentas = $conn->query("
+    SELECT v.id, v.numero_factura, v.fecha, v.total
+    FROM ventas v
+    WHERE v.estado != 'cancelado'
+    ORDER BY v.id DESC
+    LIMIT 60
+");
+if ($resVentas) {
+    while ($v = $resVentas->fetch_assoc()) {
+        $v['numero_factura'] = !empty($v['numero_factura']) ? $v['numero_factura'] : ('Venta #' . $v['id']);
+        $ventas[] = $v;
     }
 }
 ?>
@@ -90,6 +114,43 @@ if ($resOrdenes) {
             border-radius: 4px;
             border: 1px solid #cbd5e1;
             display: inline-block;
+        }
+
+        .devolucion-tabs {
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .devolucion-tabs > li > a {
+            font-size: 14.5px;
+            font-weight: 600;
+            color: #64748b;
+            border: none !important;
+            border-radius: 6px 6px 0 0;
+            padding: 12px 20px;
+            background: #f8fafc;
+            border-bottom: 3px solid transparent !important;
+            margin-bottom: -2px;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+
+        .devolucion-tabs > li > a:hover {
+            color: #0056b3;
+            background: #eff6ff;
+        }
+
+        .devolucion-tabs > li.active > a,
+        .devolucion-tabs > li.active > a:focus,
+        .devolucion-tabs > li.active > a:hover {
+            color: #0056b3 !important;
+            background: #ffffff !important;
+            border-bottom: 3px solid #0056b3 !important;
+            font-weight: 700;
+        }
+
+        .devolucion-tabs > li > a i {
+            margin-right: 8px;
         }
 
         .unit-preview-card {
@@ -199,7 +260,7 @@ if ($resOrdenes) {
     <div class="container-wrapper">
         <div class="container-inner">
             <h2 class="main-title">Devoluciones de Producto Terminado</h2>
-            <p class="subtitle" style="margin-bottom: 20px;">Control y registro de devoluciones con derivación a control de calidad y material rechazado</p>
+            <p class="subtitle" style="margin-bottom: 20px;">Control y registro de devoluciones por Venta o por Orden de Producción con derivación a control de calidad y material rechazado</p>
 
             <div id="contenedor-vistas">
                 <!-- VISTA 1: LISTADO DE DEVOLUCIONES -->
@@ -220,11 +281,19 @@ if ($resOrdenes) {
                     <!-- Panel de Filtros -->
                     <div id="panel-filtros" style="display: none; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; border-radius: 5px; border: 1px solid #ddd; background-color: #fbfbfb;">
                         <div class="row" style="margin-bottom: 10px;">
-                            <div class="col-sm-6">
+                            <div class="col-sm-4">
                                 <label for="filtroBusqueda">Buscar</label>
-                                <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar por Código de Devolución, Orden (ej. 01-AGOST), Producto, Cliente o Motivo...">
+                                <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar por Código DEV, Factura, OP, Producto...">
                             </div>
                             <div class="col-sm-3">
+                                <label for="filtroTipoOrigen">Tipo de Devolución</label>
+                                <select id="filtroTipoOrigen" class="form-control">
+                                    <option value="">Todos los orígenes</option>
+                                    <option value="venta">Devolución de Venta (Factura)</option>
+                                    <option value="orden_produccion">Devolución de Orden de Prod.</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-2">
                                 <label for="filtroFechaDesde">Fecha Desde</label>
                                 <input type="date" id="filtroFechaDesde" class="form-control">
                             </div>
@@ -250,10 +319,9 @@ if ($resOrdenes) {
                                 <tr>
                                     <th>Código</th>
                                     <th>Fecha</th>
-                                    <th>Orden de Prod.</th>
+                                    <th>Origen / Doc.</th>
                                     <th>Producto / Talla</th>
                                     <th style="text-align: center;">Cantidad</th>
-                                    <th>Cliente</th>
                                     <th>Motivo Devolución</th>
                                     <th>Estado / Efecto</th>
                                     <th style="text-align: center; width: 1%; white-space: nowrap;">Acciones</th>
@@ -261,7 +329,7 @@ if ($resOrdenes) {
                             </thead>
                             <tbody id="devolucionesTableBody">
                                 <tr>
-                                    <td colspan="9" style="text-align: center; padding: 30px; color: #64748b;">
+                                    <td colspan="8" style="text-align: center; padding: 30px; color: #64748b;">
                                         <i class="fas fa-spinner fa-spin fa-2x"></i><br><br>Cargando devoluciones...
                                     </td>
                                 </tr>
@@ -288,83 +356,139 @@ if ($resOrdenes) {
                         </h4>
 
                         <form id="formNuevaDevolucion">
-                            <!-- Selector de Orden de Producción -->
-                            <div class="form-group">
-                                <label for="selectOrdenDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
-                                    <i class="fas fa-clipboard-list text-primary"></i> Orden de Producción <span style="color: red;">*</span>
+                            <!-- SELECTOR DE TIPO DE DEVOLUCIÓN: PESTAÑAS (TABS) -->
+                            <div class="form-group" style="margin-bottom: 20px;">
+                                <label style="font-weight: bold; color: #1e293b; font-size: 14.5px; margin-bottom: 12px; display: block;">
+                                    Seleccione el Origen de la Devolución <span style="color: red;">*</span>
                                 </label>
-                                <select id="selectOrdenDevolver" name="orden_produccion_id" class="form-control" style="width: 100%;" required>
-                                    <option value="">-- Buscar por número de orden (ej. 01-AGOST) o producto --</option>
-                                    <?php foreach ($ordenes as $ord): ?>
-                                        <option value="<?php echo $ord['id']; ?>"
-                                                data-producto="<?php echo htmlspecialchars($ord['producto_nombre']); ?>"
-                                                data-talla="<?php echo htmlspecialchars($ord['talla_nombre']); ?>"
-                                                data-orden="<?php echo htmlspecialchars($ord['numero_orden']); ?>"
-                                                data-cantidad="<?php echo htmlspecialchars($ord['cantidad_a_producir']); ?>">
-                                            <?php echo htmlspecialchars($ord['numero_orden'] . ' — ' . $ord['producto_nombre'] . ' (' . $ord['talla_nombre'] . ')'); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small class="text-muted" style="display: block; margin-top: 5px;">
-                                    <i class="fas fa-info-circle"></i> Seleccione la orden de producción a la cual pertenece el producto devuelto.
-                                </small>
+                                <ul class="nav nav-tabs nav-justified devolucion-tabs" role="tablist">
+                                    <li role="presentation" class="active" id="tabItemVenta">
+                                        <a href="javascript:void(0);" id="tabBtnVenta" role="tab">
+                                             Devolución por Venta
+                                        </a>
+                                    </li>
+                                    <li role="presentation" id="tabItemOP">
+                                        <a href="javascript:void(0);" id="tabBtnOP" role="tab">
+                                             Devolución por Orden de Producción
+                                        </a>
+                                    </li>
+                                </ul>
+                                <input type="hidden" name="tipo_devolucion" id="inputTipoDevolucion" value="venta">
                             </div>
 
-                            <!-- Tarjeta Preview del Producto y Orden -->
-                            <div class="unit-preview-card" id="cardPreviewOrden">
+                            <!-- SECCIÓN ORIGEN: VENTA -->
+                            <div id="seccionDevolucionVenta">
+                                <div class="row">
+                                    <div class="col-sm-6">
+                                        <div class="form-group">
+                                            <label for="selectVentaDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
+                                                
+                                            Venta / Factura <span style="color: red;">*</span>
+                                            </label>
+                                            <select id="selectVentaDevolver" name="venta_id" class="form-control" style="width: 100%;">
+                                                <option value="">-- Buscar por Factura (ej. FACT-0001) o Fecha --</option>
+                                                <?php foreach ($ventas as $vnt): ?>
+                                                    <option value="<?php echo $vnt['id']; ?>"
+                                                            data-factura="<?php echo htmlspecialchars($vnt['numero_factura']); ?>"
+                                                            data-fecha="<?php echo htmlspecialchars($vnt['fecha']); ?>"
+                                                            data-total="<?php echo htmlspecialchars($vnt['total']); ?>">
+                                                        <?php echo htmlspecialchars($vnt['numero_factura'] . ' [' . date('d/m/Y', strtotime($vnt['fecha'])) . ' - $' . number_format((float)$vnt['total'], 2) . ']'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <small class="text-muted" style="display: block; margin-top: 5px;">
+                                                <i class="fas fa-info-circle"></i> Seleccione la venta correspondiente a los productos que se devolverán.
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <div class="form-group">
+                                            <label for="selectProductoVenta" style="font-weight: bold; color: #1e293b; font-size: 14px;">
+                                            Producto de la Venta a Devolver <span style="color: red;">*</span>
+                                            </label>
+                                            <select id="selectProductoVenta" name="detalle_venta_id" class="form-control" style="width: 100%;" disabled>
+                                                <option value="">-- Primero seleccione una venta --</option>
+                                            </select>
+                                            <small class="text-muted" style="display: block; margin-top: 5px;" id="helpSelectProdVenta">
+                                                <i class="fas fa-info-circle"></i> Elija el artículo específico vendido que se devolverá.
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- SECCIÓN ORIGEN: ORDEN DE PRODUCCIÓN -->
+                            <div id="seccionDevolucionOP" style="display: none;">
+                                <div class="form-group">
+                                    <label for="selectOrdenDevolver" style="font-weight: bold; color: #1e293b; font-size: 14px;">
+                                        <i class="fas fa-clipboard-list text-primary"></i> Orden de Producción <span style="color: red;">*</span>
+                                    </label>
+                                    <select id="selectOrdenDevolver" name="orden_produccion_id" class="form-control" style="width: 100%;">
+                                        <option value="">-- Buscar por número de orden (ej. 01-AGOST) o producto --</option>
+                                        <?php foreach ($ordenes as $ord): ?>
+                                            <option value="<?php echo $ord['id']; ?>"
+                                                    data-producto="<?php echo htmlspecialchars($ord['producto_nombre']); ?>"
+                                                    data-talla="<?php echo htmlspecialchars($ord['talla_nombre']); ?>"
+                                                    data-orden="<?php echo htmlspecialchars($ord['numero_orden']); ?>"
+                                                    data-cantidad="<?php echo htmlspecialchars($ord['cantidad_a_producir']); ?>"
+                                                    data-stock="<?php echo htmlspecialchars($ord['stock_inventario_fmt']); ?>"
+                                                    data-fecha="<?php echo htmlspecialchars($ord['creado_en']); ?>">
+                                                <?php echo htmlspecialchars($ord['numero_orden'] . ' — ' . $ord['producto_nombre'] . ' (' . $ord['talla_nombre'] . ') [Inventario: ' . $ord['stock_inventario_fmt'] . ' unds]'); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <small class="text-muted" style="display: block; margin-top: 5px;">
+                                        <i class="fas fa-info-circle"></i> Seleccione la orden de producción a la cual pertenece el producto devuelto.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- Tarjeta Preview del Producto y Documento Origen -->
+                            <div class="unit-preview-card" id="cardPreviewDevolucion">
                                 <div id="previewVacio" style="text-align: center; color: #64748b; padding: 15px;">
                                     <i class="fas fa-box-open fa-2x" style="margin-bottom: 8px; color: #94a3b8;"></i>
-                                    <div>Seleccione una orden de producción para ver los datos asociados.</div>
+                                    <div id="previewVacioTexto">Seleccione una venta y su producto (o una orden de producción) para ver los datos asociados.</div>
                                 </div>
 
                                 <div id="previewContenido" style="display: none;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">
+                                    <!-- <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #cbd5e1; padding-bottom: 8px;">
                                         <div>
-                                            <span class="badge-code" id="prevOrdenNumero">01-AGOST-26</span>
+                                            <span class="badge-code" id="prevOrigenBadge">DOC-0001</span>
                                             <strong id="prevProductoNombre" style="margin-left: 8px; font-size: 15px; color: #0056b3;">Nombre Producto</strong>
                                         </div>
                                         <div>
-                                            <span class="label label-info" id="prevCantTotalBadge">Total OP: --</span>
+                                            <span class="label label-info" id="prevBadgeTotal">Total: --</span>
                                         </div>
-                                    </div>
+                                    </div> -->
 
                                     <div class="info-pill-grid">
                                         <div class="info-pill-item">
                                             <small>Talla</small>
-                                            <span id="prevTalla">M</span>
+                                            <span id="prevTalla">Única</span>
                                         </div>
                                         <div class="info-pill-item">
-                                            <small>Cantidad Producida</small>
-                                            <span id="prevCantidadProducida">--</span>
+                                            <small id="prevPillCantLabel">Cantidad Vendida</small>
+                                            <span id="prevPillCantValor">--</span>
+                                        </div>
+                                        <div class="info-pill-item" id="prevPillDisponibleContainer">
+                                            <small>Disponible a Devolver</small>
+                                            <span id="prevDisponibleValor" style="color: #16a34a;">--</span>
                                         </div>
                                         <div class="info-pill-item">
-                                            <small>Fecha Creación</small>
-                                            <span id="prevFechaProd">--</span>
+                                            <small id="prevPillFechaLabel">Fecha Registro</small>
+                                            <span id="prevFechaDoc">--</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Cantidad a Devolver y Cliente -->
+                            <!-- Cantidad a Devolver -->
                             <div class="row">
                                 <div class="col-sm-6">
                                     <div class="form-group">
                                         <label style="font-weight: bold; color: #1e293b;">Cantidad a Devolver <span style="color: red;">*</span></label>
                                         <input type="number" step="1" min="1" id="inputCantidad" name="cantidad" class="form-control" value="1" required>
-                                        <small class="text-muted">Número de unidades devueltas que reingresarán al inventario.</small>
-                                    </div>
-                                </div>
-                                <div class="col-sm-6">
-                                    <div class="form-group">
-                                        <label>Cliente (Opcional)</label>
-                                        <select id="inputClienteId" name="cliente_id" class="form-control">
-                                            <option value="">-- Cliente no especificado / Anónimo --</option>
-                                            <?php foreach ($clientes as $cl): ?>
-                                                <option value="<?php echo $cl['id']; ?>">
-                                                    <?php echo htmlspecialchars($cl['nombre'] . ($cl['numero_documento'] ? ' (' . $cl['numero_documento'] . ')' : '')); ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                        <small class="text-muted" id="helpCantidadTexto">Número de unidades devueltas que reingresarán al inventario.</small>
                                     </div>
                                 </div>
                             </div>
@@ -373,11 +497,6 @@ if ($resOrdenes) {
                             <div class="form-group">
                                 <label style="font-weight: bold;">Motivo de la Devolución <span style="color: red;">*</span></label>
                                 <textarea id="inputMotivo" name="motivo" class="form-control" rows="3" placeholder="Escriba aquí el motivo o razón por la cual se devuelve el producto..." required></textarea>
-                            </div>
-
-                            <!-- ACCIÓN EN EL INVENTARIO: EVALUACIÓN DIRECTA -->
-                            <div class="alert alert-info" style="margin-top: 15px; margin-bottom: 15px; font-size: 13px; background-color: #eff6ff; border-color: #bfdbfe; color: #1e40af;">
-                                <i class="fas fa-info-circle"></i> <strong>Inspección de Devolución:</strong> Al registrar la devolución quedará en estado <em>Pendiente de Inspección</em>. Desde la tabla de devoluciones podrá validar si el producto está en <strong>Buen Estado</strong> (para reingresarlo al stock) o <strong>Rechazarlo</strong>.
                             </div>
 
                             <div class="form-group">
@@ -425,13 +544,9 @@ if ($resOrdenes) {
                 </div>
 
                 <div class="row" style="margin-bottom: 15px;">
-                    <div class="col-xs-6 col-sm-6">
+                    <div class="col-xs-12 col-sm-12">
                         <small class="text-muted" style="display:block; font-weight:bold;">FECHA DE REGISTRO</small>
                         <strong id="detFecha">--</strong>
-                    </div>
-                    <div class="col-xs-6 col-sm-6">
-                        <small class="text-muted" style="display:block; font-weight:bold;">CLIENTE ASOCIADO</small>
-                        <strong id="detCliente">--</strong>
                     </div>
                 </div>
 
@@ -453,8 +568,12 @@ if ($resOrdenes) {
                             <span id="detCantidad" style="font-weight: bold; color: #0056b3; font-size: 15px;">--</span>
                         </div>
                         <div class="col-sm-6" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">ORDEN DE PRODUCCIÓN ORIGEN</small>
+                            <small class="text-muted" style="display:block;" id="detLabelOrigen">ORIGEN (ORDEN O VENTA)</small>
                             <span id="detOrden" style="font-weight: bold; color: #0056b3;">--</span>
+                        </div>
+                        <div class="col-sm-6" style="margin-bottom: 8px;">
+                            <small class="text-muted" style="display:block;">TIPO DE DEVOLUCIÓN</small>
+                            <span id="detTipoOrigenBadge">--</span>
                         </div>
                     </div>
                 </div>
@@ -490,6 +609,7 @@ if ($resOrdenes) {
 <script>
 $(document).ready(function() {
     let paginaActual = 1;
+    let tipoDevolucionActual = 'venta'; // 'venta' o 'orden_produccion'
 
     function formatearFecha(str) {
         if (!str) return '--';
@@ -541,18 +661,51 @@ $(document).ready(function() {
         }, 300);
     });
 
-    $('#filtroFechaDesde, #filtroFechaHasta').on('change', function() {
+    $('#filtroFechaDesde, #filtroFechaHasta, #filtroTipoOrigen').on('change', function() {
         paginaActual = 1;
         cargarDevoluciones();
     });
 
     $('#btnLimpiarFiltros').on('click', function() {
         $('#filtroBusqueda').val('');
+        $('#filtroTipoOrigen').val('');
         $('#filtroFechaDesde').val('');
         $('#filtroFechaHasta').val('');
         paginaActual = 1;
         cargarDevoluciones();
     });
+
+    // Conmutador de Tipo de Devolución por Pestañas (Tabs)
+    $('#tabBtnVenta').on('click', function(e) {
+        e.preventDefault();
+        setTipoDevolucion('venta');
+    });
+
+    $('#tabBtnOP').on('click', function(e) {
+        e.preventDefault();
+        setTipoDevolucion('orden_produccion');
+    });
+
+    function setTipoDevolucion(tipo) {
+        tipoDevolucionActual = tipo;
+        $('#inputTipoDevolucion').val(tipo);
+        if (tipo === 'venta') {
+            $('#tabItemVenta').addClass('active');
+            $('#tabItemOP').removeClass('active');
+            $('#seccionDevolucionVenta').show();
+            $('#seccionDevolucionOP').hide();
+            $('#helpCantidadTexto').text('Número de unidades devueltas (no puede exceder las unidades disponibles de la venta).');
+            $('#previewVacioTexto').text('Seleccione una venta y su producto para ver los datos asociados.');
+        } else {
+            $('#tabItemOP').addClass('active');
+            $('#tabItemVenta').removeClass('active');
+            $('#seccionDevolucionVenta').hide();
+            $('#seccionDevolucionOP').show();
+            $('#helpCantidadTexto').text('Número de unidades devueltas que reingresarán al inventario.');
+            $('#previewVacioTexto').text('Seleccione una orden de producción para ver los datos asociados.');
+        }
+        limpiarPreview();
+    }
 
     // Control de vistas (Listado / Crear)
     function mostrarVista(vista) {
@@ -573,6 +726,31 @@ $(document).ready(function() {
 
     $('#btn-volver-listado, #btn-cancelar-crear').on('click', function() {
         mostrarVista('listado');
+    });
+
+    // Inicializar Select2 en el selector de ventas
+    $('#selectVentaDevolver').select2({
+        placeholder: '-- Buscar por Factura (ej. FACT-0001) o Fecha --',
+        allowClear: true,
+        width: '100%',
+        ajax: {
+            url: 'devoluciones_data.php',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    action: 'buscar_ventas_select2',
+                    q: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.results || []
+                };
+            },
+            cache: true
+        },
+        minimumInputLength: 0
     });
 
     // Inicializar Select2 en el selector de órdenes
@@ -600,8 +778,137 @@ $(document).ready(function() {
         minimumInputLength: 0
     });
 
+    // Al seleccionar una venta en Select2
+    $('#selectVentaDevolver').on('select2:select change', function() {
+        const ventaId = $(this).val();
+        if (ventaId) {
+            cargarProductosDeVenta(ventaId);
+        } else {
+            limpiarProductosVenta();
+            limpiarPreview();
+        }
+    });
+
+    $('#selectVentaDevolver').on('select2:unselect', function() {
+        limpiarProductosVenta();
+        limpiarPreview();
+    });
+
+    function cargarProductosDeVenta(ventaId) {
+        $('#selectProductoVenta').prop('disabled', true).html('<option value="">Cargando productos de la venta...</option>');
+
+        $.ajax({
+            url: 'devoluciones_data.php',
+            type: 'GET',
+            data: { action: 'obtener_venta_info', venta_id: ventaId },
+            dataType: 'json',
+            success: function(res) {
+                if (res.success && res.venta) {
+                    const v = res.venta;
+
+                    const items = res.items || [];
+                    if (items.length === 0) {
+                        $('#selectProductoVenta').html('<option value="">No hay productos registrados en esta venta</option>');
+                        limpiarPreview();
+                        return;
+                    }
+
+                    let optionsHtml = '<option value="">-- Seleccione el producto a devolver --</option>';
+                    let itemSeleccionable = null;
+
+                    items.forEach(function(it) {
+                        const cantDisp = parseFloat(it.cantidad_disponible || 0);
+                        const disabledAttr = cantDisp <= 0 ? 'disabled' : '';
+                        const dispText = cantDisp <= 0 ? ' (Ya devuelto en su totalidad)' : ` (Disp. para devolver: ${cantDisp} unds)`;
+
+                        optionsHtml += `
+                            <option value="${it.detalle_venta_id}" 
+                                    data-producto="${it.producto_nombre}"
+                                    data-talla="${it.talla_nombre}"
+                                    data-vendida="${it.cantidad_vendida}"
+                                    data-disponible="${cantDisp}"
+                                    data-precio="${it.precio_unitario}"
+                                    data-factura="${v.numero_factura}"
+                                    data-fecha="${v.fecha}"
+                                    ${disabledAttr}>
+                                ${it.producto_nombre} (${it.talla_nombre}) — Vendidas: ${it.cantidad_vendida}${dispText}
+                            </option>
+                        `;
+
+                        if (cantDisp > 0 && !itemSeleccionable) {
+                            itemSeleccionable = it;
+                        }
+                    });
+
+                    $('#selectProductoVenta').html(optionsHtml).prop('disabled', false);
+
+                    // Si hay exactamente un artículo disponible, preseleccionarlo
+                    if (items.length === 1 && itemSeleccionable) {
+                        $('#selectProductoVenta').val(itemSeleccionable.detalle_venta_id).trigger('change');
+                    }
+                } else {
+                    limpiarProductosVenta();
+                    limpiarPreview();
+                    Swal.fire('Error', res.message || 'No se pudo obtener información de la venta.', 'error');
+                }
+            },
+            error: function() {
+                limpiarProductosVenta();
+                limpiarPreview();
+            }
+        });
+    }
+
+    function limpiarProductosVenta() {
+        $('#selectProductoVenta').html('<option value="">-- Primero seleccione una venta --</option>').prop('disabled', true);
+    }
+
+    // Al seleccionar producto específico de la venta
+    $('#selectProductoVenta').on('change', function() {
+        const detId = $(this).val();
+        if (!detId) {
+            limpiarPreview();
+            return;
+        }
+
+        const opt = $(this).find('option:selected');
+        const prodNombre = opt.data('producto');
+        const tallaNombre = opt.data('talla');
+        const cantVendida = parseFloat(opt.data('vendida') || 0);
+        const cantDisponible = parseFloat(opt.data('disponible') || 0);
+        const numFactura = opt.data('factura') || 'FACT';
+        const fechaVenta = opt.data('fecha');
+
+        if (cantDisponible <= 0) {
+            Swal.fire('Atención', 'Este producto ya ha sido devuelto en su totalidad para esta factura.', 'warning');
+            limpiarPreview();
+            return;
+        }
+
+        // Mostrar Preview de Venta
+        $('#prevOrigenBadge').html(`<i class="fas fa-shopping-cart"></i> ${numFactura}`);
+        $('#prevProductoNombre').text(prodNombre);
+        $('#prevBadgeTotal').text(`Vendidas: ${cantVendida}`);
+        $('#prevTalla').text(tallaNombre || 'Única');
+        $('#prevPillCantLabel').text('Cantidad Facturada');
+        $('#prevPillCantValor').text(`${cantVendida} unds`);
+        $('#prevPillDisponibleContainer').show();
+        $('#prevDisponibleValor').text(`${cantDisponible} unds`);
+        $('#prevPillFechaLabel').text('Fecha Venta');
+        $('#prevFechaDoc').text(formatearFecha(fechaVenta));
+
+        // Configurar límite del input cantidad
+        $('#inputCantidad').attr('max', cantDisponible).val(Math.min(1, cantDisponible));
+        $('#helpCantidadTexto').html(`Máximo <strong>${cantDisponible}</strong> unidad(es) disponibles para devolver de esta venta.`);
+
+        $('#previewVacio').hide();
+        $('#previewContenido').show();
+        $('#cardPreviewDevolucion').addClass('active');
+        $('#btnGuardarDevolucion').prop('disabled', false);
+    });
+
     // Al seleccionar una orden en Select2
-    $('#selectOrdenDevolver').on('select2:select change', function(e) {
+    $('#selectOrdenDevolver').on('select2:select change', function() {
         const ordenId = $(this).val();
         if (ordenId) {
             const data = $(this).select2('data')[0];
@@ -611,12 +918,12 @@ $(document).ready(function() {
                 obtenerInfoOrden(ordenId);
             }
         } else {
-            limpiarPreviewOrden();
+            limpiarPreview();
         }
     });
 
     $('#selectOrdenDevolver').on('select2:unselect', function() {
-        limpiarPreviewOrden();
+        limpiarPreview();
     });
 
     function obtenerInfoOrden(ordenId) {
@@ -629,63 +936,107 @@ $(document).ready(function() {
                 if (res.success && res.orden) {
                     mostrarPreviewOrden(res.orden);
                 } else {
-                    limpiarPreviewOrden();
+                    limpiarPreview();
                     Swal.fire('Error', res.message || 'No se pudo obtener información de la orden.', 'error');
                 }
             },
             error: function() {
-                limpiarPreviewOrden();
+                limpiarPreview();
             }
         });
     }
 
     function mostrarPreviewOrden(o) {
-        $('#prevOrdenNumero').text(o.numero_orden || ('OP #' + (o.id || '')));
+        $('#prevOrigenBadge').html(`<i class="fas fa-industry"></i> ${o.numero_orden || ('OP #' + o.id)}`);
         $('#prevProductoNombre').text(o.producto_nombre || 'Producto');
+        const stockTxt = o.stock_inventario_fmt ? `${o.stock_inventario_fmt} unds` : (o.stock_inventario !== undefined ? `${o.stock_inventario} unds` : '--');
+        $('#prevBadgeTotal').html(`Inventario: <strong>${stockTxt}</strong>`);
         $('#prevTalla').text(o.talla_nombre || 'Única');
-        $('#prevCantidadProducida').text((o.cantidad_a_producir || '--') + '');
-        $('#prevCantTotalBadge').text('Total OP: ' + (o.cantidad_a_producir || '--') + '');
-        $('#prevFechaProd').text(formatearFecha(o.creado_en));
+        $('#prevPillCantLabel').text('Cantidad Producida');
+        $('#prevPillCantValor').text(`${o.cantidad_a_producir || '--'} unds`);
+        $('#prevPillDisponibleContainer').show();
+        $('#prevPillDisponibleContainer small').text('En Inventario');
+        $('#prevDisponibleValor').text(stockTxt);
+        $('#prevPillFechaLabel').text('Fecha Creación');
+        $('#prevFechaDoc').text(formatearFecha(o.creado_en));
+
+        $('#inputCantidad').removeAttr('max');
+        $('#helpCantidadTexto').text('Número de unidades devueltas que reingresarán al inventario.');
 
         $('#previewVacio').hide();
         $('#previewContenido').show();
-        $('#cardPreviewOrden').addClass('active');
+        $('#cardPreviewDevolucion').addClass('active');
         $('#btnGuardarDevolucion').prop('disabled', false);
     }
 
-    function limpiarPreviewOrden() {
+    function limpiarPreview() {
         $('#previewContenido').hide();
         $('#previewVacio').show();
-        $('#cardPreviewOrden').removeClass('active');
+        $('#cardPreviewDevolucion').removeClass('active');
         $('#btnGuardarDevolucion').prop('disabled', true);
+        $('#inputCantidad').removeAttr('max');
     }
 
     function resetearFormularioDevolucion() {
         $('#formNuevaDevolucion')[0].reset();
+        $('#selectVentaDevolver').val(null).trigger('change');
         $('#selectOrdenDevolver').val(null).trigger('change');
-        $('#inputClienteId').val('');
+        limpiarProductosVenta();
         $('#inputCantidad').val('1');
-        limpiarPreviewOrden();
+        setTipoDevolucion('venta');
+        limpiarPreview();
     }
 
     // Guardar Devolución
     $('#formNuevaDevolucion').on('submit', function(e) {
         e.preventDefault();
-        const ordenId = $('#selectOrdenDevolver').val();
-        if (!ordenId) {
-            Swal.fire('Atención', 'Debe seleccionar una orden de producción.', 'warning');
-            return;
-        }
 
-        const cantidad = parseFloat($('#inputCantidad').val());
-        if (isNaN(cantidad) || cantidad <= 0) {
+        const postData = {
+            action: 'crear_devolucion',
+            tipo_devolucion: tipoDevolucionActual,
+            motivo: $.trim($('#inputMotivo').val()),
+            observaciones: $('#inputObservaciones').val(),
+            cantidad: parseFloat($('#inputCantidad').val())
+        };
+
+        if (isNaN(postData.cantidad) || postData.cantidad <= 0) {
             Swal.fire('Atención', 'Ingrese una cantidad válida mayor a 0.', 'warning');
             $('#inputCantidad').focus();
             return;
         }
 
-        const motivo = $.trim($('#inputMotivo').val());
-        if (!motivo) {
+        if (tipoDevolucionActual === 'venta') {
+            const ventaId = $('#selectVentaDevolver').val();
+            const detId = $('#selectProductoVenta').val();
+            if (!ventaId) {
+                Swal.fire('Atención', 'Debe seleccionar una venta o factura.', 'warning');
+                return;
+            }
+            if (!detId) {
+                Swal.fire('Atención', 'Debe seleccionar el producto de la venta a devolver.', 'warning');
+                return;
+            }
+
+            const maxDisp = parseFloat($('#inputCantidad').attr('max'));
+            if (!isNaN(maxDisp) && postData.cantidad > maxDisp) {
+                Swal.fire('Atención', `La cantidad a devolver (${postData.cantidad}) no puede exceder las unidades disponibles (${maxDisp}).`, 'warning');
+                $('#inputCantidad').focus();
+                return;
+            }
+
+            postData.venta_id = ventaId;
+            postData.detalle_venta_id = detId;
+
+        } else {
+            const ordenId = $('#selectOrdenDevolver').val();
+            if (!ordenId) {
+                Swal.fire('Atención', 'Debe seleccionar una orden de producción.', 'warning');
+                return;
+            }
+            postData.orden_produccion_id = ordenId;
+        }
+
+        if (!postData.motivo) {
             Swal.fire('Atención', 'Por favor escriba el motivo de la devolución.', 'warning');
             $('#inputMotivo').focus();
             return;
@@ -696,14 +1047,7 @@ $(document).ready(function() {
         $.ajax({
             url: 'devoluciones_data.php',
             type: 'POST',
-            data: {
-                action: 'crear_devolucion',
-                orden_produccion_id: ordenId,
-                cantidad: cantidad,
-                cliente_id: $('#inputClienteId').val(),
-                motivo: motivo,
-                observaciones: $('#inputObservaciones').val()
-            },
+            data: postData,
             dataType: 'json',
             success: function(res) {
                 $('#btnGuardarDevolucion').prop('disabled', false).html('<i class="fas fa-save"></i> Guardar Devolución');
@@ -738,6 +1082,7 @@ $(document).ready(function() {
             data: {
                 action: 'listar_devoluciones',
                 busqueda: $('#filtroBusqueda').val(),
+                tipo_origen: $('#filtroTipoOrigen').val(),
                 fecha_desde: $('#filtroFechaDesde').val(),
                 fecha_hasta: $('#filtroFechaHasta').val(),
                 page: paginaActual
@@ -762,7 +1107,7 @@ $(document).ready(function() {
                     <td colspan="9" style="text-align: center; padding: 40px 20px; color: #94a3b8;">
                         <i class="fas fa-box-open fa-3x" style="margin-bottom: 12px; color: #cbd5e1;"></i>
                         <div style="font-size: 15px; font-weight: bold; color: #64748b;">No se encontraron registros de devoluciones</div>
-                        <div style="font-size: 13px;">Utilice el botón "Registrar Devolución" para procesar el retorno de un producto.</div>
+                        <div style="font-size: 13px;">Utilice el botón "Registrar Devolución" para procesar el retorno de un producto de venta o de producción.</div>
                     </td>
                 </tr>
             `);
@@ -777,6 +1122,14 @@ $(document).ready(function() {
             const estado = d.estado || 'pendiente';
             const prodNombre = d.producto_nombre ? (d.producto_nombre + ' (' + (d.talla_nombre || 'Única') + ')') : 'Producto';
 
+            // Origen Badge (Venta vs OP)
+            let origenHtml = '';
+            if (d.tipo_origen === 'venta') {
+                origenHtml = `<span class="badge" style="background-color: #fef3c7; color: #92400e; border: 1px solid #fde68a; padding: 4px 8px; font-weight: 600;" title="Devolución de Venta"><i class="fas fa-shopping-cart"></i> ${d.numero_factura}</span>`;
+            } else {
+                origenHtml = `<span class="badge" style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 4px 8px; font-weight: 600;" title="Devolución de Orden de Producción"><i class="fas fa-industry"></i> ${d.numero_orden}</span>`;
+            }
+
             let estadoBadge = '';
             let accionesHtml = '';
 
@@ -789,14 +1142,17 @@ $(document).ready(function() {
                             data-producto="${prodNombre}" 
                             data-cantidad="${cantFormat}" 
                             title="Validar en Buen Estado y Reingresar al Stock" 
-                            style="margin-right: 3px; font-weight: 600; padding: 4px 8px;">
+                            style=
+                            "margin-right: 3px; font-weight: 600; padding: 4px 8px;">
                         <i class="fas fa-check"></i> Buen Estado
                     </button>
                     <button type="button" class="btn btn-sm btn-danger btn-rechazar-devolucion" 
                             data-id="${d.id}" 
                             data-codigo="${d.codigo_devolucion}" 
                             data-producto="${prodNombre}" 
-                            title="Rechazar Devolución (Sin reingreso a stock)" 
+                            data-cantidad="${cantFormat}" 
+                            data-tipo-origen="${d.tipo_origen}" 
+                            title="Rechazar Devolución" 
                             style="margin-right: 3px; font-weight: 600; padding: 4px 8px;">
                         <i class="fas fa-ban"></i> Rechazar
                     </button>
@@ -824,13 +1180,12 @@ $(document).ready(function() {
                 <tr>
                     <td><span class="badge-code">${d.codigo_devolucion}</span></td>
                     <td>${fechaFormat}</td>
-                    <td><span style="color: #0056b3; font-weight: bold;">${d.numero_orden || '-'}</span></td>
+                    <td>${origenHtml}</td>
                     <td>
                         <div><strong>${d.producto_nombre || '-'}</strong></div>
                         <small class="text-muted">Talla: ${d.talla_nombre || 'Única'}</small>
                     </td>
                     <td style="text-align: center;"><strong>${cantFormat}</strong> <small class="text-muted">unds</small></td>
-                    <td>${d.cliente_nombre ? d.cliente_nombre : '<span class="text-muted">Anónimo</span>'}</td>
                     <td><span title="${motivoTexto}" style="display: block; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${motivoTexto}</span></td>
                     <td>${estadoBadge}</td>
                     <td style="text-align: center; white-space: nowrap; width: 1%;">
@@ -852,12 +1207,12 @@ $(document).ready(function() {
         $('.btn-aprobar-devolucion').on('click', function() {
             const id = $(this).data('id');
             const codigo = $(this).data('codigo') || 'DEV';
-            const producto = $(this).data('producto') || 'material';
+            const producto = $(this).data('producto') || 'producto';
             const cantidad = $(this).data('cantidad') || 1;
 
             Swal.fire({
                 title: '¿Validar en Buen Estado?',
-                html: `¿Desea validar la devolución <b>${codigo}</b> (${cantidad} de <i>${producto}</i>) en <b>Buen Estado</b>?<br><br><small class="text-muted">El material reingresará inmediatamente al stock disponible del inventario.</small>`,
+                html: `¿Desea validar la devolución <b>${codigo}</b> (${cantidad} de <i>${producto}</i>) en <b>Buen Estado</b>?<br><br><small class="text-muted">El producto reingresará inmediatamente al stock disponible del inventario.</small>`,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#10b981',
@@ -868,7 +1223,7 @@ $(document).ready(function() {
                 if (result.isConfirmed) {
                     Swal.fire({
                         title: 'Procesando...',
-                        text: 'Reingresando material al inventario...',
+                        text: 'Reingresando producto al inventario...',
                         allowOutsideClick: false,
                         didOpen: () => { Swal.showLoading(); }
                     });
@@ -885,7 +1240,7 @@ $(document).ready(function() {
                             if (res.success) {
                                 Swal.fire({
                                     icon: 'success',
-                                    title: '¡Material Validado!',
+                                    title: '¡Producto Validado!',
                                     text: res.message
                                 });
                                 cargarDevoluciones();
@@ -906,15 +1261,24 @@ $(document).ready(function() {
             });
         });
 
-        // Event listener para Rechazar Devolución (sin pedir motivo extra)
+        // Event listener para Rechazar Devolución
         $('.btn-rechazar-devolucion').on('click', function() {
             const id = $(this).data('id');
             const codigo = $(this).data('codigo') || 'DEV';
-            const producto = $(this).data('producto') || 'material';
+            const producto = $(this).data('producto') || 'producto';
+            const cantidadRech = $(this).data('cantidad') || 1;
+            const tipoOrigenRech = $(this).data('tipo-origen') || '';
+
+            let mensajeRechazo = '';
+            if (tipoOrigenRech === 'orden_produccion') {
+                mensajeRechazo = `¿Está seguro de rechazar la devolución <b>${codigo}</b> (${cantidadRech} de <i>${producto}</i>)?<br><br><span class="text-danger" style="font-weight:600;"><i class="fas fa-exclamation-triangle"></i> Al rechazar una devolución de Orden de Producción, se restarán <b>${cantidadRech}</b> unidad(es) del inventario de producto terminado.</span>`;
+            } else {
+                mensajeRechazo = `¿Está seguro de rechazar la devolución <b>${codigo}</b> (${producto})?<br><br><small class="text-muted">El producto no ingresará al inventario y se marcará como descartado/rechazado.</small>`;
+            }
 
             Swal.fire({
                 title: '¿Rechazar Devolución?',
-                html: `¿Está seguro de rechazar la devolución <b>${codigo}</b> (${producto})?<br><br><small class="text-muted">El material no ingresará al inventario y se marcará como descartado/rechazado.</small>`,
+                html: mensajeRechazo,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
@@ -1014,11 +1378,20 @@ $(document).ready(function() {
 
                     $('#detCodigoDevolucion').text(d.codigo_devolucion);
                     $('#detFecha').text(formatearFechaHora(d.fecha));
-                    $('#detCliente').text(d.cliente_nombre ? (d.cliente_nombre + (d.cliente_documento ? ' (' + d.cliente_documento + ')' : '')) : 'Cliente no especificado');
                     $('#detProducto').text(d.producto_nombre || '--');
                     $('#detTalla').text(d.talla_nombre || 'Única');
                     $('#detCantidad').text(cant + '');
-                    $('#detOrden').text(d.numero_orden || ('OP #' + d.orden_produccion_id));
+
+                    if (d.tipo_origen === 'venta') {
+                        $('#detLabelOrigen').text('VENTA / FACTURA ORIGEN');
+                        $('#detOrden').html(`<span class="text-success"><i class="fas fa-shopping-cart"></i> ${d.numero_factura}</span>`);
+                        $('#detTipoOrigenBadge').html('<span class="label label-warning" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">Devolución de Venta</span>');
+                    } else {
+                        $('#detLabelOrigen').text('ORDEN DE PRODUCCIÓN ORIGEN');
+                        $('#detOrden').html(`<span class="text-primary"><i class="fas fa-industry"></i> ${d.numero_orden}</span>`);
+                        $('#detTipoOrigenBadge').html('<span class="label label-info" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">Devolución de Orden Prod.</span>');
+                    }
+
                     $('#detMotivo').text(d.motivo || '--');
 
                     if (estado === 'pendiente') {

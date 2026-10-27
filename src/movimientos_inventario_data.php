@@ -201,7 +201,11 @@ try {
                 LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
                 LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
                 LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                LEFT JOIN productos p ON p.id = rp.producto_id
+                LEFT JOIN productos p_op ON p_op.id = rp.producto_id
+                LEFT JOIN ventas v ON v.id = COALESCE(d.venta_id, dd.venta_id)
+                LEFT JOIN recetas r_v ON r_v.id = dd.receta_id
+                LEFT JOIN productos p_v ON p_v.id = r_v.producto_id
+                LEFT JOIN productos p_dd ON p_dd.id = dd.producto_id
             ";
             $total = (int) ($conn->query($countSql)->fetch_assoc()['c'] ?? 0);
             $pg = Pagination::fromInput($total, $_POST);
@@ -210,17 +214,25 @@ try {
                 SELECT d.id, d.codigo_devolucion, d.fecha, d.motivo, d.descripcion_motivo,
                        d.accion_inventario, COALESCE(d.estado, 'pendiente') AS estado,
                        d.fecha_inspeccion, d.usuario_inspeccion_id, d.motivo_inspeccion,
+                       COALESCE(d.tipo_origen, 'orden_produccion') AS tipo_origen,
                        c.id AS cliente_id, c.nombre AS cliente_nombre,
-                       dd.id AS detalle_id, dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
-                       p.id AS producto_id, p.nombre AS producto_nombre,
-                       COALESCE(t.nombre, 'Única') AS talla_nombre,
-                       op.creado_en AS orden_creado_en
+                       dd.id AS detalle_id, dd.orden_produccion_id, dd.venta_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+                       COALESCE(p_op.id, p_v.id, dd.producto_id) AS producto_id,
+                       COALESCE(p_op.nombre, p_v.nombre, p_dd.nombre, 'Producto') AS producto_nombre,
+                       COALESCE(t_op.nombre, rt_v.nombre_rango, 'Única') AS talla_nombre,
+                       op.creado_en AS orden_creado_en,
+                       v.numero_factura
                 FROM devoluciones d
                 LEFT JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
                 LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
                 LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                LEFT JOIN productos p ON p.id = rp.producto_id
-                LEFT JOIN tallas t ON t.id = op.talla_id
+                LEFT JOIN productos p_op ON p_op.id = rp.producto_id
+                LEFT JOIN tallas t_op ON t_op.id = op.talla_id
+                LEFT JOIN ventas v ON v.id = COALESCE(d.venta_id, dd.venta_id)
+                LEFT JOIN recetas r_v ON r_v.id = dd.receta_id
+                LEFT JOIN productos p_v ON p_v.id = r_v.producto_id
+                LEFT JOIN rangos_tallas rt_v ON rt_v.id = r_v.rango_tallas_id
+                LEFT JOIN productos p_dd ON p_dd.id = dd.producto_id
                 LEFT JOIN clientes c ON c.id = d.cliente_id
                 GROUP BY d.id
                 ORDER BY 
@@ -232,10 +244,14 @@ try {
             $devoluciones = [];
             if ($result) {
                 while ($row = $result->fetch_assoc()) {
-                    if (!empty($row['orden_produccion_id'])) {
-                        $row['numero_orden'] = numero_orden_produccion((int)$row['orden_produccion_id'], $row['orden_creado_en']);
+                    if ($row['tipo_origen'] === 'venta' || (!empty($row['venta_id']) && empty($row['orden_produccion_id']))) {
+                        $row['tipo_origen'] = 'venta';
+                        $row['numero_orden'] = !empty($row['numero_factura']) ? $row['numero_factura'] : ('Venta #' . ($row['venta_id'] ?? ''));
+                        $row['origen_etiqueta'] = 'Factura: ' . $row['numero_orden'];
                     } else {
-                        $row['numero_orden'] = '-';
+                        $row['tipo_origen'] = 'orden_produccion';
+                        $row['numero_orden'] = !empty($row['orden_produccion_id']) ? numero_orden_produccion((int)$row['orden_produccion_id'], $row['orden_creado_en']) : '-';
+                        $row['origen_etiqueta'] = 'OP: ' . $row['numero_orden'];
                     }
                     $devoluciones[] = $row;
                 }
@@ -728,19 +744,26 @@ try {
             $conn->begin_transaction();
             try {
                 $st = $conn->prepare("
-                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo,
-                           dd.id AS detalle_id, dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo, COALESCE(d.tipo_origen, 'orden_produccion') AS tipo_origen,
+                           dd.id AS detalle_id, dd.orden_produccion_id, dd.venta_id, dd.detalle_venta_id,
+                           dd.receta_id AS det_receta_id, dd.producto_id AS det_producto_id,
+                           COALESCE(dd.cantidad, 1.00) AS cantidad,
                            op.id AS op_id, op.creado_en AS orden_creado_en,
-                           p.id AS producto_id, p.nombre AS producto_nombre,
-                           COALESCE(r.id, 0) AS receta_id
+                           v.id AS v_id, v.numero_factura,
+                           COALESCE(p_op.id, p_v.id, dd.producto_id) AS producto_id,
+                           COALESCE(p_op.nombre, p_v.nombre, 'Producto') AS producto_nombre,
+                           COALESCE(dd.receta_id, r_op.id, r_v.id, 0) AS final_receta_id
                     FROM devoluciones d
                     INNER JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
-                    INNER JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
-                    INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                    INNER JOIN productos p ON p.id = rp.producto_id
-                    LEFT JOIN recetas r ON r.producto_id = rp.producto_id 
-                        AND r.rango_tallas_id = rp.rango_tallas_id 
-                        AND r.tipo_produccion_id = rp.tipo_produccion_id
+                    LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
+                    LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                    LEFT JOIN productos p_op ON p_op.id = rp.producto_id
+                    LEFT JOIN recetas r_op ON r_op.producto_id = rp.producto_id 
+                        AND r_op.rango_tallas_id = rp.rango_tallas_id 
+                        AND r_op.tipo_produccion_id = rp.tipo_produccion_id
+                    LEFT JOIN ventas v ON v.id = COALESCE(d.venta_id, dd.venta_id)
+                    LEFT JOIN recetas r_v ON r_v.id = dd.receta_id
+                    LEFT JOIN productos p_v ON p_v.id = r_v.producto_id
                     WHERE d.id = ? FOR UPDATE
                 ");
                 $st->bind_param('i', $devolucionId);
@@ -756,27 +779,33 @@ try {
                     throw new Exception('Esta devolución ya fue aprobada y reingresada al inventario.');
                 }
 
-                $recetaId = (int) $dev['receta_id'];
+                $recetaId = (int) $dev['final_receta_id'];
                 $cantidad = (float) $dev['cantidad'];
                 $codigoDev = $dev['codigo_devolucion'];
-                $numeroOrden = numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']);
                 $fechaActual = date('Y-m-d H:i:s');
 
+                if ($dev['tipo_origen'] === 'venta' || (!empty($dev['venta_id']) && empty($dev['orden_produccion_id']))) {
+                    $origenTexto = !empty($dev['numero_factura']) ? 'Factura ' . $dev['numero_factura'] : ('Venta #' . ($dev['venta_id'] ?? $dev['v_id']));
+                } else {
+                    $origenTexto = 'OP ' . (!empty($dev['op_id']) ? numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']) : '');
+                }
+
                 if ($recetaId <= 0) {
+                    $prodId = (int)$dev['producto_id'];
                     $stR = $conn->prepare("SELECT id FROM recetas WHERE producto_id = ? LIMIT 1");
-                    $stR->bind_param('i', $dev['producto_id']);
+                    $stR->bind_param('i', $prodId);
                     $stR->execute();
                     $rRow = $stR->get_result()->fetch_assoc();
                     $stR->close();
                     if ($rRow) {
                         $recetaId = (int)$rRow['id'];
                     } else {
-                        $conn->query("INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id) VALUES ({$dev['producto_id']}, 1, 1)");
+                        $conn->query("INSERT INTO recetas (producto_id, rango_tallas_id, tipo_produccion_id) VALUES ({$prodId}, 1, 1)");
                         $recetaId = (int)$conn->insert_id;
                     }
                 }
 
-                $obsInventario = "Reingreso por devolución {$codigoDev} ({$cantidad}  de OP {$numeroOrden} ({$dev['producto_nombre']}) - Validado en BUEN ESTADO.";
+                $obsInventario = "Reingreso por devolución {$codigoDev} ({$cantidad} unds) de {$origenTexto} ({$dev['producto_nombre']}) - Validado en BUEN ESTADO.";
                 if ($observacionesInspeccion !== '') {
                     $obsInventario .= " Obs: " . $observacionesInspeccion;
                 }
@@ -794,7 +823,7 @@ try {
                 $loteId = (int)($resEntrada['lote_id'] ?? 0);
                 $numeroLote = $resEntrada['numero_lote'] ?? '';
 
-                $motivoInspeccionFinal = $observacionesInspeccion !== '' ? $observacionesInspeccion : 'Bobina validada en buen estado para stock.';
+                $motivoInspeccionFinal = $observacionesInspeccion !== '' ? $observacionesInspeccion : 'Producto validado en buen estado para stock.';
                 $stUpd = $conn->prepare("
                     UPDATE devoluciones 
                     SET estado = 'aprobado', 
@@ -811,17 +840,18 @@ try {
                 $stUpdDet = $conn->prepare("
                     UPDATE devoluciones_detalle 
                     SET estado_unidad_posterior = 'devuelto_stock',
-                        lote_id = ?
+                        lote_id = ?,
+                        receta_id = ?
                     WHERE id = ?
                 ");
                 $detalleId = (int)$dev['detalle_id'];
-                $stUpdDet->bind_param('ii', $loteId, $detalleId);
+                $stUpdDet->bind_param('iii', $loteId, $recetaId, $detalleId);
                 $stUpdDet->execute();
                 $stUpdDet->close();
 
                 Auditoria::registrar(
                     $conn,
-                    "Inspección de devolución {$codigoDev}: VALIDADO EN BUEN ESTADO. Reingresaron {$cantidad} al inventario (Lote: {$numeroLote}) de la OP {$numeroOrden}.",
+                    "Inspección de devolución {$codigoDev}: VALIDADO EN BUEN ESTADO. Reingresaron {$cantidad} al inventario (Lote: {$numeroLote}) origen {$origenTexto}.",
                     'Movimientos inventario'
                 );
 
@@ -829,7 +859,7 @@ try {
 
                 echo json_encode([
                     'success' => true,
-                    'message' => "La bobina/material fue validada en BUEN ESTADO y reingresada exitosamente al inventario de stock.",
+                    'message' => "El producto fue validado en BUEN ESTADO y reingresado exitosamente al inventario de stock.",
                     'numero_lote' => $numeroLote
                 ]);
             } catch (Exception $e) {
@@ -854,15 +884,19 @@ try {
             $conn->begin_transaction();
             try {
                 $st = $conn->prepare("
-                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo,
-                           dd.id AS detalle_id, dd.orden_produccion_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
+                    SELECT d.id, d.codigo_devolucion, d.estado, d.motivo, COALESCE(d.tipo_origen, 'orden_produccion') AS tipo_origen,
+                           dd.id AS detalle_id, dd.orden_produccion_id, dd.venta_id, COALESCE(dd.cantidad, 1.00) AS cantidad,
                            op.id AS op_id, op.creado_en AS orden_creado_en,
-                           p.nombre AS producto_nombre
+                           v.id AS v_id, v.numero_factura,
+                           COALESCE(p_op.nombre, p_v.nombre, 'Producto') AS producto_nombre
                     FROM devoluciones d
                     INNER JOIN devoluciones_detalle dd ON dd.devolucion_id = d.id
-                    INNER JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
-                    INNER JOIN recetas_productos rp ON rp.id = op.receta_producto_id
-                    INNER JOIN productos p ON p.id = rp.producto_id
+                    LEFT JOIN ordenes_produccion op ON op.id = dd.orden_produccion_id
+                    LEFT JOIN recetas_productos rp ON rp.id = op.receta_producto_id
+                    LEFT JOIN productos p_op ON p_op.id = rp.producto_id
+                    LEFT JOIN ventas v ON v.id = COALESCE(d.venta_id, dd.venta_id)
+                    LEFT JOIN recetas r_v ON r_v.id = dd.receta_id
+                    LEFT JOIN productos p_v ON p_v.id = r_v.producto_id
                     WHERE d.id = ? FOR UPDATE
                 ");
                 $st->bind_param('i', $devolucionId);
@@ -880,10 +914,15 @@ try {
 
                 $codigoDev = $dev['codigo_devolucion'];
                 $cantidad = (float) $dev['cantidad'];
-                $numeroOrden = numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']);
                 $fechaActual = date('Y-m-d H:i:s');
                 if ($motivoRechazo === '') {
                     $motivoRechazo = !empty($dev['motivo']) ? $dev['motivo'] : 'Material rechazado / no conforme';
+                }
+
+                if ($dev['tipo_origen'] === 'venta' || (!empty($dev['venta_id']) && empty($dev['orden_produccion_id']))) {
+                    $origenTexto = !empty($dev['numero_factura']) ? 'Factura ' . $dev['numero_factura'] : ('Venta #' . ($dev['venta_id'] ?? $dev['v_id']));
+                } else {
+                    $origenTexto = 'OP ' . (!empty($dev['op_id']) ? numero_orden_produccion((int)$dev['op_id'], $dev['orden_creado_en']) : '');
                 }
 
                 $stUpd = $conn->prepare("
@@ -911,7 +950,7 @@ try {
 
                 Auditoria::registrar(
                     $conn,
-                    "Inspección de devolución {$codigoDev}: RECHAZADA Y DESCARTADA ({$cantidad} de OP {$numeroOrden}). Motivo: {$motivoRechazo}. No ingresó al inventario.",
+                    "Inspección de devolución {$codigoDev}: RECHAZADA Y DESCARTADA ({$cantidad} unds de {$origenTexto}). Motivo: {$motivoRechazo}. No ingresó al inventario.",
                     'Movimientos inventario'
                 );
 
@@ -919,7 +958,7 @@ try {
 
                 echo json_encode([
                     'success' => true,
-                    'message' => "La bobina/material fue marcada como RECHAZADA. No se sumará al inventario."
+                    'message' => "El producto fue marcado como RECHAZADO. No se sumará al inventario."
                 ]);
             } catch (Exception $e) {
                 $conn->rollback();
