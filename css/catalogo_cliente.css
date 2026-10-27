@@ -30,6 +30,36 @@ body {
     margin: 0 auto;
 }
 
+/* Integración con Navbar Lateral */
+body.has-navbar {
+    padding-left: 0;
+}
+
+body.has-navbar .container.main-content {
+    margin-left: 80px;
+    max-width: calc(100% - 100px);
+    width: auto;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.has-navbar.sidebar-open .container.main-content,
+body.has-navbar .sidebar.sidebar-expanded ~ .container.main-content {
+    margin-left: 240px !important;
+    max-width: calc(100% - 260px) !important;
+}
+
+@media (max-width: 850px) {
+    body.has-navbar .container.main-content {
+        margin-left: 70px;
+        max-width: calc(100% - 80px);
+    }
+    body.has-navbar.sidebar-open .container.main-content,
+    body.has-navbar .sidebar.sidebar-expanded ~ .container.main-content {
+        margin-left: 70px !important;
+        max-width: calc(100% - 80px) !important;
+    }
+}
+
 /* 2. Header Estilo "Card" */
 .header {
     background: #ffffff;
@@ -73,17 +103,16 @@ body {
 
 /* 4. Layout Principal */
 .main-layout {
-    display: flex;
-    gap: 25px;
-    align-items: flex-start;
-    margin-top: 10px;
+    width: 100%;
+    margin-top: 15px;
+    position: relative;
 }
 
 .products-grid {
-    flex: 2.5;
+    width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 20px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 22px;
 }
 
 .product-card {
@@ -176,8 +205,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.08);
     border-left: 4px solid #005bbe;
-    width: 67%;
-    /* Quitamos el width: 50% para que use el ancho de su nuevo padre */
+    width: 100%;
 }
 .dashboard-filtro label { 
     font-weight: 600; color: #333; margin-bottom: 4px; display: block; 
@@ -234,17 +262,185 @@ body {
      filter: brightness(1.05); 
 }
 
-/* 8. Sidebar del Pedido (Efecto Floating) */
+/* 8. Sidebar del Pedido (Offcanvas / Menú Lateral Deslizante) */
 .sidebar-pedido {
-    flex: 1;
-    min-width: 320px;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 390px;
+    max-width: 90vw;
+    height: 100vh;
     background: #ffffff;
-    border-radius: 15px;
-    padding: 25px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
-    border-left: 5px solid #005bbe;
-    position: sticky;
-    top: 20px;
+    box-shadow: -5px 0 35px rgba(0, 0, 0, 0.16);
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    transform: translateX(100%);
+    transition: transform 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+    border-radius: 0;
+    border-left: 4px solid #005bbe;
+}
+
+.sidebar-pedido.open {
+    transform: translateX(0);
+}
+
+.sidebar-pedido-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 22px;
+    border-bottom: 1px solid #eef2f6;
+    background: #ffffff;
+}
+
+.sidebar-pedido-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #1e293b;
+    font-weight: 700;
+}
+
+.btn-cerrar-pedido {
+    background: #f1f5f9;
+    border: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #64748b;
+    font-size: 16px;
+    transition: all 0.2s ease;
+}
+
+.btn-cerrar-pedido:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    transform: rotate(90deg);
+}
+
+.sidebar-pedido-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 18px 22px;
+}
+
+.cart-total-section {
+    padding: 18px 22px;
+    background: #f8fafc;
+    border-top: 1px solid #eef2f6;
+    margin-top: auto;
+}
+
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 18px;
+    font-weight: bold;
+    color: #1e293b;
+    margin-bottom: 12px;
+}
+
+/* Backdrop Overlay */
+.cart-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.cart-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Botón de Carrito en Header */
+.btn-cart-toggle {
+    position: relative;
+    background: #005bbe;
+    color: #ffffff;
+    border: none;
+    padding: 9px 18px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14.5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 3px 8px rgba(0, 91, 190, 0.25);
+}
+
+.btn-cart-toggle:hover {
+    background: #00448d;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 12px rgba(0, 91, 190, 0.35);
+}
+
+.cart-badge {
+    background: #ef4444;
+    color: #ffffff;
+    border-radius: 12px;
+    padding: 2px 7px;
+    font-size: 11.5px;
+    font-weight: 700;
+    min-width: 20px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+/* Botón flotante para móvil / scroll */
+.floating-cart-btn {
+    position: fixed;
+    bottom: 25px;
+    right: 25px;
+    background: #005bbe;
+    color: #ffffff;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: none;
+    box-shadow: 0 8px 25px rgba(0, 91, 190, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    z-index: 1030;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.floating-cart-btn:hover {
+    transform: scale(1.08) translateY(-3px);
+    background: #00448d;
+    box-shadow: 0 12px 30px rgba(0, 91, 190, 0.45);
+}
+
+.floating-cart-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: #ef4444;
+    color: #ffffff;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #ffffff;
 }
 
 .cart-item {
@@ -335,15 +531,16 @@ body {
 @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
 /* 11. Media Queries (Responsividad) */
-@media (max-width: 1100px) {
-    .products-grid { grid-template-columns: repeat(1, 1fr); }
+@media (max-width: 1200px) {
+    .products-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 850px) {
-    .main-layout { flex-direction: column; }
-    .sidebar-pedido { width: 100%; position: static; }
+    .products-grid { grid-template-columns: repeat(2, 1fr); }
+    .header { flex-wrap: wrap; gap: 15px; }
 }
 
 @media (max-width: 550px) {
     .products-grid { grid-template-columns: 1fr; }
+    .sidebar-pedido { width: 100%; max-width: 100vw; }
 }

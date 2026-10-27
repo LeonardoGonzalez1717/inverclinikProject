@@ -86,18 +86,27 @@ $total_filas = mysqli_num_rows($result);
     <link rel="stylesheet" href="../../assets/css/all.min.css">
     <link rel="stylesheet" href="../../assets/css/password-toggle.css" />
     <!-- <link rel="stylesheet" href="../../assets/css/bootstrap.css"> -->
-</head>
-<body>
-    <div class="container">
+<body class="has-navbar">
+    <?php include '../../template/navbar.php'; ?>
+    <div class="container main-content">
     <header class="header">
         <div class="logo">
            <a href="<?php echo $urlInicio; ?>"> <h1>INVERCLINIK</h1></a>
         </div>
         <h2 class="catalog-title">Catálogo de Productos</h2>
-        <div class="user-info">
-            Bienvenido, <strong><?php echo $nombreUsuario; ?></strong>
-            <?php if($isLoggedIn): ?>
-                <a href="../../logout.php" class="btn-logout">Cerrar Sesión</a>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div class="user-info">
+                Bienvenido, <strong><?php echo $nombreUsuario; ?></strong>
+                <?php if($isLoggedIn): ?>
+                    <a href="../../logout.php" class="btn-logout">Cerrar Sesión</a>
+                <?php endif; ?>
+            </div>
+            <?php if(!$isAdmin): ?>
+            <button type="button" class="btn-cart-toggle" id="btnCartToggle" onclick="toggleCarrito()" title="Ver Mi Pedido">
+                <i class="fas fa-shopping-cart"></i>
+                <span>Carrito</span>
+                <span class="cart-badge" id="cartBadgeCount">0</span>
+            </button>
             <?php endif; ?>
         </div>
     </header>
@@ -180,9 +189,17 @@ $total_filas = mysqli_num_rows($result);
                 <?php endif; ?>
             </div>    
             <?php if(!$isAdmin): ?>
-            <aside class="sidebar-pedido">
-                <h3>Mi Pedido</h3>
-                <div id="lista-pedido">
+            <aside class="sidebar-pedido" id="sidebarPedido">
+                <div class="sidebar-pedido-header">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-shopping-bag" style="color: #005bbe; font-size: 1.25rem;"></i>
+                        <h3 style="margin: 0; font-size: 1.2rem; color: #1e293b;">Mi Pedido</h3>
+                    </div>
+                    <button type="button" class="btn-cerrar-pedido" onclick="cerrarCarrito()" aria-label="Cerrar Pedido">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="lista-pedido" class="sidebar-pedido-body">
                     <p id="vacio-msg">Tu carrito está vacío</p>
                 </div>
                 <div class="cart-total-section">
@@ -201,7 +218,12 @@ $total_filas = mysqli_num_rows($result);
                     <?php endif; ?>
                 </div>
             </aside>
-        <?php endif; ?>    
+            <div class="cart-overlay" id="cartOverlay" onclick="cerrarCarrito()"></div>
+            <button type="button" class="floating-cart-btn" id="btnFloatingCart" onclick="toggleCarrito()" title="Ver Mi Pedido">
+                <i class="fas fa-shopping-cart"></i>
+                <span class="floating-cart-badge" id="floatingCartBadge">0</span>
+            </button>
+            <?php endif; ?>    
         </div>
     </div>
 
@@ -246,7 +268,39 @@ $total_filas = mysqli_num_rows($result);
         aplicarReglaDePrecios(); 
         actualizarVista();
         mostrarNotificacion("¡" + nombre + " añadido!");
+        abrirCarrito();
     }
+
+    function abrirCarrito() {
+        const sidebar = document.getElementById('sidebarPedido');
+        const overlay = document.getElementById('cartOverlay');
+        if (sidebar) sidebar.classList.add('open');
+        if (overlay) overlay.classList.add('open');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function cerrarCarrito() {
+        const sidebar = document.getElementById('sidebarPedido');
+        const overlay = document.getElementById('cartOverlay');
+        if (sidebar) sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+        document.body.style.overflow = '';
+    }
+
+    function toggleCarrito() {
+        const sidebar = document.getElementById('sidebarPedido');
+        if (sidebar && sidebar.classList.contains('open')) {
+            cerrarCarrito();
+        } else {
+            abrirCarrito();
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            cerrarCarrito();
+        }
+    });
 
     function quitarDelPedido(recetaId) {
         pedido = pedido.filter(item => item.recetaId !== recetaId);
@@ -269,6 +323,16 @@ $total_filas = mysqli_num_rows($result);
         const totalTxt = document.getElementById('total-pedido');
         listaContainer.innerHTML = "";
         let sumaTotal = 0;
+        let totalItems = 0;
+
+        pedido.forEach(item => {
+            totalItems += item.cantidad;
+        });
+
+        const badgeHeader = document.getElementById('cartBadgeCount');
+        const badgeFloating = document.getElementById('floatingCartBadge');
+        if (badgeHeader) badgeHeader.innerText = totalItems;
+        if (badgeFloating) badgeFloating.innerText = totalItems;
 
         if (pedido.length === 0) {
             listaContainer.innerHTML = '<p id="vacio-msg">Tu carrito está vacío</p>';
@@ -279,14 +343,14 @@ $total_filas = mysqli_num_rows($result);
         pedido.forEach(item => {
             sumaTotal += item.subtotal;
             listaContainer.innerHTML += `
-                <div class="cart-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:5px;">
-                    <div style="flex:1;">
-                        <h4 style="margin:0; font-size:0.85rem;">${item.nombre}</h4>
-                        <small>${item.cantidad} x $${item.precioUnit.toFixed(2)}</small>
+                <div class="cart-item" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">
+                    <div style="flex:1; padding-right:10px;">
+                        <h4 style="margin:0 0 3px 0; font-size:0.88rem; color:#1e293b; font-weight:600;">${item.nombre}</h4>
+                        <small style="color:#64748b;">${item.cantidad} x $${item.precioUnit.toFixed(2)}</small>
                     </div>
                     <div style="text-align:right; display:flex; align-items:center; gap:10px;">
-                        <strong>$${item.subtotal.toFixed(2)}</strong>
-                        <button onclick="quitarDelPedido(${item.recetaId})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:1.1rem;" title="Quitar">
+                        <strong style="color:#005bbe;">$${item.subtotal.toFixed(2)}</strong>
+                        <button onclick="quitarDelPedido(${item.recetaId})" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:1.15rem; padding:2px;" title="Quitar">
                             <i class="fas fa-times-circle"></i>
                         </button>
                     </div>

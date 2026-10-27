@@ -206,17 +206,45 @@ if ($resVentas) {
         }
 
         @media print {
+            body {
+                background: #fff !important;
+                margin: 0 !important;
+                padding: 10px !important;
+            }
             body * {
                 visibility: hidden;
             }
             #printableComprobante, #printableComprobante * {
-                visibility: visible;
+                visibility: visible !important;
             }
             #printableComprobante {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 15px !important;
+                background: #fff !important;
+            }
+            .modal, .modal-dialog, .modal-content {
+                position: static !important;
+                border: none !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            .modal-backdrop, .modal-header, .modal-footer {
+                display: none !important;
+            }
+            #printableComprobante table.table-bordered {
+                border: 1px solid #000 !important;
+            }
+            #printableComprobante table.table-bordered th,
+            #printableComprobante table.table-bordered td {
+                border: 1px solid #000 !important;
+                color: #000 !important;
+                background-color: transparent !important;
             }
         }
 
@@ -524,82 +552,98 @@ if ($resVentas) {
 
 <!-- Modal: Detalle / Comprobante de Devolución -->
 <div class="modal fade" id="modalDetalleDevolucion" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <div class="modal-header" style="background: #f8fafc; border-bottom: 1px solid #dee2e6;">
+            <div class="modal-header">
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
-                <h4 class="modal-title" style="font-weight: bold; color: #1e293b;">
-                    <i class="fas fa-file-invoice text-primary"></i> Detalle de Devolución
-                </h4>
+                <h4 class="modal-title">Detalle de Devolución</h4>
             </div>
             <div class="modal-body" id="printableComprobante">
-                <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
-                    <h3 style="margin: 0; color: #0056b3; font-weight: bold;">INVERCLINIK C.A.</h3>
-                    <div style="font-size: 14px; color: #64748b;">Comprobante de Devolución de Producto Terminado</div>
-                    <div style="margin-top: 8px;">
-                        <span class="badge-code" id="detCodigoDevolucion" style="font-size: 16px; padding: 4px 12px;">DEV-0001</span>
+                <!-- Encabezado para impresión directa -->
+                <div class="visible-print" style="text-align: center; margin-bottom: 15px;">
+                    <img src="../assets/img/brand.png" alt="Inverclinik C.A." style="max-height: 75px; width: auto; object-fit: contain;">
+                    <p style="margin: 2px 0 0 0; text-align: left; font-size: 11px; font-weight: bold;">RIF J-41173381-4</p>
+                    <div style="border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 5px 0; margin-top: 8px;">
+                        <strong style="font-size: 15px; text-transform: uppercase;">COMPROBANTE DE DEVOLUCIÓN</strong>
                     </div>
                 </div>
 
-                <div class="row" style="margin-bottom: 15px;">
-                    <div class="col-xs-12 col-sm-12">
-                        <small class="text-muted" style="display:block; font-weight:bold;">FECHA DE REGISTRO</small>
-                        <strong id="detFecha">--</strong>
+                <table class="table table-bordered" style="margin-bottom: 0;">
+                    <tbody>
+                        <tr>
+                            <th style="width: 35%; background-color: #f9f9f9;">Código</th>
+                            <td><strong id="detCodigoDevolucion">--</strong></td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Fecha</th>
+                            <td id="detFecha">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Tipo de Devolución</th>
+                            <td id="detTipoOrigenBadge">--</td>
+                        </tr>
+                        <tr>
+                            <th id="detLabelOrigen" style="background-color: #f9f9f9;">Origen</th>
+                            <td id="detOrden">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Producto</th>
+                            <td id="detProducto">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Talla</th>
+                            <td id="detTalla">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Cantidad</th>
+                            <td id="detCantidad">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Motivo</th>
+                            <td id="detMotivo">--</td>
+                        </tr>
+                        <tr>
+                            <th style="background-color: #f9f9f9;">Estado / Inventario</th>
+                            <td id="detEfectoInventario">--</td>
+                        </tr>
+                        <tr id="detContenedorObservaciones">
+                            <th style="background-color: #f9f9f9;">Observaciones</th>
+                            <td id="detObservaciones">--</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Firmas y pie para impresión directa -->
+                <div class="visible-print" style="margin-top: 45px;">
+                    <table style="width: 100%; border: none;">
+                        <tr>
+                            <td style="width: 45%; border: none; text-align: center;">
+                                <div style="border-top: 1px solid #000; padding-top: 5px; font-size: 12px;">
+                                    <strong>Entregado Por</strong><br>
+                                    Firma y Cédula
+                                </div>
+                            </td>
+                            <td style="width: 10%; border: none;"></td>
+                            <td style="width: 45%; border: none; text-align: center;">
+                                <div style="border-top: 1px solid #000; padding-top: 5px; font-size: 12px;">
+                                    <strong>Recibido / Control de Calidad</strong><br>
+                                    Inverclinik C.A.
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 35px; text-align: center; font-size: 10.5px; color: #555; border-top: 1px solid #ddd; padding-top: 8px;">
+                        <p style="margin: 2px 0;">Inverclinik C.A. | RIF J-41173381-4 | Calle Gradizco, Galpón Nro 1, San Pablo, Turmero, Estado Aragua</p>
                     </div>
-                </div>
-
-                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                    <h5 style="font-weight: bold; color: #334155; margin-top: 0; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
-                        <i class="fas fa-tshirt text-primary"></i> Información del Producto Devuelto
-                    </h5>
-                    <div class="row">
-                        <div class="col-sm-6" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">PRODUCTO</small>
-                            <span id="detProducto" style="font-weight: bold; font-size: 15px;">--</span>
-                        </div>
-                        <div class="col-sm-3" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">TALLA</small>
-                            <span id="detTalla" style="font-weight: bold;">--</span>
-                        </div>
-                        <div class="col-sm-3" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">CANTIDAD DEVUELTA</small>
-                            <span id="detCantidad" style="font-weight: bold; color: #0056b3; font-size: 15px;">--</span>
-                        </div>
-                        <div class="col-sm-6" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;" id="detLabelOrigen">ORIGEN (ORDEN O VENTA)</small>
-                            <span id="detOrden" style="font-weight: bold; color: #0056b3;">--</span>
-                        </div>
-                        <div class="col-sm-6" style="margin-bottom: 8px;">
-                            <small class="text-muted" style="display:block;">TIPO DE DEVOLUCIÓN</small>
-                            <span id="detTipoOrigenBadge">--</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <small class="text-muted" style="display:block; font-weight:bold;">MOTIVO DE LA DEVOLUCIÓN</small>
-                    <div id="detMotivo" style="background: #fff8e1; border: 1px solid #ffe082; padding: 12px; border-radius: 6px; font-size: 14px; color: #5d4037; font-weight: 600;">--</div>
-                </div>
-
-                <div class="form-group">
-                    <small class="text-muted" style="display:block; font-weight:bold;">ACCIÓN DE INVENTARIO APLICADA</small>
-                    <div style="background: #e8f5e9; border: 1px solid #c8e6c9; padding: 10px; border-radius: 6px; font-size: 13px; color: #2e7d32; font-weight: bold;">
-                        <i class="fas fa-check-circle"></i> <span id="detEfectoInventario">Reingreso al stock de producto terminado</span>
-                    </div>
-                </div>
-
-                <div class="form-group" id="detContenedorObservaciones">
-                    <small class="text-muted" style="display:block; font-weight:bold;">OBSERVACIONES INTERNAS</small>
-                    <div id="detObservaciones" style="background: white; border: 1px solid #e2e8f0; padding: 10px; border-radius: 6px; font-size: 13px;">--</div>
                 </div>
             </div>
-            <div class="modal-footer" style="background: #f8fafc;">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
-                <button type="button" class="btn btn-primary" onclick="window.print();">
-                    <i class="fas fa-print"></i> Imprimir Comprobante
-                </button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
+                <a href="#" target="_blank" class="btn btn-primary" id="btnImprimirModal">
+                    <i class="fas fa-print"></i> Imprimir Formato
+                </a>
             </div>
         </div>
     </div>
@@ -1159,6 +1203,9 @@ $(document).ready(function() {
                     <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <a href="../formatos/ver_devolucion.php?id=${d.id}" target="_blank" class="btn btn-sm btn-default" title="Imprimir Formato" style="padding: 4px 8px; margin-left: 2px;">
+                        <i class="fas fa-print"></i>
+                    </a>
                 `;
             } else if (estado === 'aprobado') {
                 estadoBadge = `<span class="label label-success" style="font-size: 11.5px; background-color: #10b981; color: white; padding: 4px 7px; border-radius: 4px;"><i class="fas fa-check-circle"></i> +${cantFormat} En Stock</span>`;
@@ -1166,6 +1213,9 @@ $(document).ready(function() {
                     <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <a href="../formatos/ver_devolucion.php?id=${d.id}" target="_blank" class="btn btn-sm btn-default" title="Imprimir Formato" style="padding: 4px 8px; margin-left: 2px;">
+                        <i class="fas fa-print"></i>
+                    </a>
                 `;
             } else {
                 estadoBadge = `<span class="label label-danger" style="font-size: 11.5px; background-color: #ef4444; color: white; padding: 4px 7px; border-radius: 4px;"><i class="fas fa-ban"></i> Rechazado</span>`;
@@ -1173,6 +1223,9 @@ $(document).ready(function() {
                     <button type="button" class="btn btn-sm btn-info btnVerDetalleDevolucion" data-id="${d.id}" title="Ver Comprobante / Detalle" style="padding: 4px 8px;">
                         <i class="fas fa-eye"></i>
                     </button>
+                    <a href="../formatos/ver_devolucion.php?id=${d.id}" target="_blank" class="btn btn-sm btn-default" title="Imprimir Formato" style="padding: 4px 8px; margin-left: 2px;">
+                        <i class="fas fa-print"></i>
+                    </a>
                 `;
             }
 
@@ -1383,23 +1436,27 @@ $(document).ready(function() {
                     $('#detCantidad').text(cant + '');
 
                     if (d.tipo_origen === 'venta') {
-                        $('#detLabelOrigen').text('VENTA / FACTURA ORIGEN');
-                        $('#detOrden').html(`<span class="text-success"><i class="fas fa-shopping-cart"></i> ${d.numero_factura}</span>`);
-                        $('#detTipoOrigenBadge').html('<span class="label label-warning" style="background:#fef3c7; color:#92400e; border:1px solid #fde68a;">Devolución de Venta</span>');
+                        $('#detLabelOrigen').text('Factura / Venta');
+                        $('#detOrden').text(d.numero_factura || '--');
+                        $('#detTipoOrigenBadge').text('Devolución de Venta');
                     } else {
-                        $('#detLabelOrigen').text('ORDEN DE PRODUCCIÓN ORIGEN');
-                        $('#detOrden').html(`<span class="text-primary"><i class="fas fa-industry"></i> ${d.numero_orden}</span>`);
-                        $('#detTipoOrigenBadge').html('<span class="label label-info" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">Devolución de Orden Prod.</span>');
+                        $('#detLabelOrigen').text('Orden de Producción');
+                        $('#detOrden').text(d.numero_orden || '--');
+                        $('#detTipoOrigenBadge').text('Devolución de Orden de Producción');
                     }
 
                     $('#detMotivo').text(d.motivo || '--');
 
                     if (estado === 'pendiente') {
-                        $('#detEfectoInventario').html('<span class="text-warning"><i class="fas fa-clock"></i> Pendiente de Inspección en Material Rechazado</span>');
+                        $('#detEfectoInventario').text('Pendiente');
                     } else if (estado === 'aprobado') {
-                        $('#detEfectoInventario').html(`<span class="text-success"><i class="fas fa-check-circle"></i> +${cant} unidad(es) reingresada(s) al stock de producto terminado</span>`);
+                        $('#detEfectoInventario').text(`Aprobado (+${cant} reingresado al stock)`);
                     } else {
-                        $('#detEfectoInventario').html('<span class="text-danger"><i class="fas fa-ban"></i> Material Rechazado (Descartado sin reingreso a stock)</span>');
+                        if (d.tipo_origen === 'orden_produccion') {
+                            $('#detEfectoInventario').text(`Rechazado (-${cant} restado del stock)`);
+                        } else {
+                            $('#detEfectoInventario').text('Rechazado (Sin reingreso a stock)');
+                        }
                     }
 
                     if (d.observaciones) {
@@ -1409,6 +1466,7 @@ $(document).ready(function() {
                         $('#detContenedorObservaciones').hide();
                     }
 
+                    $('#btnImprimirModal').attr('href', '../formatos/ver_devolucion.php?id=' + d.id);
                     $('#modalDetalleDevolucion').modal('show');
                 } else {
                     Swal.fire('Error', res.message || 'No se pudo cargar el detalle de la devolución.', 'error');

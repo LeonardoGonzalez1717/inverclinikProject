@@ -6,6 +6,25 @@ $gerProd = ($role_id === 4);
 $gerCom = ($role_id === 5);
 $gerAdm = ($role_id === 6);
 $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
+
+if (!isset($navRoot)) {
+    $currentScript = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    if (strpos($currentScript, '/cliente/catalogo/') !== false) {
+        $navRoot = '../../';
+    } else {
+        $navRoot = '../';
+    }
+}
+
+if ($navRoot !== '../') {
+    ob_start(function($buffer) use ($navRoot) {
+        return str_replace(
+            ['href="../', 'src="../', 'href=\'../', 'location.href=\'../'],
+            ['href="' . $navRoot, 'src="' . $navRoot, 'href=\'' . $navRoot, 'location.href=\'' . $navRoot],
+            $buffer
+        );
+    });
+}
 ?>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 <link rel="stylesheet" href="../css/navbar.css" />
@@ -271,15 +290,30 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
                     </button>
                     <ul class="collapsible-content">
                         <li><a href="../cliente/catalogo/catalogo.php"><i class="fas fa-images"></i> <span>Ver Catálogo</span></a></li>
-                        <li><a href="../cliente/mis_presupuestos.php"><i class="fas fa-wallet"></i> <span>Mis Presupuestos</span></a></li>
+                        <li><a href="../cliente/mis_presupuestos.php"><i class="fas fa-wallet"></i> <span>Mis Solicitudes</span></a></li>
                         <li><a href="../cliente/mis_cotizaciones.php"><i class="fas fa-file-contract"></i> <span>Mis Cotizaciones</span></a></li>
                         <li><a href="../cliente/cuentas_por_pagar.php"><i class="fas fa-money-check-alt"></i> <span>Cuentas por pagar</span></a></li>
                     </ul>
                 </li>
             </ul>
         <?php } ?>
+
+        <?php if (empty($_SESSION['iduser']) && empty($_SESSION['id_cliente'])) { ?>
+            <ul>
+                <li class="collapsible open">
+                    <button class="collapsible-toggle" type="button">
+                        <i class="fas fa-store"></i> <span>Catálogo</span>
+                    </button>
+                    <ul class="collapsible-content">
+                        <li><a href="../cliente/catalogo/catalogo.php"><i class="fas fa-images"></i> <span>Ver Productos</span></a></li>
+                        <li><a href="../index.php"><i class="fas fa-sign-in-alt"></i> <span>Iniciar Sesión</span></a></li>
+                    </ul>
+                </li>
+            </ul>
+        <?php } ?>
     </nav>
 
+    <?php if (!empty($_SESSION['iduser']) || !empty($_SESSION['id_cliente'])) { ?>
     <div class="perfil">
         <ul>
             <li class="collapsible">
@@ -315,6 +349,13 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
             <i class="fas fa-sign-out-alt"></i> <span>Cerrar sesión</span>
         </button>
     </div>
+    <?php } else { ?>
+    <div class="perfil">
+        <button class="logout-btn" style="background:#005bbe; color:#fff;" onclick="window.location.href='../index.php'">
+            <i class="fas fa-sign-in-alt"></i> <span>Iniciar sesión</span>
+        </button>
+    </div>
+    <?php } ?>
 </aside>
 
 <script>
@@ -376,3 +417,8 @@ $tieneMenuGerencia = $gerProd || $gerCom || $gerAdm;
     });
   });
 </script>
+<?php
+if ($navRoot !== '../') {
+    ob_end_flush();
+}
+?>

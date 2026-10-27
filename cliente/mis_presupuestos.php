@@ -12,8 +12,8 @@ require_once '../template/header.php';
     <div class="main-content">
         <div class="container-wrapper">
             <div class="container-inner">
-                <h2 class="main-title">Mis presupuestos</h2>
-                <p class="text-muted">Presupuestos que generaste desde el catálogo de productos.</p>
+                <h2 class="main-title">Mis Solicitudes</h2>
+                <p class="text-muted">Solicitudes que generaste desde el catálogo de productos.</p>
                 <div id="contenedor-vistas">
                     <div id="vista-listado">
                         <h5 class="subtitle">Listado</h5>

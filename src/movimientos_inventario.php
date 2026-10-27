@@ -212,7 +212,7 @@ if ($resultRecetas) {
                                             <tr>
                                                 <th>#</th>
                                                 <th>Fecha</th>
-                                                <th>Código DEV</th>
+                                                <th>Nro devolucion</th>
                                                 <th>Orden de Prod.</th>
                                                 <th>Material / Producto</th>
                                                 <th style="text-align: right;">Cantidad</th>
